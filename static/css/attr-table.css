@@ -1,0 +1,254 @@
+/* Menu kebab da camada */
+.layer-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.15rem 0.35rem 0.25rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.layer-item--br {
+  gap: 0.4rem;
+}
+
+.layer-item label {
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-kebab {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.layer-kebab:hover,
+.layer-kebab.is-open {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text);
+}
+
+.layer-kebab-menu {
+  position: fixed;
+  z-index: 2000;
+  width: min(268px, calc(100vw - 16px));
+  padding: 0.55rem;
+  border-radius: 12px;
+  background: #121a2b;
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+.layer-kebab-menu[hidden] {
+  display: none !important;
+}
+
+.layer-kebab-menu__head {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  padding: 0.2rem 0.35rem 0.55rem;
+}
+
+.layer-kebab-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  text-align: left;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.55rem 0.45rem;
+}
+
+.layer-kebab-item:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.layer-kebab-item__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(20, 184, 166, 0.18);
+  color: #2dd4bf;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.layer-kebab-item__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.layer-kebab-item__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f3f6fb;
+}
+
+.layer-kebab-item__hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+/* Painel inferior — tabela de atributos */
+.attr-panel {
+  position: fixed;
+  left: var(--sidebar-w);
+  right: 0;
+  bottom: 0;
+  z-index: 1200;
+  height: min(42vh, 420px);
+  display: flex;
+  flex-direction: column;
+  background: #0c1220;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.attr-panel[hidden] {
+  display: none !important;
+}
+
+.attr-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+
+.attr-panel__titles h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.attr-panel__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.attr-panel__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.attr-panel__search {
+  width: min(240px, 36vw);
+  border: 1px solid var(--border);
+  background: #0f172a;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.attr-panel__count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #93c5fd;
+  background: #1e3a5f;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
+.attr-panel__body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+.attr-panel__scroll {
+  height: 100%;
+  overflow: auto;
+}
+
+.attr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.attr-table th,
+.attr-table td {
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid #1b263a;
+  text-align: left;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attr-table th {
+  position: sticky;
+  top: 0;
+  background: #121a2b;
+  color: var(--text-muted);
+  font-weight: 700;
+  z-index: 1;
+}
+
+.attr-table tbody tr {
+  cursor: pointer;
+  color: #e2e8f0;
+}
+
+.attr-table tbody tr:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.attr-table tbody tr.is-selected {
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.attr-table__empty {
+  padding: 1.25rem;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .attr-panel {
+    left: 0;
+    height: min(48vh, 460px);
+  }
+}
+
+@media (max-width: 560px) {
+  .layer-kebab-menu {
+    min-width: min(260px, calc(100vw - 24px));
+  }
+}

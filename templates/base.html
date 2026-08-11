@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a101c" />
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/css/variables.css?v=15" />
+  <link rel="stylesheet" href="/static/css/base.css?v=15" />
+  <link rel="stylesheet" href="/static/css/header.css?v=15" />
+  <link rel="stylesheet" href="/static/css/sidebar.css?v=18" />
+  <link rel="stylesheet" href="/static/css/map.css?v=25" />
+  <link rel="stylesheet" href="/static/css/components.css?v=15" />
+  <link rel="stylesheet" href="/static/css/br-shield.css?v=14" />
+  <link rel="stylesheet" href="/static/css/attr-table.css?v=15" />
+  <link rel="stylesheet" href="/static/css/hover-popup.css?v=18" />
+  <link rel="stylesheet" href="/static/css/login-modal.css?v=15" />
+  <link rel="stylesheet" href="/static/css/print-map.css?v=29" />
+  <link rel="stylesheet" href="/static/css/responsive.css?v=1" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  {% include "partials/header.html" %}
+
+  <div class="app-layout">
+    {% block sidebar %}{% endblock %}
+    {% block content %}{% endblock %}
+  </div>
+
+  {% block panels %}{% endblock %}
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="/static/js/config/api.js?v=1"></script>
+  <script src="/static/js/config/runtime.js?v=1"></script>
+  <script src="/static/js/config/layers.config.js?v=17"></script>
+  <script src="/static/js/modules/br-shield.js?v=15"></script>
+  <script src="/static/js/modules/hover-popup.js?v=24"></script>
+  <script src="/static/js/modules/auth.js?v=15"></script>
+  <script src="/static/js/core/map.js?v=23"></script>
+  <script src="/static/js/modules/sidebar.js?v=16"></script>
+  <script src="/static/js/modules/layers.js?v=19"></script>
+  <script src="/static/js/modules/legend.js?v=16"></script>
+  <script src="/static/js/modules/filters.js?v=17"></script>
+  <script src="/static/js/modules/attr-table.js?v=16"></script>
+  <script src="/static/js/modules/print-map.js?v=53"></script>
+  <script src="/static/js/app.js?v=18"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

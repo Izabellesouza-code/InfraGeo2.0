@@ -1,0 +1,90 @@
+/* Modal de login (upload SHP) */
+
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 8, 23, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.login-modal[hidden] {
+  display: none !important;
+}
+
+.login-modal__card {
+  width: min(380px, 100%);
+  background: #0f1724;
+  border: 1px solid #2a3a55;
+  border-radius: 14px;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.45);
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.login-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.login-modal__head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+  color: #f1f5f9;
+}
+
+.login-modal__hint {
+  margin: 0 0 0.9rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.login-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.login-modal__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #9aa8bf;
+}
+
+.login-modal__form input {
+  border: 1px solid #243049;
+  background: #0c1220;
+  color: #f3f6fb;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+}
+
+.login-modal__form input:focus {
+  outline: none;
+  border-color: rgba(20, 184, 166, 0.55);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}
+
+.login-modal__erro {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #fca5a5;
+}
+
+.login-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}

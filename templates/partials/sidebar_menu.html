@@ -1,0 +1,59 @@
+<section class="panel panel--menu" aria-labelledby="menu-title">
+  <h2 id="menu-title" class="panel__title">MENU</h2>
+
+  <div class="menu-grid" role="toolbar" aria-label="Ações do mapa">
+    <button type="button" class="menu-btn" id="btn-toggle-layers" data-action="toggle-layers">
+      <span class="menu-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 3v10" />
+          <path d="M8.5 7.5a5 5 0 1 0 7 0" />
+          <path d="M5 14.5c1.6 2.4 3.9 3.5 7 3.5s5.4-1.1 7-3.5" />
+        </svg>
+      </span>
+      <span class="menu-btn__label">Ligar/Desligar<br />camadas</span>
+    </button>
+
+    <button type="button" class="menu-btn" id="btn-fit-am" data-action="fit-amazonas">
+      <span class="menu-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 9V4h5" />
+          <path d="M20 9V4h-5" />
+          <path d="M4 15v5h5" />
+          <path d="M20 15v5h-5" />
+          <rect x="8" y="8" width="8" height="8" rx="1" />
+        </svg>
+      </span>
+      <span class="menu-btn__label">Enquadrar<br />Amazonas</span>
+    </button>
+
+    <button type="button" class="menu-btn" id="btn-upload-shp" data-action="upload-shp">
+      <span class="menu-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 16V4" />
+          <path d="M8 8l4-4 4 4" />
+          <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+        </svg>
+      </span>
+      <span class="menu-btn__label">Upload<br />SHP</span>
+    </button>
+
+    <input
+      type="file"
+      id="input-upload-shp"
+      accept=".zip,.shp,.shx,.dbf,.prj,.cpg"
+      multiple
+      hidden
+    />
+
+    <button type="button" class="menu-btn" id="btn-legendas" data-action="toggle-legend">
+      <span class="menu-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M5 7h14" />
+          <path d="M5 12h14" />
+          <path d="M5 17h10" />
+        </svg>
+      </span>
+      <span class="menu-btn__label">Legendas</span>
+    </button>
+  </div>
+</section>

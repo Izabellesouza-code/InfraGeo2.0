@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Estação Norte", "codigo": "EST-01" },
+      "geometry": { "type": "Point", "coordinates": [-47.88, -15.72] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Estação Sul", "codigo": "EST-02" },
+      "geometry": { "type": "Point", "coordinates": [-47.95, -15.85] }
+    }
+  ]
+}

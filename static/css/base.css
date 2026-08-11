@@ -1,0 +1,106 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg-app);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: minmax(0, var(--sidebar-w)) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - var(--header-h));
+  overflow: hidden;
+}
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.2rem;
+}
+
+.btn-link:hover {
+  color: var(--accent);
+}
+
+.btn-primary,
+.btn-ghost,
+.icon-btn {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary {
+  border: none;
+  background: var(--accent-2);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.65rem 0.9rem;
+}
+
+.btn-ghost {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.65rem 0.9rem;
+}
+
+.icon-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+}
+
+.empty-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 980px) {
+  /* layout mobile tratado em responsive.css (mapa full + drawer) */
+  .app-layout {
+    grid-template-columns: unset;
+    grid-template-rows: unset;
+  }
+}
+

@@ -1,0 +1,305 @@
+<aside
+  id="painel-filtros"
+  class="side-drawer"
+  hidden
+  aria-hidden="true"
+  aria-labelledby="filtros-title"
+>
+  <div class="side-drawer__header">
+    <h2 id="filtros-title">Filtros</h2>
+    <button type="button" class="icon-btn" id="btn-fechar-filtros" aria-label="Fechar filtros">×</button>
+  </div>
+
+  <form id="form-filtros" class="filters-form">
+    <label>
+      Buscar
+      <input type="search" id="filtro-busca" name="busca" placeholder="Nome da camada…" autocomplete="off" />
+    </label>
+
+    <label>
+      Grupo
+      <select id="filtro-grupo" name="grupo">
+        <option value="">Todos</option>
+      </select>
+    </label>
+
+    <label>
+      Camada
+      <select id="filtro-camada" name="camada">
+        <option value="">Todas do grupo</option>
+      </select>
+    </label>
+
+    <label class="filters-form__check">
+      <input type="checkbox" id="filtro-ligar" name="ligar" checked />
+      Adicionar camadas ao mapa
+    </label>
+
+    <div class="filters-form__actions">
+      <button type="submit" class="btn-primary">Aplicar</button>
+      <button type="reset" class="btn-ghost">Limpar</button>
+    </div>
+  </form>
+</aside>
+
+<aside
+  id="painel-legendas"
+  class="legend-panel"
+  hidden
+  aria-hidden="true"
+  aria-labelledby="legendas-title"
+>
+  <div class="legend-panel__header">
+    <h2 id="legendas-title">Legendas</h2>
+    <button type="button" class="icon-btn" id="btn-fechar-legendas" aria-label="Fechar legendas">×</button>
+  </div>
+  <div id="legend-content" class="legend-panel__body"></div>
+</aside>
+
+<div
+  id="modal-login"
+  class="login-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="login-title"
+>
+  <div class="login-modal__card">
+    <div class="login-modal__head">
+      <h2 id="login-title">Login para upload</h2>
+      <button type="button" class="icon-btn" id="btn-fechar-login" aria-label="Fechar">×</button>
+    </div>
+    <p class="login-modal__hint">
+      Use um usuário cadastrado no banco de dados para enviar shapefiles.
+    </p>
+    <form id="form-login" class="login-modal__form" autocomplete="on">
+      <label>
+        Usuário
+        <input id="login-usuario" name="username" type="text" autocomplete="username" required />
+      </label>
+      <label>
+        Senha
+        <input id="login-senha" name="password" type="password" autocomplete="current-password" required />
+      </label>
+      <p id="login-erro" class="login-modal__erro" hidden></p>
+      <div class="login-modal__actions">
+        <button type="button" class="btn-ghost" id="btn-cancelar-login">Cancelar</button>
+        <button type="submit" class="btn-primary">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div
+  id="modal-print-map"
+  class="print-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="print-map-heading"
+>
+  <div class="print-modal__card">
+    <div class="print-modal__head">
+      <h2 id="print-map-heading">Layout de impressão</h2>
+      <button type="button" class="icon-btn" id="btn-fechar-print" aria-label="Fechar">×</button>
+    </div>
+    <div class="print-modal__body">
+      <div class="print-proportions" id="print-proportions" role="group" aria-label="Proporções ideais">
+        <p class="print-proportions__label">Proporção do layout</p>
+        <div class="print-proportions__grid">
+          <button type="button" class="print-prop is-active" data-preset="a4-landscape" title="Ideal para impressão e PDF">
+            <span class="print-prop__ratio" aria-hidden="true"></span>
+            <span class="print-prop__name">A4 paisagem</span>
+            <span class="print-prop__meta">Impressão · PDF</span>
+          </button>
+          <button type="button" class="print-prop" data-preset="a4-portrait" title="Relatório vertical">
+            <span class="print-prop__ratio print-prop__ratio--portrait" aria-hidden="true"></span>
+            <span class="print-prop__name">A4 retrato</span>
+            <span class="print-prop__meta">Impressão · PDF</span>
+          </button>
+          <button type="button" class="print-prop" data-preset="a3-landscape" title="Poster / mural">
+            <span class="print-prop__ratio print-prop__ratio--wide" aria-hidden="true"></span>
+            <span class="print-prop__name">A3 paisagem</span>
+            <span class="print-prop__meta">Poster · PDF</span>
+          </button>
+          <button type="button" class="print-prop" data-preset="letter-landscape" title="Carta EUA">
+            <span class="print-prop__ratio" aria-hidden="true"></span>
+            <span class="print-prop__name">Carta</span>
+            <span class="print-prop__meta">Impressão</span>
+          </button>
+          <button type="button" class="print-prop" data-preset="wide-16x9" title="Apresentação / tela">
+            <span class="print-prop__ratio print-prop__ratio--16x9" aria-hidden="true"></span>
+            <span class="print-prop__name">16∶9</span>
+            <span class="print-prop__meta">PDF · baixar</span>
+          </button>
+          <button type="button" class="print-prop" data-preset="square-1x1" title="Quadrado para download">
+            <span class="print-prop__ratio print-prop__ratio--square" aria-hidden="true"></span>
+            <span class="print-prop__name">1∶1</span>
+            <span class="print-prop__meta">PNG · baixar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="print-frame" id="print-frame-toolbar" role="toolbar" aria-label="Enquadramento do mapa">
+        <p class="print-frame__label">Enquadramento</p>
+        <div class="print-frame__actions">
+          <button type="button" class="btn-ghost" id="btn-print-fit-feature" title="Enquadra a feição selecionada">
+            Enquadrar feição
+          </button>
+          <button type="button" class="btn-ghost" id="btn-print-fit-layer" title="Enquadra a(s) camada(s) ativa(s)">
+            Enquadrar camada
+          </button>
+          <button type="button" class="btn-ghost print-frame__zoom" id="btn-print-zoom-in" title="Zoom +">+</button>
+          <button type="button" class="btn-ghost print-frame__zoom" id="btn-print-zoom-out" title="Zoom −">−</button>
+          <button type="button" class="btn-primary" id="btn-print-adjust-map" title="Fecha o painel parcialmente para arrastar/zoom no mapa">
+            Mexer no mapa
+          </button>
+        </div>
+        <p class="print-frame__hint" id="print-frame-hint">
+          Clique em uma feição no mapa, enquadre, ou use “Mexer no mapa” para arrastar e dar zoom. Depois gere o layout.
+        </p>
+      </div>
+
+      <div class="print-modal__form">
+        <label class="print-modal__field print-modal__field--full">
+          Título do mapa
+          <input id="print-map-title" type="text" maxlength="80" placeholder="Ex.: Bueiros BR-319" />
+        </label>
+        <div class="print-modal__options">
+          <label class="print-modal__field">
+            Papel
+            <select id="print-paper-size">
+              <option value="a4" selected>A4 (210 × 297 mm)</option>
+              <option value="a3">A3 (297 × 420 mm)</option>
+              <option value="letter">Carta (216 × 279 mm)</option>
+              <option value="legal">Ofício (216 × 356 mm)</option>
+              <option value="wide16x9">16∶9 apresentação</option>
+              <option value="square">1∶1 quadrado</option>
+            </select>
+          </label>
+          <label class="print-modal__field">
+            Orientação
+            <select id="print-paper-orient">
+              <option value="landscape" selected>Paisagem</option>
+              <option value="portrait">Retrato</option>
+            </select>
+          </label>
+          <label class="print-modal__field">
+            Estilo
+            <select id="print-paper-style">
+              <option value="infrageo" selected>InfraGeo (verde)</option>
+              <option value="institucional">Institucional (azul)</option>
+              <option value="minimal">Minimalista</option>
+              <option value="tecnico">Técnico</option>
+            </select>
+          </label>
+          <label class="print-modal__field">
+            Formato
+            <select id="print-export-format">
+              <option value="png" selected>PNG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </label>
+        </div>
+        <div class="print-modal__form-actions">
+          <button type="button" class="btn-ghost" id="btn-print-preview" title="Abre um popup grande com a prévia do mapa">
+            Ver como está ficando
+          </button>
+          <button type="button" class="btn-primary" id="btn-print-gerar">Gerar layout</button>
+        </div>
+      </div>
+
+      <details class="print-edit" id="print-edit-panel">
+        <summary>Editar feições do mapa (cor, legenda, fontes)</summary>
+        <div class="print-edit__grid">
+          <label>
+            Título da legenda
+            <input id="print-legend-title" type="text" maxlength="40" value="LEGENDA" />
+          </label>
+          <label>
+            Nome na legenda
+            <input id="print-legend-label" type="text" maxlength="60" placeholder="Ex.: Bueiros BR-319" />
+          </label>
+          <label>
+            Cor da feição
+            <input id="print-feature-color" type="color" value="#14b8a6" />
+          </label>
+          <label>
+            Cor do contorno
+            <input id="print-feature-stroke" type="color" value="#0f766e" />
+          </label>
+          <label>
+            Tamanho da fonte
+            <select id="print-font-size">
+              <option value="sm">Pequena</option>
+              <option value="md" selected>Média</option>
+              <option value="lg">Grande</option>
+            </select>
+          </label>
+          <label>
+            Fonte tipográfica
+            <select id="print-font-family">
+              <option value="Manrope, Segoe UI, sans-serif" selected>Manrope (padrão)</option>
+              <option value="Georgia, 'Times New Roman', serif">Serif (clássica)</option>
+              <option value="'Courier New', Courier, monospace">Mono (técnica)</option>
+              <option value="Arial, Helvetica, sans-serif">Arial</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <p id="print-map-status" class="print-modal__status">
+        Exporta a visão atual / feição selecionada — escalas cartográficas reais (SIRGAS 2000).
+      </p>
+      <div class="print-modal__preview" id="print-map-preview">
+        <div
+          id="print-live-minimap"
+          class="print-live-minimap"
+          hidden
+          aria-label="Prévia ao vivo da visão do mapa"
+        ></div>
+        <canvas id="print-map-canvas" width="800" height="566" aria-label="Pré-visualização do mapa"></canvas>
+      </div>
+    </div>
+    <div class="print-modal__foot">
+      <button type="button" class="btn-ghost" id="btn-cancelar-print">Cancelar</button>
+      <button type="button" class="btn-ghost" id="btn-print-download-png" disabled>Baixar PNG</button>
+      <button type="button" class="btn-primary" id="btn-print-download" disabled>Baixar PDF / arquivo</button>
+    </div>
+  </div>
+</div>
+
+<div
+  class="print-preview-lightbox"
+  id="print-preview-lightbox"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="print-preview-lightbox-title"
+>
+  <div class="print-preview-lightbox__card">
+    <header class="print-preview-lightbox__head">
+      <div>
+        <h3 id="print-preview-lightbox-title">Prévia do layout</h3>
+        <p id="print-preview-lightbox-meta" class="print-preview-lightbox__meta"></p>
+      </div>
+      <button
+        type="button"
+        class="icon-btn"
+        id="btn-fechar-print-preview"
+        aria-label="Fechar prévia"
+      >
+        ✕
+      </button>
+    </header>
+    <div class="print-preview-lightbox__stage">
+      <canvas id="print-preview-lightbox-canvas" aria-label="Mapa de visualização do layout"></canvas>
+    </div>
+    <footer class="print-preview-lightbox__foot">
+      <button type="button" class="btn-ghost" id="btn-fechar-print-preview-2">Fechar</button>
+    </footer>
+  </div>
+</div>

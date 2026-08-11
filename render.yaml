@@ -1,0 +1,46 @@
+# Render Blueprint — API InfraGeo 2.0
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: infrageo-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_NAME
+        value: InfraGeo AM
+      - key: APP_VERSION
+        value: 2.0.0
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8000"
+      # PostGIS acessível pela internet (Neon / Supabase / Render Postgres+PostGIS / VPS)
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AUTH_BOOTSTRAP_USERNAME
+        value: admin
+      - key: AUTH_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: AUTH_BOOTSTRAP_EMAIL
+        value: admin@infrageo.local
+      - key: POSTGIS_SIMPLIFY_TOLERANCE
+        value: "0.00035"
+      - key: POSTGIS_GEOJSON_LIMIT
+        value: "0"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "50"
+      - key: UPLOAD_DIR
+        value: data/uploads
+      - key: EXPORT_DIR
+        value: data/exports

@@ -1,0 +1,45 @@
+<header class="app-header" role="banner">
+  <button
+    type="button"
+    class="app-header__menu"
+    id="btn-toggle-sidebar"
+    aria-label="Abrir menu de camadas"
+    aria-expanded="false"
+    aria-controls="sidebar-principal"
+  >
+    <span class="app-header__menu-bars" aria-hidden="true"></span>
+  </button>
+
+  <div class="app-header__brand">
+    <img
+      class="app-header__logo"
+      src="/static/img/logo-spu.svg"
+      alt="SPU"
+      width="40"
+      height="40"
+    />
+    <div class="app-header__titles">
+      <strong>InfraGeo AM</strong>
+      <span>Sistema de Informações Geográficas</span>
+    </div>
+  </div>
+
+  <div class="app-header__actions">
+    <button
+      type="button"
+      class="btn-link"
+      id="btn-exportar-mapa"
+    >
+      Exportar
+    </button>
+    <button
+      type="button"
+      class="btn-link"
+      id="btn-filtros"
+      aria-expanded="false"
+      aria-controls="painel-filtros"
+    >
+      Filtros
+    </button>
+  </div>
+</header>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}InfraGeo AM — Sistema de Informações Geográficas{% endblock %}
+
+{% block sidebar %}
+  {% include "partials/sidebar.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "partials/map_area.html" %}
+{% endblock %}
+
+{% block panels %}
+  {% include "partials/panels.html" %}
+  {% include "partials/attr_table.html" %}
+{% endblock %}

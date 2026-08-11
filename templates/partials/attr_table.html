@@ -1,0 +1,33 @@
+<aside
+  id="attr-table-panel"
+  class="attr-panel"
+  hidden
+  aria-hidden="true"
+  aria-labelledby="attr-panel-title"
+>
+  <div class="attr-panel__header">
+    <div class="attr-panel__titles">
+      <h2 id="attr-panel-title">Tabela de atributos</h2>
+      <p id="attr-panel-subtitle" class="attr-panel__subtitle">—</p>
+    </div>
+    <div class="attr-panel__tools">
+      <input
+        type="search"
+        id="attr-table-filter"
+        class="attr-panel__search"
+        placeholder="Filtrar registros…"
+        autocomplete="off"
+      />
+      <span id="attr-table-count" class="attr-panel__count">0</span>
+      <button type="button" class="icon-btn" id="btn-fechar-attr" aria-label="Fechar tabela">×</button>
+    </div>
+  </div>
+  <div class="attr-panel__body">
+    <div class="attr-panel__scroll">
+      <table id="attr-table" class="attr-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</aside>

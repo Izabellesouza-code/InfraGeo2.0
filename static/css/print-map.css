@@ -1,0 +1,637 @@
+/* Modal de layout de impressão / exportação PNG */
+
+.print-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 8, 23, 0.7);
+  backdrop-filter: blur(5px);
+}
+
+.print-modal[hidden] {
+  display: none !important;
+}
+
+.print-modal__card {
+  width: min(1040px, 100%);
+  max-height: min(94vh, 960px);
+  display: flex;
+  flex-direction: column;
+  background: #0f1724;
+  border: 1px solid #2a3a55;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.print-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.print-modal__head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+  color: #f1f5f9;
+}
+
+.print-modal__body {
+  padding: 1rem 1.1rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.print-proportions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.print-proportions__label {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #94a3b8;
+}
+
+.print-proportions__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.print-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #243049;
+  border-radius: 10px;
+  background: #0c1220;
+}
+
+.print-frame__label {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #94a3b8;
+}
+
+.print-frame__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.print-frame__actions .btn-ghost,
+.print-frame__actions .btn-primary {
+  font-size: 0.78rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.print-frame__zoom {
+  min-width: 2.1rem;
+  font-size: 1rem !important;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.print-frame__hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* Modo: mexer no mapa — painel lateral, mapa livre atrás */
+.print-modal.is-map-adjust {
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+}
+
+.print-modal.is-map-adjust .print-modal__card {
+  pointer-events: auto;
+  width: min(420px, 96vw);
+  max-height: 100vh;
+  height: 100%;
+  border-radius: 0;
+  border-right: none;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+}
+
+.print-modal.is-map-adjust .print-proportions,
+.print-modal.is-map-adjust .print-edit {
+  display: none;
+}
+
+.print-modal.is-map-adjust .print-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.print-modal.is-map-adjust .print-modal__options {
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.print-modal.is-map-adjust .print-modal__preview {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 180px;
+  max-height: min(36vh, 280px);
+  padding: 0.5rem;
+}
+
+.print-modal.is-map-adjust .print-modal__preview.is-live {
+  display: flex;
+}
+
+.print-modal.is-map-adjust .print-modal__preview.is-live #print-map-canvas {
+  display: none;
+}
+
+.print-live-minimap {
+  display: none;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--print-map-aspect, 1.45);
+  min-height: 140px;
+  max-height: min(34vh, 260px);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0c1220;
+  border: 1px solid #243049;
+}
+
+.print-modal.is-map-adjust .print-modal__preview.is-live .print-live-minimap {
+  display: block;
+}
+
+.print-live-minimap .leaflet-control-container {
+  display: none;
+}
+
+/* Quadro da área do mapa no layout de impressão (modo mexer no mapa) */
+.print-layout-frame {
+  position: absolute;
+  z-index: 450;
+  pointer-events: none;
+  border: 2px solid #2dd4bf;
+  border-radius: 2px;
+  box-shadow: 0 0 0 9999px rgba(2, 8, 23, 0.48);
+  box-sizing: border-box;
+}
+
+.print-layout-frame__label {
+  position: absolute;
+  top: -1.55rem;
+  left: 0;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #5eead4;
+  font: 650 0.7rem Manrope, Segoe UI, sans-serif;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.print-modal.is-map-adjust #btn-print-adjust-map {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.print-prop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.4rem;
+  border: 1px solid #243049;
+  border-radius: 10px;
+  background: #0c1220;
+  color: #e2e8f0;
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+}
+
+.print-prop:hover {
+  border-color: #5eead4;
+}
+
+.print-prop.is-active {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.35);
+  background: #101a2c;
+}
+
+.print-prop__ratio {
+  width: 36px;
+  height: 24px;
+  border: 2px solid #94a3b8;
+  border-radius: 3px;
+  background: #1e293b;
+}
+
+.print-prop.is-active .print-prop__ratio {
+  border-color: #5eead4;
+  background: #134e4a;
+}
+
+.print-prop__ratio--portrait {
+  width: 22px;
+  height: 32px;
+}
+
+.print-prop__ratio--wide,
+.print-prop__ratio--16x9 {
+  width: 40px;
+  height: 22px;
+}
+
+.print-prop__ratio--square {
+  width: 28px;
+  height: 28px;
+}
+
+.print-prop__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.print-prop__meta {
+  font-size: 0.62rem;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.print-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.print-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.print-modal__field--full {
+  width: 100%;
+}
+
+.print-modal__options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.print-modal__form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.print-modal__form-actions .btn-ghost,
+.print-modal__form-actions .btn-primary {
+  min-width: 140px;
+}
+
+.print-modal__form input,
+.print-modal__form select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #243049;
+  background: #0c1220;
+  color: #f3f6fb;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  min-width: 0;
+}
+
+.print-modal__form select {
+  cursor: pointer;
+}
+
+.print-edit {
+  border: 1px solid #243049;
+  border-radius: 10px;
+  background: #0c1220;
+  padding: 0.55rem 0.75rem;
+}
+
+.print-edit summary {
+  cursor: pointer;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 650;
+  list-style: none;
+}
+
+.print-edit summary::-webkit-details-marker {
+  display: none;
+}
+
+.print-edit summary::before {
+  content: "▸ ";
+  color: #5eead4;
+}
+
+.print-edit[open] summary::before {
+  content: "▾ ";
+}
+
+.print-edit__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.print-edit__grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.print-edit__grid input,
+.print-edit__grid select {
+  border: 1px solid #243049;
+  background: #0a101c;
+  color: #f3f6fb;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+
+.print-edit__grid input[type="color"] {
+  height: 36px;
+  padding: 0.2rem;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .print-edit__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .print-edit__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.print-modal__preview {
+  background: #1a2336;
+  border: 1px solid #243049;
+  border-radius: 12px;
+  padding: 0.75rem;
+  overflow: auto;
+  max-height: min(56vh, 540px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.print-modal__preview canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  background: #f8fafc;
+}
+
+.print-modal__preview.is-portrait canvas {
+  max-height: min(52vh, 500px);
+  width: auto;
+}
+
+/* Popup grande — Ver como está ficando */
+.print-preview-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(6, 10, 18, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.print-preview-lightbox[hidden] {
+  display: none !important;
+}
+
+.print-preview-lightbox__card {
+  width: min(96vw, 1280px);
+  height: min(94vh, 920px);
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.print-preview-lightbox__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  flex: 0 0 auto;
+}
+
+.print-preview-lightbox__head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.print-preview-lightbox__meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.print-preview-lightbox__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, #1a2336 0%, #121a2a 100%);
+}
+
+.print-preview-lightbox__stage canvas {
+  display: block;
+  max-width: 100%;
+  max-height: calc(94vh - 140px);
+  width: auto;
+  height: auto;
+  background: #f8fafc;
+  border-radius: 4px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+}
+
+.print-preview-lightbox__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .print-preview-lightbox {
+    padding: 0;
+  }
+
+  .print-preview-lightbox__card {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .print-preview-lightbox__stage canvas {
+    max-height: calc(100vh - 130px);
+  }
+}
+
+.print-modal__status {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.print-modal.is-generating .print-modal__status {
+  color: #5eead4;
+  font-weight: 650;
+}
+
+.print-modal.is-generating .print-modal__preview {
+  position: relative;
+  pointer-events: none;
+}
+
+.print-modal.is-generating .print-modal__preview::after {
+  content: "Gerando imagem…";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 36, 0.72);
+  color: #e2e8f0;
+  font: 650 15px Manrope, Segoe UI, sans-serif;
+  border-radius: 12px;
+  letter-spacing: 0.02em;
+}
+
+.print-modal.is-generating #btn-print-gerar {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.print-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+@media (max-width: 1100px) {
+  .print-modal__options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .print-proportions__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .print-modal.is-map-adjust .print-modal__card {
+    width: min(100vw, 420px);
+  }
+}
+
+@media (max-width: 560px) {
+  .print-proportions__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .print-modal__options {
+    grid-template-columns: 1fr;
+  }
+
+  .print-modal.is-map-adjust {
+    justify-content: stretch;
+  }
+
+  .print-modal.is-map-adjust .print-modal__card {
+    width: 100%;
+    max-height: 55vh;
+    height: auto;
+    align-self: flex-end;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .print-modal__form-actions {
+    flex-direction: column;
+  }
+
+  .print-modal__form-actions .btn-ghost,
+  .print-modal__form-actions .btn-primary {
+    width: 100%;
+  }
+
+  .print-modal__foot {
+    flex-wrap: wrap;
+  }
+
+  .print-modal__foot .btn-ghost,
+  .print-modal__foot .btn-primary {
+    flex: 1 1 auto;
+  }
+}

@@ -1,0 +1,95 @@
+/* Placa estilo rodovia federal BR (DNIT) */
+
+.br-shield {
+  --br-green: #0b6b3a;
+  --br-green-deep: #084d2a;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 36px;
+  min-width: 32px;
+  min-height: 36px;
+  flex-shrink: 0;
+  padding: 2px 3px;
+  border-radius: 8px;
+  background: linear-gradient(
+    180deg,
+    #0e7a43 0%,
+    var(--br-green) 55%,
+    var(--br-green-deep) 100%
+  );
+  border: 1.5px solid #f4f7f5;
+  box-shadow:
+    0 0 0 1px #0a5c33,
+    0 2px 6px rgba(2, 8, 23, 0.2);
+  color: #fff;
+  line-height: 1;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.br-shield__prefix {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.95;
+}
+
+.br-shield__num {
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Placas no mapa (Leaflet DivIcon) */
+.leaflet-div-icon.br-shield-map-wrap,
+.br-shield-map-wrap {
+  background: transparent !important;
+  border: 0 !important;
+  width: 36px !important;
+  height: 42px !important;
+  margin: 0 !important;
+}
+
+.br-shield--map {
+  width: 34px;
+  height: 40px;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(2, 8, 23, 0.45));
+}
+
+.br-shield--map .br-shield__prefix {
+  font-size: 8px;
+}
+
+.br-shield--map .br-shield__num {
+  font-size: 12px;
+}
+
+/* Mini placa na lista de camadas */
+.br-shield--sidebar {
+  width: 28px;
+  height: 32px;
+  border-radius: 7px;
+}
+
+.br-shield--sidebar .br-shield__prefix {
+  font-size: 7px;
+}
+
+.br-shield--sidebar .br-shield__num {
+  font-size: 10px;
+}
+
+.layer-item--br {
+  gap: 0.45rem;
+}
+
+.layer-item--br .br-shield {
+  margin-right: 0.1rem;
+}

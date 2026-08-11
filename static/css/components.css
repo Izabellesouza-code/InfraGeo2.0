@@ -1,0 +1,123 @@
+.side-drawer,
+.legend-panel {
+  position: fixed;
+  top: calc(var(--header-h) + 12px);
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100vh - var(--header-h) - 24px);
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  z-index: 1000;
+  padding: 0.9rem;
+}
+
+.side-drawer[hidden],
+.legend-panel[hidden] {
+  display: none !important;
+}
+
+.side-drawer__header,
+.legend-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.side-drawer__header h2,
+.legend-panel__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.filters-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.filters-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.filters-form input,
+.filters-form select {
+  border: 1px solid var(--border);
+  background: #0c1220;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.7rem;
+}
+
+.filters-form__check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.filters-form__check input {
+  accent-color: var(--accent);
+  width: auto;
+}
+
+.filters-form select {
+  max-width: 100%;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.filters-form__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.filters-form__actions .btn-primary,
+.filters-form__actions .btn-ghost {
+  flex: 1;
+}
+
+.legend-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.legend-group h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.28rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.legend-swatch {
+  width: 18px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.legend-swatch.is-point {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}

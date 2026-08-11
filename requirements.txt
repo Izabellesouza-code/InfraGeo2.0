@@ -1,0 +1,38 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+jinja2==3.1.5
+aiofiles==24.1.0
+
+# Database & ORM (PostGIS)
+sqlalchemy==2.0.36
+geoalchemy2==0.16.0
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+# Geospatial
+shapely==2.0.6
+pyproj==3.7.0
+geopandas==1.0.1
+fiona==1.10.1
+rasterio==1.4.3
+folium==0.19.2
+
+# Validation & config
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# Auth (opcional)
+passlib[bcrypt]==1.7.4
+bcrypt==5.0.0
+python-jose[cryptography]==3.3.0
+
+# Utils
+httpx==0.28.1
+numpy==2.2.1
+orjson==3.10.12
+
+# Testes
+pytest==8.3.4
