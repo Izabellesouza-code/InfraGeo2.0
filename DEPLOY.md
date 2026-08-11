@@ -70,21 +70,27 @@ No plano free o serviço **dorme** após inatividade; a 1ª requisição pode de
 
 ---
 
-## 4) Banco PostGIS
+## 4) Banco PostGIS no Supabase
 
-Opções comuns:
+1. Crie um projeto em [supabase.com](https://supabase.com)
+2. **Database → Extensions** → ative **postgis** (schema `extensions`)
+   - Ou rode o SQL em `supabase/migrations/001_enable_postgis.sql`
+3. **Connect** → copie a URI do **Session pooler** (porta 5432, IPv4)
+4. No `.env` / Render:
 
-- **Neon** / **Supabase** (habilite extensão `postgis`)
-- **Render PostgreSQL** + `CREATE EXTENSION postgis;`
-- VPS com Docker: `docker compose up -d` (arquivo deste repo)
-
-Depois rode (apontando `DATABASE_URL` para o banco da nuvem):
-
-```bash
-python scripts/init_db.py
+```env
+DATABASE_URL=postgresql+psycopg2://postgres.SEU_REF:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
 ```
 
-Importe/restaure as camadas SEPLAN se necessário.
+5. Inicialize tabelas + usuário admin:
+
+```bash
+python scripts/setup_supabase.py
+```
+
+6. Camadas SEPLAN: migre com `pg_dump`/`pg_restore` do servidor antigo **ou** use Upload SHP (schema `uploads`).
+
+> IP local (`192.168.x.x`) não funciona no Render/Vercel — use sempre o host `*.supabase.co` / `*.pooler.supabase.com`.
 
 ---
 
