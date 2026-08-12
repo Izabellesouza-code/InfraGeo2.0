@@ -5,22 +5,11 @@
 window.InfraGeoHoverPopup = (function () {
   "use strict";
 
-  const MAX_ROWS = 5;
   const HIDE_DELAY_MS = 140;
 
   const SKIP_KEYS = new Set([
-    "source",
-    "__source",
-    "fid",
     "geometry",
     "geom",
-    "shape_leng",
-    "shape_area",
-    "shape_len",
-    "shape_le_1",
-    "objectid",
-    "oid",
-    "gid",
   ]);
 
   const PRIMARY_KEYS = [
@@ -43,36 +32,6 @@ window.InfraGeoHoverPopup = (function () {
     "NOME_PCA",
     "id",
     "ID",
-  ];
-
-  const PREFERRED_KEYS = [
-    "latitude",
-    "lat",
-    "LAT",
-    "LATITUDE",
-    "longitude",
-    "lng",
-    "lon",
-    "LONG",
-    "LONGITUDE",
-    "name",
-    "nome",
-    "NOME",
-    "Name",
-    "nm_mun",
-    "NM_MUN",
-    "km",
-    "KM",
-    "vl_codigo",
-    "codigo",
-    "municipio",
-    "nm_municipio",
-    "contrato",
-    "CONTRATO",
-    "tipo",
-    "local",
-    "LOCAL",
-    "id",
   ];
 
   let el = null;
@@ -322,22 +281,9 @@ window.InfraGeoHoverPopup = (function () {
       .replace(/[^a-z0-9]+/g, "");
   }
 
-  function labelOf(key) {
-    const pretty = String(key || "")
-      .replace(/_/g, " ")
-      .replace(/([a-z])([A-Z])/g, "$1 $2")
-      .trim();
-    return pretty.toUpperCase();
-  }
-
   function formatValue(v) {
     if (v === null || v === undefined) return "";
-    if (typeof v === "number" && Number.isFinite(v)) {
-      return Math.abs(v) < 1000 ? String(v).replace(".", ",") : String(v);
-    }
-    const s = String(v).trim();
-    if (!s || /^<\w+[\s>]/.test(s)) return "";
-    return s;
+    return String(v);
   }
 
   function titleFromMeta(meta) {
@@ -385,9 +331,9 @@ window.InfraGeoHoverPopup = (function () {
   }
 
   function pickRows(props, feature, layer) {
-    const entries = Object.entries(props || {}).filter(([k, v]) => {
+    const entries = Object.entries(props || {}).filter(([k]) => {
       if (SKIP_KEYS.has(String(k).toLowerCase())) return false;
-      return !!formatValue(v);
+      return true;
     });
 
     const byNorm = new Map(entries.map((e) => [normKey(e[0]), e]));
@@ -395,35 +341,21 @@ window.InfraGeoHoverPopup = (function () {
     const used = new Set();
 
     const push = (key, value) => {
-      const fv = formatValue(value);
-      if (!fv || used.has(normKey(key))) return;
+      if (used.has(normKey(key))) return;
       used.add(normKey(key));
-      picked.push({ label: labelOf(key), value: fv });
+      picked.push({ label: String(key), value: formatValue(value) });
     };
 
-    // Lat/lng: propriedades ou geometria do ponto
+    // Lat/lng só se não existirem nas propriedades
     const latlng = getLatLng(feature, layer);
     const hasLat = byNorm.has("latitude") || byNorm.has("lat");
     const hasLon =
       byNorm.has("longitude") || byNorm.has("lng") || byNorm.has("lon") || byNorm.has("long");
-    if (latlng && !hasLat) push("LATITUDE", latlng.lat.toFixed(2).replace(".", ","));
-    if (latlng && !hasLon) push("LONGITUDE", latlng.lng.toFixed(2).replace(".", ","));
-
-    for (const pk of PREFERRED_KEYS) {
-      const hit =
-        byNorm.get(normKey(pk)) ||
-        entries.find(([k]) => {
-          const nk = normKey(k);
-          const want = normKey(pk);
-          return nk === want || nk.includes(want) || want.includes(nk);
-        });
-      if (hit) push(hit[0], hit[1]);
-      if (picked.length >= MAX_ROWS) return picked;
-    }
+    if (latlng && !hasLat) push("LATITUDE", String(latlng.lat));
+    if (latlng && !hasLon) push("LONGITUDE", String(latlng.lng));
 
     for (const [k, v] of entries) {
       push(k, v);
-      if (picked.length >= MAX_ROWS) break;
     }
     return picked;
   }

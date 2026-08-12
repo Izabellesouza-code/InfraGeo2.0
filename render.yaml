@@ -28,6 +28,8 @@ services:
         sync: false
       - key: CORS_ORIGIN_REGEX
         value: "https://.*\\.vercel\\.app$"
+      - key: FRONTEND_URL
+        sync: false
       - key: AUTH_BOOTSTRAP_USERNAME
         value: admin
       - key: AUTH_BOOTSTRAP_PASSWORD

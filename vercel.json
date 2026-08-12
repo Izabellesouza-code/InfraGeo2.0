@@ -1,9 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "pip install jinja2 && python scripts/build_frontend.py",
-  "outputDirectory": "frontend/dist",
   "framework": null,
+  "installCommand": "pip install jinja2",
+  "buildCommand": "python scripts/build_frontend.py",
+  "outputDirectory": "frontend/dist",
+  "env": {
+    "INFRA_GEO_API_URL": "https://infrageo2-0.onrender.com",
+    "APP_NAME": "InfraGeo AM"
+  },
   "headers": [
     {
       "source": "/static/(.*)",
@@ -11,5 +16,8 @@
         { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/((?!static/).*)", "destination": "/index.html" }
   ]
 }

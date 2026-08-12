@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     default_map_center_lon: float = -62.2159
     default_map_zoom: int = 5
 
-    postgis_simplify_tolerance: float = 0.00035
+    postgis_simplify_tolerance: float = 0.0
     postgis_geojson_limit: int = 0
 
     max_upload_size_mb: int = 50
@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     )
     # Previews e deploys Vercel (*.vercel.app)
     cors_origin_regex: str = r"https://.*\.vercel\.app$"
+    # URL do front na Vercel (produção). Se definida e DEBUG=false, / redireciona para lá.
+    frontend_url: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:

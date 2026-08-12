@@ -59,7 +59,7 @@ window.InfraGeoLayers = (function () {
       header.setAttribute("aria-expanded", String(isOpen));
       header.innerHTML = `
         <span class="layer-group__icon ${group.iconClass}" aria-hidden="true">${group.icon}</span>
-        <span class="layer-group__name">${group.name}</span>
+        <span class="layer-group__name" title="${group.name}">${group.name}</span>
         <span class="layer-group__chevron" aria-hidden="true">▶</span>
       `;
       header.addEventListener("click", () => {

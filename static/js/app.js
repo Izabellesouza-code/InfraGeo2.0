@@ -21,8 +21,10 @@
     } catch (err) {
       console.error("PostGIS catalog:", err);
       if (statusEl) {
+        const api = window.InfraGeoApi?.base?.() || "";
         statusEl.innerHTML =
-          '<p class="empty-hint">Sem conexão com o banco. Verifique DATABASE_URL / servidor PostGIS.</p>';
+          `<p class="empty-hint">Sem conexão com a API${api ? ` (${api})` : ""}. ` +
+          "No Render free a 1ª carga pode demorar ~1 min — atualize a página.</p>";
       }
       return null;
     }

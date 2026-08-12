@@ -148,7 +148,7 @@ window.InfraGeoAttrTable = (function () {
     features.forEach((f) => {
       Object.keys(f.props || {}).forEach((k) => keys.add(k));
     });
-    return Array.from(keys).slice(0, 24);
+    return Array.from(keys);
   }
 
   function filteredRows() {

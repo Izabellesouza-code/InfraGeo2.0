@@ -1,6 +1,6 @@
 /**
- * Responsividade do shell InfraGeo AM (tablet / celular).
- * Mapa em tela cheia; sidebar em gaveta com botão do header.
+ * Responsividade InfraGeo AM — celular, tablet, desktop e landscape.
+ * Mapa em tela cheia no mobile; sidebar em gaveta.
  */
 
 .sidebar-backdrop {
@@ -13,14 +13,15 @@
   border: 1px solid var(--border);
   background: #121a2b;
   color: var(--text);
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   cursor: pointer;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   padding: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .app-header__menu-bars {
@@ -35,6 +36,30 @@
 .app-header__menu[aria-expanded="true"] {
   border-color: rgba(61, 214, 198, 0.55);
   color: var(--accent);
+}
+
+/* —— Desktop intermediário —— */
+@media (min-width: 981px) and (max-width: 1280px) {
+  :root {
+    --sidebar-w: 280px;
+    --header-h: 60px;
+  }
+
+  .app-header {
+    padding: 0 0.85rem;
+  }
+
+  .app-header__titles strong {
+    font-size: 1rem;
+  }
+
+  .app-header__titles span {
+    font-size: 0.72rem;
+  }
+
+  .menu-btn {
+    min-height: 84px;
+  }
 }
 
 /* —— Tablet e abaixo —— */
@@ -54,8 +79,8 @@
 
   .app-header {
     height: var(--header-h);
-    padding: 0 0.65rem 0 0.55rem;
-    gap: 0.5rem;
+    padding: 0 0.55rem 0 0.45rem;
+    gap: 0.45rem;
   }
 
   .app-header__menu {
@@ -63,33 +88,38 @@
   }
 
   .app-header__brand {
-    gap: 0.5rem;
+    gap: 0.45rem;
     flex: 1;
     min-width: 0;
   }
 
   .app-header__logo {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 
   .app-header__titles strong {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
 
   .app-header__titles span {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
   }
 
   .app-header__actions {
-    gap: 0.25rem;
+    gap: 0.15rem;
     flex-shrink: 0;
   }
 
   .app-header__actions .btn-link {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.35rem;
-    white-space: nowrap;
+    font-size: 0.78rem;
+    padding: 0.45rem 0.4rem;
+    min-height: 40px;
+    border-radius: 8px;
+  }
+
+  .app-header__actions .btn-link:active {
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .app-layout {
@@ -112,14 +142,16 @@
     top: calc(var(--header-h) + var(--safe-top));
     left: var(--safe-left);
     bottom: var(--safe-bottom);
-    width: var(--sidebar-w);
-    max-width: calc(100vw - 48px);
+    width: min(340px, calc(100vw - 44px));
     z-index: 1300;
     transform: translateX(-105%);
     transition: transform 0.22s ease;
     box-shadow: 12px 0 36px rgba(2, 8, 23, 0.45);
     border-right: 1px solid var(--border);
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 0.75rem;
+    gap: 0.7rem;
   }
 
   body.sidebar-open .sidebar {
@@ -145,23 +177,65 @@
     display: block;
   }
 
+  .panel {
+    padding: 0.75rem;
+  }
+
+  .panel__title {
+    font-size: 0.68rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .menu-grid {
+    gap: 0.45rem;
+  }
+
   .menu-btn {
-    min-height: 78px;
+    min-height: 76px;
+    padding: 0.5rem 0.3rem;
+    gap: 0.35rem;
+  }
+
+  .menu-btn__icon {
+    width: 24px;
+    height: 24px;
   }
 
   .menu-btn__label {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
+    line-height: 1.2;
+  }
+
+  .layer-group__header {
+    padding: 0.65rem 0.45rem;
+    min-height: 44px;
+  }
+
+  .layer-item {
+    padding: 0.45rem 0.2rem;
+    font-size: 0.82rem;
+    min-height: 40px;
+  }
+
+  .layer-item input {
+    width: 16px;
+    height: 16px;
+  }
+
+  .active-layers {
+    max-height: min(28vh, 220px);
   }
 
   .coords-bar {
     left: max(10px, var(--safe-left));
     bottom: max(10px, var(--safe-bottom));
-    font-size: 0.7rem;
-    padding: 0.3rem 0.5rem;
-    max-width: calc(100% - 96px);
+    font-size: 0.68rem;
+    padding: 0.28rem 0.5rem;
+    max-width: calc(100% - 100px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    border-radius: 8px;
   }
 
   .leaflet-bottom.leaflet-right {
@@ -174,29 +248,44 @@
     left: max(8px, var(--safe-left));
   }
 
+  .leaflet-control-zoom a {
+    width: 34px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    font-size: 16px !important;
+  }
+
   .attr-panel {
     left: 0 !important;
     right: 0;
-    height: min(50dvh, 440px);
+    height: min(48dvh, 420px);
     padding-bottom: var(--safe-bottom);
     z-index: 1400;
+    border-radius: 14px 14px 0 0;
   }
 
   .attr-panel__header {
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.45rem;
     padding: 0.55rem 0.7rem;
+  }
+
+  .attr-panel__titles h2 {
+    font-size: 0.9rem;
   }
 
   .attr-panel__tools {
     width: 100%;
     justify-content: space-between;
+    gap: 0.4rem;
   }
 
   .attr-panel__search {
     flex: 1;
     width: auto;
     min-width: 0;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.6rem;
   }
 
   .side-drawer,
@@ -205,18 +294,46 @@
     right: max(8px, var(--safe-right));
     left: max(8px, var(--safe-left));
     width: auto;
+    max-width: none;
     max-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 16px);
     z-index: 1350;
+    padding: 0.8rem;
+    border-radius: 14px;
+  }
+
+  .legend-panel__header h2,
+  .side-drawer__header h2 {
+    font-size: 0.95rem;
+  }
+
+  .legend-panel__clear {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    min-height: 36px;
+  }
+
+  .legend-row {
+    font-size: 0.82rem;
+    margin: 0.35rem 0;
+    gap: 0.6rem;
   }
 
   .layer-filters {
     top: calc(var(--header-h) + var(--safe-top) + 8px);
+    left: max(8px, var(--safe-left));
+    right: max(8px, var(--safe-right));
+    width: auto;
+    transform: none;
     max-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 16px);
     z-index: 1350;
   }
 
   .feature-hover-popup {
     z-index: 1220;
+    right: max(10px, var(--safe-right));
+    bottom: max(52px, calc(10px + var(--safe-bottom)));
+    width: min(300px, calc(100vw - 20px));
+    max-height: min(48dvh, 380px);
   }
 
   body.sidebar-open .feature-hover-popup {
@@ -234,86 +351,214 @@
     width: 100%;
     max-width: 420px;
     margin: 0 auto;
+    border-radius: 16px;
   }
 
   .print-modal {
-    padding: max(0.5rem, var(--safe-top)) max(0.5rem, var(--safe-right))
-      max(0.5rem, var(--safe-bottom)) max(0.5rem, var(--safe-left));
+    padding: max(0.45rem, var(--safe-top)) max(0.45rem, var(--safe-right))
+      max(0.45rem, var(--safe-bottom)) max(0.45rem, var(--safe-left));
     align-items: stretch;
   }
 
   .print-modal__card {
     width: 100%;
     max-width: 100%;
-    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 1rem);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 0.9rem);
     overflow: auto;
     margin: auto;
+    border-radius: 14px;
+  }
+
+  .print-modal__head {
+    padding: 0.75rem 0.85rem;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0f1724;
+  }
+
+  .print-modal__head h2 {
+    font-size: 0.95rem;
   }
 
   .print-modal__preview {
-    max-height: min(42dvh, 360px);
+    max-height: min(40dvh, 340px);
+  }
+
+  .print-modal__options,
+  .print-edit__grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .filters-form__actions {
+    flex-wrap: wrap;
+  }
+
+  .filters-form__actions .btn-primary,
+  .filters-form__actions .btn-ghost {
+    min-height: 44px;
   }
 }
 
 /* —— Celular —— */
 @media (max-width: 560px) {
+  :root {
+    --header-h: 52px;
+  }
+
   .app-header__titles span {
     display: none;
   }
 
   .app-header__actions .btn-link {
-    font-size: 0.74rem;
-    padding: 0.35rem 0.25rem;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.3rem;
+  }
+
+  .sidebar {
+    width: min(100vw - 36px, 360px);
+    padding: 0.65rem;
   }
 
   .menu-grid {
-    gap: 0.4rem;
+    gap: 0.35rem;
   }
 
   .menu-btn {
-    min-height: 70px;
-    padding: 0.5rem 0.3rem;
+    min-height: 68px;
+    padding: 0.45rem 0.25rem;
+  }
+
+  .menu-btn__label {
+    font-size: 0.62rem;
+  }
+
+  .coords-bar {
+    font-size: 0.64rem;
+    bottom: max(8px, var(--safe-bottom));
+    max-width: calc(100% - 88px);
   }
 
   .attr-panel {
-    height: min(56dvh, 480px);
+    height: min(54dvh, 460px);
+  }
+
+  .attr-panel__subtitle {
+    font-size: 0.7rem;
   }
 
   .attr-table {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
   .attr-table th,
   .attr-table td {
     padding: 0.4rem 0.5rem;
-    max-width: 160px;
+    max-width: 140px;
   }
 
-  .print-modal__dialog,
-  .print-preview-lightbox {
-    /* fallback se classes existirem com padding grande */
-    max-width: 100%;
+  .feature-hover-popup {
+    left: max(8px, var(--safe-left));
+    right: max(8px, var(--safe-right));
+    width: auto;
+    bottom: max(44px, calc(8px + var(--safe-bottom)));
+    max-height: min(42dvh, 320px);
+  }
+
+  .feature-hover-popup__row {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .print-modal__options,
+  .print-edit__grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .print-modal__form-actions {
+    flex-direction: column;
+  }
+
+  .print-modal__form-actions .btn-ghost,
+  .print-modal__form-actions .btn-primary {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .layer-filters__grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .legend-swatch {
+    width: 20px;
+    height: 11px;
   }
 }
 
-/* —— Telas largas intermediárias —— */
-@media (min-width: 981px) and (max-width: 1200px) {
-  :root {
-    --sidebar-w: 290px;
-  }
-}
-
-/* Landscape phone: prioriza altura do mapa */
-@media (max-width: 980px) and (max-height: 480px) and (orientation: landscape) {
-  .sidebar {
-    width: min(280px, 70vw);
+/* —— Telas muito estreitas —— */
+@media (max-width: 380px) {
+  .app-header__actions .btn-link#btn-exportar-mapa {
+    display: none;
   }
 
-  .attr-panel {
-    height: min(62dvh, 280px);
+  .app-header__titles strong {
+    font-size: 0.85rem;
   }
 
   .menu-btn {
-    min-height: 56px;
+    min-height: 64px;
+  }
+}
+
+/* —— Landscape phone —— */
+@media (max-width: 980px) and (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --header-h: 48px;
+  }
+
+  .sidebar {
+    width: min(260px, 62vw);
+  }
+
+  .menu-btn {
+    min-height: 52px;
+  }
+
+  .menu-btn__label {
+    font-size: 0.58rem;
+  }
+
+  .attr-panel {
+    height: min(58dvh, 260px);
+  }
+
+  .feature-hover-popup {
+    max-height: min(55dvh, 240px);
+    width: min(280px, 46vw);
+  }
+
+  .side-drawer,
+  .legend-panel {
+    max-height: calc(100dvh - var(--header-h) - 12px);
+  }
+}
+
+/* —— Desktop grande —— */
+@media (min-width: 1440px) {
+  :root {
+    --sidebar-w: 340px;
+  }
+
+  .legend-panel,
+  .side-drawer {
+    width: min(360px, calc(100vw - 24px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .feature-hover-popup,
+  .app-header__menu {
+    transition: none !important;
   }
 }

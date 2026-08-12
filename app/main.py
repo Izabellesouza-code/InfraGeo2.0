@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -71,8 +71,12 @@ async def webgis_exception_handler(_request: Request, exc: WebGISException) -> J
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request) -> HTMLResponse:
-    """Interface principal do mapa (InfraGeo AM)."""
+async def home(request: Request):
+    """UI local em DEBUG; em produção redireciona para a Vercel (FRONTEND_URL)."""
+    frontend = (settings.frontend_url or "").strip().rstrip("/")
+    if frontend and not settings.debug:
+        return RedirectResponse(url=frontend, status_code=302)
+
     return templates.TemplateResponse(
         request,
         "pages/mapa.html",
