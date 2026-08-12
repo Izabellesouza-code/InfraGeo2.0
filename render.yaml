@@ -23,10 +23,9 @@ services:
         value: 0.0.0.0
       - key: PORT
         value: "8000"
-      # PostGIS acessível pela internet (Neon / Supabase / Render Postgres+PostGIS / VPS)
+      # PostGIS acessível pela internet (VPS / Neon / Render Postgres+PostGIS)
       - key: DATABASE_URL
-        sync: false
-      - key: CORS_ORIGINS
+        sync: false      - key: CORS_ORIGINS
         sync: false
       - key: AUTH_BOOTSTRAP_USERNAME
         value: admin

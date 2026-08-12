@@ -12,9 +12,9 @@ Navegador  →  Vercel (HTML/CSS/JS)  →  Render (FastAPI /api)  →  PostGIS
 |------|------|-----------------|
 | API | Render (Docker) | `app/`, `Dockerfile`, `render.yaml` |
 | UI | Vercel | `templates/`, `static/`, `vercel.json`, `scripts/build_frontend.py` |
-| Banco | Neon / Supabase / VPS com PostGIS | `DATABASE_URL` |
+| Banco | PostGIS (PostgreSQL) | `DATABASE_URL` |
 
-> O IP local (`192.168.x.x`) **não** funciona no Render. Use um PostGIS público.
+> O IP local (`192.168.x.x`) **não** funciona no Render. Use um PostGIS acessível pela internet (VPS, Neon, etc.).
 
 ---
 
@@ -70,27 +70,27 @@ No plano free o serviço **dorme** após inatividade; a 1ª requisição pode de
 
 ---
 
-## 4) Banco PostGIS no Supabase
+## 4) Banco PostGIS
 
-1. Crie um projeto em [supabase.com](https://supabase.com)
-2. **Database → Extensions** → ative **postgis** (schema `extensions`)
-   - Ou rode o SQL em `supabase/migrations/001_enable_postgis.sql`
-3. **Connect** → copie a URI do **Session pooler** (porta 5432, IPv4)
-4. No `.env` / Render:
+Opções:
+
+- VPS / servidor com PostgreSQL + PostGIS
+- Neon (ou outro Postgres na nuvem) com extensão `postgis`
+- Local: `docker compose up -d` (arquivo deste repo)
+
+No `.env` / Render:
 
 ```env
-DATABASE_URL=postgresql+psycopg2://postgres.SEU_REF:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+DATABASE_URL=postgresql+psycopg2://postgres:SENHA@HOST:5432/infrageo
 ```
 
-5. Inicialize tabelas + usuário admin:
+Inicialize tabelas + usuário admin:
 
 ```bash
-python scripts/setup_supabase.py
+python scripts/init_db.py
 ```
 
-6. Camadas SEPLAN: migre com `pg_dump`/`pg_restore` do servidor antigo **ou** use Upload SHP (schema `uploads`).
-
-> IP local (`192.168.x.x`) não funciona no Render/Vercel — use sempre o host `*.supabase.co` / `*.pooler.supabase.com`.
+Importe/restaure as camadas SEPLAN se necessário (ou use Upload SHP).
 
 ---
 

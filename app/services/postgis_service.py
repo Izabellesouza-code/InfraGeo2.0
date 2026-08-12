@@ -349,10 +349,7 @@ class PostGISService:
                         text(
                             "SELECT schema_name FROM information_schema.schemata "
                             "WHERE schema_name NOT IN "
-                            "('pg_catalog','information_schema','pg_toast','topology',"
-                            "'extensions','gis','auth','storage','realtime','graphql',"
-                            "'graphql_public','supabase_functions','vault','pgsodium',"
-                            "'cron','net') "
+                            "('pg_catalog','information_schema','pg_toast','topology') "
                             "ORDER BY 1"
                         )
                     )
@@ -380,11 +377,7 @@ class PostGISService:
               type AS geom_type,
               srid
             FROM geometry_columns
-            WHERE f_table_schema NOT IN (
-              'topology', 'public', 'extensions', 'gis',
-              'auth', 'storage', 'realtime', 'graphql', 'graphql_public',
-              'supabase_functions', 'vault', 'pgsodium', 'cron', 'net'
-            )
+            WHERE f_table_schema NOT IN ('topology', 'public')
             ORDER BY f_table_schema, f_table_name
             """
         )
