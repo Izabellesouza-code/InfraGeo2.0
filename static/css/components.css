@@ -24,7 +24,32 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.85rem;
+}
+
+.legend-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.legend-panel__clear {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: 650 0.72rem Manrope, Segoe UI, sans-serif;
+  letter-spacing: 0.02em;
+  padding: 0.28rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.legend-panel__clear:hover {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .side-drawer__header h2,

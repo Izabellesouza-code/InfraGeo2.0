@@ -60,6 +60,26 @@ window.InfraGeoLegend = (function () {
     if (closeBtn) {
       closeBtn.addEventListener("click", () => open(false));
     }
+
+    const clearBtn = document.getElementById("btn-limpar-legendas");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", async () => {
+        clearBtn.disabled = true;
+        try {
+          if (window.InfraGeoLayers?.clearAll) {
+            await window.InfraGeoLayers.clearAll();
+          }
+          // Desativa o botão "ligar todas" se estiver ativo
+          const toggleBtn = document.getElementById("btn-toggle-layers");
+          if (toggleBtn) toggleBtn.classList.remove("is-active");
+          refresh();
+        } catch (err) {
+          console.warn("limpar camadas", err);
+        } finally {
+          clearBtn.disabled = false;
+        }
+      });
+    }
   }
 
   return { init, open, toggle, refresh };
