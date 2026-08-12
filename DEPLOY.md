@@ -13,7 +13,7 @@ Navegador  →  Vercel (UI)  →  Render (FastAPI /api)  →  PostGIS
 1. [Vercel](https://vercel.com) → **Add New Project** → importe `InfraGeo2.0`
 2. Confirme:
    - **Framework:** Other
-   - **Install:** `pip install jinja2`
+   - **Install:** `uv pip install --system -r requirements-frontend.txt`
    - **Build:** `python scripts/build_frontend.py`
    - **Output:** `frontend/dist`
 3. Variável (já no `vercel.json`; pode sobrescrever no painel):
