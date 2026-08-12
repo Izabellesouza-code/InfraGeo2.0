@@ -50,8 +50,8 @@
 }
 
 .app-header__logo--spu {
-  max-width: min(92px, 18vw);
-  height: 26px;
+  max-width: min(118px, 22vw);
+  height: 34px;
 }
 
 .app-header__logo--dnit {
