@@ -58,3 +58,13 @@ def get_current_user(
     if not user or not user.is_active:
         raise WebGISException("Usuário não autorizado", status_code=401)
     return user
+
+
+def require_upload_user(user: User = Depends(get_current_user)) -> User:
+    """Exige usuário ativo com permissão de upload no PostgreSQL."""
+    if not auth_service.has_upload_permission(user):
+        raise WebGISException(
+            "Usuário sem permissão para upload de camadas",
+            status_code=403,
+        )
+    return user

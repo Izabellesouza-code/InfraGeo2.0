@@ -137,6 +137,21 @@ window.InfraGeoSidebar = (function () {
       if (!ev.matches) setOpen(false);
     });
 
+    let resizeTimer = null;
+    const onViewportChange = () => {
+      if (!isMobileLayout()) setOpen(false);
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        try {
+          window.InfraGeoMap?.getMap?.()?.invalidateSize?.({ animate: false });
+        } catch {
+          /* ignore */
+        }
+      }, 180);
+    };
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("orientationchange", onViewportChange);
+
     root.addEventListener("click", (ev) => {
       const btn = ev.target.closest("[data-action]");
       if (!btn) return;

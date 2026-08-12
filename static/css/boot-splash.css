@@ -1,0 +1,96 @@
+/**
+ * Splash de carregamento (logo + mensagem).
+ */
+.boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: #ffffff;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.boot-splash.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-splash__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.35rem;
+  width: min(560px, 92vw);
+  text-align: center;
+}
+
+.boot-splash__logo {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.boot-splash__msg {
+  margin: 0;
+  font-family: var(--font, "Manrope", "Segoe UI", sans-serif);
+  font-size: clamp(0.95rem, 2.6vw, 1.1rem);
+  font-weight: 600;
+  color: #1e3a5f;
+  letter-spacing: 0.01em;
+}
+
+.boot-splash__bar {
+  width: min(220px, 55vw);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(30, 58, 95, 0.12);
+  overflow: hidden;
+}
+
+.boot-splash__bar-fill {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1e3a5f, #2f7a3e, #1e3a5f);
+  background-size: 200% 100%;
+  animation: boot-splash-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes boot-splash-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (max-width: 560px) {
+  .boot-splash__inner {
+    gap: 1.1rem;
+  }
+
+  .boot-splash__logo {
+    max-width: 92vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash {
+    transition: none;
+  }
+
+  .boot-splash__bar-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.55;
+  }
+}

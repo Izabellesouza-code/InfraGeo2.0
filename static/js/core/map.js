@@ -94,13 +94,6 @@ window.InfraGeoMap = (function () {
       .layers(basemapControls, null, { position: "topright", collapsed: true })
       .addTo(map);
 
-    const coordsEl = document.getElementById("coords");
-    if (coordsEl) {
-      map.on("mousemove", (e) => {
-        coordsEl.textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
-      });
-    }
-
     // Restringe a navegação ao Amazonas desde o início
     applyAmazonasMapLimits({ fit: true, animate: false });
 

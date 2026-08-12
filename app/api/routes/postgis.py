@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
-from app.api.deps import get_current_user
+from app.api.deps import require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
 from app.models.user import User
@@ -54,11 +54,12 @@ def layer_geojson(
 async def upload_shapefile(
     files: list[UploadFile] = File(...),
     name: Optional[str] = Form(None),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
     Recebe shapefile (.zip ou .shp+.shx+.dbf) e grava no PostGIS.
-    Requer login. Cria schema com o nome do SHP e tabela homônima.
+    Requer login com permissão de upload (public.users).
+    Cria schema com o nome do SHP e tabela homônima.
     """
     if not files:
         raise WebGISException("Nenhum arquivo enviado", status_code=400)

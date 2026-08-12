@@ -76,7 +76,8 @@
       <button type="button" class="icon-btn" id="btn-fechar-login" aria-label="Fechar">×</button>
     </div>
     <p class="login-modal__hint">
-      Use um usuário cadastrado no banco de dados para enviar shapefiles.
+      Use um usuário cadastrado em <code>public.users</code> no PostgreSQL,
+      ativo e com permissão de upload (<code>can_upload</code> ou admin).
     </p>
     <form id="form-login" class="login-modal__form" autocomplete="on">
       <label>

@@ -16,6 +16,7 @@ class UserPublic(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_admin: bool = False
+    can_upload: bool = False
 
 
 class TokenResponse(BaseModel):

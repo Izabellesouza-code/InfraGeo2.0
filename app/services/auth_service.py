@@ -1,7 +1,8 @@
-"""Serviço de autenticação (usuários no banco PostGIS)."""
+"""Serviço de autenticação (usuários no banco PostGIS / public.users)."""
 
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -24,10 +25,17 @@ def user_to_public(user: User) -> UserPublic:
         email=user.email,
         full_name=user.full_name,
         is_admin=bool(user.is_admin),
+        can_upload=bool(user.can_upload or user.is_admin),
     )
 
 
+def has_upload_permission(user: User) -> bool:
+    """Permissão de upload: admin ou flag can_upload no banco."""
+    return bool(user and user.is_active and (user.is_admin or user.can_upload))
+
+
 def authenticate(db: Session, username: str, password: str) -> User:
+    """Consulta public.users e valida senha."""
     user = (
         db.query(User)
         .filter(User.username == username.strip())
@@ -41,10 +49,20 @@ def authenticate(db: Session, username: str, password: str) -> User:
 
 
 def login(db: Session, username: str, password: str) -> TokenResponse:
+    """Login para upload: usuário existente + ativo + permissão no PostgreSQL."""
     user = authenticate(db, username, password)
+    if not has_upload_permission(user):
+        raise WebGISException(
+            "Usuário sem permissão para upload de camadas",
+            status_code=403,
+        )
     token = create_access_token(
         subject=str(user.id),
-        extra={"username": user.username, "is_admin": bool(user.is_admin)},
+        extra={
+            "username": user.username,
+            "is_admin": bool(user.is_admin),
+            "can_upload": True,
+        },
     )
     return TokenResponse(access_token=token, user=user_to_public(user))
 
@@ -54,10 +72,30 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
 
 def ensure_auth_ready(db: Session) -> None:
-    """Garante tabela users e um admin inicial se o banco estiver vazio."""
+    """Garante tabela users, coluna can_upload e um admin inicial se vazio."""
     from app.database import engine
 
     User.__table__.create(bind=engine, checkfirst=True)
+
+    # Colunas novas em bancos já existentes
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE public.users
+                ADD COLUMN IF NOT EXISTS can_upload BOOLEAN DEFAULT FALSE
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE public.users
+                SET can_upload = TRUE
+                WHERE is_admin = TRUE AND (can_upload IS DISTINCT FROM TRUE)
+                """
+            )
+        )
 
     count = db.query(User).count()
     if count > 0:
@@ -74,6 +112,7 @@ def ensure_auth_ready(db: Session) -> None:
         full_name="Administrador",
         is_active=True,
         is_admin=True,
+        can_upload=True,
     )
     db.add(admin)
     db.commit()

@@ -1233,12 +1233,7 @@ window.InfraGeoPrintMap = (function () {
     const mapArea = document.querySelector(".map-area");
 
     if (container && mapArea && container.parentElement !== mapArea) {
-      const coords = document.getElementById("coords");
-      if (coords && coords.parentElement === mapArea) {
-        mapArea.insertBefore(container, coords);
-      } else {
-        mapArea.prepend(container);
-      }
+      mapArea.prepend(container);
     }
 
     if (container) {
@@ -1246,14 +1241,6 @@ window.InfraGeoPrintMap = (function () {
       container.removeAttribute("style");
       const ctrl = container.querySelector(".leaflet-control-container");
       if (ctrl) ctrl.style.display = "";
-    }
-
-    const coords = document.getElementById("coords");
-    if (coords) {
-      coords.style.visibility = "";
-      coords.style.position = "";
-      coords.style.left = "";
-      coords.style.zIndex = "";
     }
 
     const modal = els().modal;
