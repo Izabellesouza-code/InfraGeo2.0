@@ -11,11 +11,9 @@ Navegador  →  Vercel (UI)  →  Render (FastAPI /api)  →  PostGIS
 ## Vercel (frontend) — use esta URL no dia a dia
 
 1. [Vercel](https://vercel.com) → **Add New Project** → importe `InfraGeo2.0`
-2. Confirme:
-   - **Framework:** Other
-   - **Install:** `uv pip install --system -r requirements-frontend.txt`
-   - **Build:** `python scripts/build_frontend.py`
-   - **Output:** `frontend/dist`
+2. Confirme (deixe Override **desligado** para usar o `vercel.json`):
+   - **Framework:** Other (não FastAPI)
+   - **Install / Build / Output:** conforme `vercel.json` (`bash scripts/vercel-build.sh` → `frontend/dist`)
 3. Variável (já no `vercel.json`; pode sobrescrever no painel):
 
 | Variável | Valor |

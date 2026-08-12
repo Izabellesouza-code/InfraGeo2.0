@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": null,
-  "installCommand": "uv pip install --system -r requirements-frontend.txt",
-  "buildCommand": "python scripts/build_frontend.py",
+  "installCommand": "echo \"deps no build\"",
+  "buildCommand": "bash scripts/vercel-build.sh",
   "outputDirectory": "frontend/dist",
   "env": {
     "INFRA_GEO_API_URL": "https://infrageo2-0.onrender.com",
