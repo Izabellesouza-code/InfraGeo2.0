@@ -6,7 +6,7 @@ services:
     name: infrageo-api
     runtime: docker
     plan: free
-    region: oregon
+    region: ohio
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
@@ -21,12 +21,13 @@ services:
         generateValue: true
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        value: "8000"
-      # PostGIS acessível pela internet (VPS / Neon / Render Postgres+PostGIS)
+      # PostGIS Neon / nuvem
       - key: DATABASE_URL
-        sync: false      - key: CORS_ORIGINS
         sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CORS_ORIGIN_REGEX
+        value: "https://.*\\.vercel\\.app$"
       - key: AUTH_BOOTSTRAP_USERNAME
         value: admin
       - key: AUTH_BOOTSTRAP_PASSWORD

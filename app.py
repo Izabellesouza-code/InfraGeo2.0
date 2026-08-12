@@ -18,17 +18,22 @@ if str(ROOT) not in sys.path:
 
 
 def main() -> None:
+    import os
+
     import uvicorn
 
-    host = "127.0.0.1"
-    port = 8000
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("DEBUG", "true").lower() in {"1", "true", "yes"}
     print(f"InfraGeo AM -> http://{host}:{port}/")
     uvicorn.run(
         "app.main:app",
         host=host,
         port=port,
-        reload=True,
-        reload_dirs=[str(ROOT / "app"), str(ROOT / "templates"), str(ROOT / "static")],
+        reload=reload,
+        reload_dirs=[str(ROOT / "app"), str(ROOT / "templates"), str(ROOT / "static")]
+        if reload
+        else None,
     )
 
 
