@@ -69,14 +69,15 @@
 }
 
 .app-header__titles strong {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: #f3f6fb;
 }
 
 .app-header__titles span {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
+  font-weight: 500;
   color: #9aa8bf;
   white-space: nowrap;
   overflow: hidden;
