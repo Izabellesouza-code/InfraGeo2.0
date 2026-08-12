@@ -1,16 +1,17 @@
-# Render Blueprint — API InfraGeo 2.0
-# Docs: https://render.com/docs/blueprint-spec
+# Render Blueprint — API InfraGeo 2.0 (runtime Python, mais estável no free)
 
 services:
   - type: web
     name: infrageo-api
-    runtime: docker
+    runtime: python
     plan: free
     region: ohio
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: pip install -r requirements-prod.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: APP_NAME
         value: InfraGeo AM
       - key: APP_VERSION
@@ -21,7 +22,6 @@ services:
         generateValue: true
       - key: HOST
         value: 0.0.0.0
-      # PostGIS Neon / nuvem
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS

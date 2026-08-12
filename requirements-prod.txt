@@ -1,4 +1,4 @@
-# Produção (Render) — sem rasterio/folium/pytest para caber no plano free
+# Produção leve (Render free) — sem GeoPandas/GDAL
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
@@ -11,16 +11,13 @@ psycopg2-binary==2.9.10
 
 shapely==2.0.6
 pyproj==3.7.0
-geopandas==1.0.1
-fiona==1.10.1
 numpy==2.2.1
 
 pydantic==2.10.4
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
 
-passlib[bcrypt]==1.7.4
-bcrypt==5.0.0
+bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 
 httpx==0.28.1

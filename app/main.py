@@ -22,8 +22,12 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Startup/shutdown: pastas de dados + usuários no banco."""
-    ensure_directories()
+    """Startup/shutdown: pastas de dados + usuários no banco (não bloqueia deploy)."""
+    try:
+        ensure_directories()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] pastas: {exc}")
+
     try:
         from app.database import SessionLocal
         from app.services.auth_service import ensure_auth_ready
@@ -34,7 +38,7 @@ async def lifespan(_app: FastAPI):
         finally:
             db.close()
     except Exception as exc:  # noqa: BLE001
-        print(f"[auth] aviso ao preparar usuários: {exc}")
+        print(f"[auth] aviso ao preparar usuarios: {exc}")
     yield
 
 
