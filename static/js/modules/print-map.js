@@ -759,16 +759,17 @@ window.InfraGeoPrintMap = (function () {
    */
   function layersForExport() {
     const registry = window.InfraGeoMap?.overlayRegistry || {};
-    const visible = window.InfraGeoMap?.getVisibleLayers?.() || [];
-    if (visible.length) return visible.slice();
-
-    // Fallback: checkboxes ligados no painel (mesmo se flag visible divergir)
     const checked = window.InfraGeoLayers?.getState?.()?.checked || {};
+
+    // Preferência: checkboxes ligados com dados carregados
     const fromChecked = Object.keys(checked)
       .filter((id) => checked[id] && registry[id]?.leaflet)
       .map((id) => registry[id].meta)
       .filter(Boolean);
     if (fromChecked.length) return fromChecked;
+
+    const visible = window.InfraGeoMap?.getVisibleLayers?.() || [];
+    if (visible.length) return visible.slice();
 
     const fromRegistry = Object.values(registry)
       .filter((e) => e?.visible && e?.meta)
@@ -1334,126 +1335,240 @@ window.InfraGeoPrintMap = (function () {
     return [{ type: "Feature", properties: {}, geometry: geojson }];
   }
 
-  /** Adiciona GeoJSON em lotes para não congelar a aba. */
-  async function addGeoJSONChunked(exportMap, geojson, options) {
-    const features = geojsonFeatureList(geojson);
-    const group = L.geoJSON(null, options).addTo(exportMap);
-    if (!features.length) return group;
-
-    for (let i = 0; i < features.length; i += GEOJSON_CHUNK) {
-      const slice = features.slice(i, i + GEOJSON_CHUNK);
-      for (let j = 0; j < slice.length; j += 1) {
-        try {
-          group.addData(slice[j]);
-        } catch {
-          /* feição inválida */
-        }
-      }
-      if (i + GEOJSON_CHUNK < features.length) {
-        await wait(0);
-      }
-    }
-    return group;
+  function projectPoint(exportMap, lng, lat) {
+    return exportMap.latLngToContainerPoint([lat, lng]);
   }
 
-  async function cloneOverlays(exportMap) {
+  function buildExportStyle(meta, thematicCount, edit) {
+    const style = meta.style || {};
+    const isLimite = isLimiteEstadualMeta(meta);
+    const useEdit = !isLimite && thematicCount === 1;
+    const isLine =
+      meta.type === "LineString" ||
+      meta.type === "MultiLineString" ||
+      String(meta.type || "").toLowerCase().includes("line");
+    const isPoint = meta.type === "Point" || meta.type === "MultiPoint";
+
+    const fill = isLimite
+      ? "transparent"
+      : useEdit
+        ? edit.featureColor || style.fillColor || style.color || "#14b8a6"
+        : style.fillColor || style.color || "#14b8a6";
+    const stroke = isLimite
+      ? style.color || "#111827"
+      : useEdit
+        ? edit.featureStroke || style.color || "#0f766e"
+        : style.color || style.fillColor || "#0f766e";
+
+    const baseWeight = isLimite
+      ? style.weight ?? 2.5
+      : style.weight ?? (isLine ? 2.5 : 2);
+
+    return {
+      isLimite,
+      isLine,
+      isPoint,
+      fillColor: fill,
+      color: stroke,
+      weight: isLimite ? baseWeight : Math.max(baseWeight, isLine ? 2.5 : 1.5),
+      opacity: style.opacity ?? 1,
+      fillOpacity: isLimite
+        ? 0
+        : isLine
+          ? 0
+          : isPoint
+            ? style.fillOpacity ?? 0.9
+            : style.fillOpacity ?? 0.45,
+      radius: Math.max(style.radius || 7, 5),
+    };
+  }
+
+  function paintRing(ctx, exportMap, ring) {
+    if (!ring || ring.length < 2) return;
+    for (let i = 0; i < ring.length; i += 1) {
+      const coord = ring[i];
+      if (!coord || coord.length < 2) continue;
+      const p = projectPoint(exportMap, coord[0], coord[1]);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+  }
+
+  function paintGeometry(ctx, exportMap, geometry, style) {
+    if (!geometry || !geometry.type) return;
+    const type = geometry.type;
+
+    if (type === "GeometryCollection") {
+      (geometry.geometries || []).forEach((g) =>
+        paintGeometry(ctx, exportMap, g, style)
+      );
+      return;
+    }
+
+    if (type === "Point") {
+      const [lng, lat] = geometry.coordinates || [];
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+      const p = projectPoint(exportMap, lng, lat);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, style.radius, 0, Math.PI * 2);
+      ctx.fillStyle = style.fillColor;
+      ctx.globalAlpha = style.fillOpacity ?? 0.9;
+      ctx.fill();
+      ctx.globalAlpha = style.opacity ?? 1;
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = Math.max(1, style.weight * 0.7);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    if (type === "MultiPoint") {
+      (geometry.coordinates || []).forEach((c) =>
+        paintGeometry(ctx, exportMap, { type: "Point", coordinates: c }, style)
+      );
+      return;
+    }
+
+    if (type === "LineString") {
+      ctx.beginPath();
+      paintRing(ctx, exportMap, geometry.coordinates || []);
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = style.weight;
+      ctx.globalAlpha = style.opacity ?? 1;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    if (type === "MultiLineString") {
+      (geometry.coordinates || []).forEach((line) =>
+        paintGeometry(
+          ctx,
+          exportMap,
+          { type: "LineString", coordinates: line },
+          style
+        )
+      );
+      return;
+    }
+
+    if (type === "Polygon") {
+      const rings = geometry.coordinates || [];
+      ctx.beginPath();
+      rings.forEach((ring) => {
+        paintRing(ctx, exportMap, ring);
+        ctx.closePath();
+      });
+      if ((style.fillOpacity ?? 0) > 0 && style.fillColor !== "transparent") {
+        ctx.fillStyle = style.fillColor;
+        ctx.globalAlpha = style.fillOpacity;
+        ctx.fill("evenodd");
+      }
+      ctx.globalAlpha = style.opacity ?? 1;
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = style.weight;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    if (type === "MultiPolygon") {
+      (geometry.coordinates || []).forEach((poly) =>
+        paintGeometry(
+          ctx,
+          exportMap,
+          { type: "Polygon", coordinates: poly },
+          style
+        )
+      );
+    }
+  }
+
+  /** Desenha camadas ligadas direto no canvas (independe do canvas Leaflet). */
+  async function paintVisibleLayersOnCanvas(ctx, exportMap) {
     const layers = layersForExport();
+    if (!layers.length) return 0;
+
     const edit = editOptions();
     const thematicCount = layers.filter((l) => !isLimiteEstadualMeta(l)).length;
-
-    // Limite primeiro (embaixo), demais na ordem em que estão ligadas
     const ordered = [...layers].sort((a, b) => {
       const aLim = isLimiteEstadualMeta(a) ? 0 : 1;
       const bLim = isLimiteEstadualMeta(b) ? 0 : 1;
       return aLim - bLim;
     });
 
+    let painted = 0;
     for (const meta of ordered) {
-      const entry = window.InfraGeoMap.overlayRegistry?.[meta.id];
-      if (!entry?.leaflet) continue;
+      const entry = window.InfraGeoMap?.overlayRegistry?.[meta.id];
       const geojson = layerGeoJSONForExport(entry);
       if (!geojson) continue;
 
-      const style = meta.style || {};
-      const isLimite = isLimiteEstadualMeta(meta);
-      // Cor do painel “Editar” só com uma única camada temática
-      const useEdit = !isLimite && thematicCount === 1;
-      const isLine =
-        meta.type === "LineString" ||
-        meta.type === "MultiLineString" ||
-        String(meta.type || "").toLowerCase().includes("line");
-      const featCount = geojsonFeatureList(geojson).length;
-      const densePoints = featCount > 400;
+      const baseStyle = buildExportStyle(meta, thematicCount, edit);
+      const features = geojsonFeatureList(geojson);
+      const dense = features.length > 400;
+      const style = {
+        ...baseStyle,
+        radius: dense
+          ? Math.max(3, Math.round(baseStyle.radius * 0.55))
+          : baseStyle.radius,
+        weight: dense && baseStyle.isPoint ? 1 : baseStyle.weight,
+      };
 
-      const fill = isLimite
-        ? style.fillColor || "transparent"
-        : useEdit
-          ? edit.featureColor || style.fillColor || style.color || "#14b8a6"
-          : style.fillColor || style.color || "#14b8a6";
-      const stroke = isLimite
-        ? style.color || "#111827"
-        : useEdit
-          ? edit.featureStroke || style.color || "#0f766e"
-          : style.color || style.fillColor || "#0f766e";
-
-      // Linhas um pouco mais grossas na exportação (visíveis em zoom estadual)
-      const baseWeight = isLimite
-        ? style.weight ?? 2.5
-        : style.weight ?? (isLine ? 2.5 : 2);
-      const exportWeight = isLimite
-        ? baseWeight
-        : Math.max(baseWeight, isLine ? 2.5 : 1.5);
-      const pointRadius = densePoints
-        ? Math.max(3, Math.round((style.radius || 7) * 0.55))
-        : Math.max(style.radius || 7, 5);
-
-      await addGeoJSONChunked(exportMap, geojson, {
-        style: () => ({
-          color: stroke,
-          fillColor: fill,
-          weight: exportWeight,
-          opacity: style.opacity ?? 1,
-          fillOpacity: isLimite
-            ? 0
-            : isLine
-              ? 0
-              : style.fillOpacity ?? 0.45,
-        }),
-        pointToLayer: (_f, latlng) =>
-          L.circleMarker(latlng, {
-            radius: pointRadius,
-            fillColor: fill,
-            color: stroke,
-            weight: densePoints ? 1 : style.weight || 2,
-            opacity: 1,
-            fillOpacity: style.fillOpacity ?? 0.9,
-          }),
-        interactive: false,
-      });
-
+      for (let i = 0; i < features.length; i += 1) {
+        const geom = features[i]?.geometry;
+        if (!geom) continue;
+        try {
+          paintGeometry(ctx, exportMap, geom, style);
+          painted += 1;
+        } catch {
+          /* feição inválida */
+        }
+        if (i > 0 && i % GEOJSON_CHUNK === 0) {
+          await wait(0);
+        }
+      }
       await wait(0);
     }
+    return painted;
   }
 
-  /**
-   * Navegadores limpam o buffer do canvas após pintar — sem isto a captura
-   * perde polígonos/linhas do Leaflet (preferCanvas).
-   */
-  async function withPreservedCanvasBuffer(fn) {
-    const proto = HTMLCanvasElement.prototype;
-    const original = proto.getContext;
-    proto.getContext = function patchedGetContext(type, attrs) {
-      if (type === "2d") {
-        const next = attrs ? { ...attrs } : {};
-        next.preserveDrawingBuffer = true;
-        return original.call(this, type, next);
+  /** Prévia ao vivo: clona camadas de forma leve. */
+  async function cloneOverlays(exportMap) {
+    const layers = layersForExport();
+    const edit = editOptions();
+    const thematicCount = layers.filter((l) => !isLimiteEstadualMeta(l)).length;
+
+    for (const meta of layers) {
+      const entry = window.InfraGeoMap?.overlayRegistry?.[meta.id];
+      const geojson = layerGeoJSONForExport(entry);
+      if (!geojson) continue;
+      const style = buildExportStyle(meta, thematicCount, edit);
+      try {
+        L.geoJSON(geojson, {
+          style: () => ({
+            color: style.color,
+            fillColor: style.fillColor,
+            weight: style.weight,
+            opacity: style.opacity,
+            fillOpacity: style.fillOpacity,
+          }),
+          pointToLayer: (_f, latlng) =>
+            L.circleMarker(latlng, {
+              radius: Math.min(style.radius, 6),
+              fillColor: style.fillColor,
+              color: style.color,
+              weight: 1,
+              opacity: 1,
+              fillOpacity: style.fillOpacity || 0.9,
+            }),
+          interactive: false,
+        }).addTo(exportMap);
+      } catch {
+        /* ignore */
       }
-      return original.call(this, type, attrs);
-    };
-    try {
-      return await fn();
-    } finally {
-      proto.getContext = original;
+      await wait(0);
     }
   }
 
@@ -1474,39 +1589,40 @@ window.InfraGeoPrintMap = (function () {
     }
   }
 
-  /**
-   * Rasteriza o mapa Leaflet direto no canvas (sem html2canvas).
-   * Mais estável e rápido para tiles + overlays em canvas.
-   */
-  function rasterizeExportMap(mapDiv, mapW, mapH) {
-    const canvas = document.createElement("canvas");
-    canvas.width = mapW;
-    canvas.height = mapH;
-    const ctx = canvas.getContext("2d");
+  function paintBasemapTiles(ctx, mapDiv, mapW, mapH) {
     ctx.fillStyle = "#e8eef5";
     ctx.fillRect(0, 0, mapW, mapH);
 
     const hostRect = mapDiv.getBoundingClientRect();
-    if (!(hostRect.width > 0) || !(hostRect.height > 0)) {
-      return canvas;
-    }
+    if (!(hostRect.width > 0) || !(hostRect.height > 0)) return false;
+
     const scaleX = mapW / hostRect.width;
     const scaleY = mapH / hostRect.height;
+    let painted = 0;
 
     mapDiv
       .querySelectorAll(".leaflet-tile-pane img.leaflet-tile")
       .forEach((img) => {
         if (!img.complete || !(img.naturalWidth > 0)) return;
         drawElementToCapture(ctx, img, hostRect, scaleX, scaleY);
+        painted += 1;
       });
 
-    mapDiv
-      .querySelectorAll(".leaflet-overlay-pane canvas, .leaflet-marker-pane canvas")
-      .forEach((c) => {
-        if (!(c.width > 0) || !(c.height > 0)) return;
-        drawElementToCapture(ctx, c, hostRect, scaleX, scaleY);
-      });
+    return painted > 0;
+  }
 
+  async function rasterizeExportMap(exportMap, mapDiv, mapW, mapH) {
+    const canvas = document.createElement("canvas");
+    canvas.width = mapW;
+    canvas.height = mapH;
+    const ctx = canvas.getContext("2d");
+
+    paintBasemapTiles(ctx, mapDiv, mapW, mapH);
+    setStatus("Desenhando camadas no layout…");
+    const count = await paintVisibleLayersOnCanvas(ctx, exportMap);
+    if (!count) {
+      console.warn("print-map: nenhuma feição pintada na exportação");
+    }
     return canvas;
   }
 
@@ -1514,22 +1630,6 @@ window.InfraGeoPrintMap = (function () {
     if (!exportMap) return;
     try {
       exportMap.invalidateSize({ animate: false });
-    } catch {
-      /* ignore */
-    }
-    // Atualiza cada renderer canvas uma vez — NÃO chamar redraw() por feição
-    const seen = new Set();
-    try {
-      exportMap.eachLayer((layer) => {
-        const renderer = layer._renderer;
-        if (!renderer || seen.has(renderer)) return;
-        seen.add(renderer);
-        try {
-          if (typeof renderer._update === "function") renderer._update();
-        } catch {
-          /* ignore */
-        }
-      });
     } catch {
       /* ignore */
     }
@@ -1851,10 +1951,11 @@ window.InfraGeoPrintMap = (function () {
     document.body.appendChild(host);
 
     let exportMap = null;
-    const runCapture = async () => {
+    try {
       setStatus("Preparando mapa de captura…");
       await wait(0);
 
+      // Só basemap no Leaflet — camadas são pintadas no canvas depois
       exportMap = L.map(mapDiv, {
         zoomControl: false,
         attributionControl: false,
@@ -1862,63 +1963,20 @@ window.InfraGeoPrintMap = (function () {
         zoomAnimation: false,
         markerZoomAnimation: false,
         inertia: false,
-        preferCanvas: true,
       });
 
       cloneBasemap(exportMap);
-      setStatus("Desenhando camadas no layout…");
-      await cloneOverlays(exportMap);
-      try {
-        window.InfraGeoMap?.addAmazonasMaskToMap?.(exportMap);
-      } catch {
-        /* ignore */
-      }
-
       exportMap.invalidateSize({ animate: false });
       await wait(50);
       syncExportView(exportMap, mainMap, lockedSnapshot);
-      forceExportRedraw(exportMap);
       setStatus("Carregando mapa base…");
       await waitForTiles(exportMap, 2500);
-      forceExportRedraw(exportMap);
-      await wait(100);
       syncExportView(exportMap, mainMap, lockedSnapshot);
-      forceExportRedraw(exportMap);
-      await wait(50);
+      await wait(80);
 
       setStatus("Capturando imagem…");
       await wait(0);
-      const shot = rasterizeExportMap(mapDiv, mapW, mapH);
-
-      // Fallback: se quase vazio (só fundo), tenta html2canvas
-      const probe = shot.getContext("2d").getImageData(
-        Math.floor(mapW / 2),
-        Math.floor(mapH / 2),
-        1,
-        1
-      ).data;
-      const almostEmpty =
-        probe[0] > 220 && probe[1] > 220 && probe[2] > 220 && probe[3] > 200;
-      if (almostEmpty && window.html2canvas) {
-        try {
-          return await window.html2canvas(mapDiv, {
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: "#e8eef5",
-            logging: false,
-            scale: CAPTURE_SCALE,
-            width: mapW,
-            height: mapH,
-          });
-        } catch {
-          /* mantém shot direto */
-        }
-      }
-      return shot;
-    };
-
-    try {
-      return await withPreservedCanvasBuffer(runCapture);
+      return await rasterizeExportMap(exportMap, mapDiv, mapW, mapH);
     } finally {
       try {
         if (exportMap) {
