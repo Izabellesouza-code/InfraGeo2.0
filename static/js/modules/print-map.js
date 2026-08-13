@@ -10,6 +10,12 @@ window.InfraGeoPrintMap = (function () {
   const MM_TO_PX = DPI / 25.4;
   /** Escala do html2canvas: 1 = layout já está em 300 dpi (evita PNG gigante) */
   const CAPTURE_SCALE = 1;
+  /**
+   * Captura do mapa em resolução limitada (evita “Página sem resposta”).
+   * O layout final continua em 300 DPI — a imagem é ampliada no compose.
+   */
+  const CAPTURE_MAX_EDGE = 1600;
+  const GEOJSON_CHUNK = 250;
 
   const PAPER_SIZES = {
     a4: { label: "A4", wMm: 210, hMm: 297 },
@@ -241,6 +247,21 @@ window.InfraGeoPrintMap = (function () {
     const mapW = W - pad * 2 - legendW - gap - mapXPad;
     const mapH = H - mapY - footerH - pad - gap;
     return { mapW: Math.round(mapW), mapH: Math.round(mapH) };
+  }
+
+  /** Tamanho real do mapa offscreen (limitado para não travar o Chrome). */
+  function getCaptureMapSize() {
+    const full = getExportMapSize();
+    const maxEdge = Math.max(full.mapW, full.mapH) || 1;
+    if (maxEdge <= CAPTURE_MAX_EDGE) {
+      return { mapW: full.mapW, mapH: full.mapH, scale: 1 };
+    }
+    const scale = CAPTURE_MAX_EDGE / maxEdge;
+    return {
+      mapW: Math.max(320, Math.round(full.mapW * scale)),
+      mapH: Math.max(240, Math.round(full.mapH * scale)),
+      scale,
+    };
   }
 
   function updatePreviewChrome() {
@@ -565,7 +586,7 @@ window.InfraGeoPrintMap = (function () {
 
     try {
       cloneBasemap(liveMiniMap);
-      cloneOverlays(liveMiniMap);
+      void cloneOverlays(liveMiniMap);
       window.InfraGeoMap?.addAmazonasMaskToMap?.(liveMiniMap);
     } catch (err) {
       console.warn("live minimap layers", err);
@@ -1303,7 +1324,36 @@ window.InfraGeoPrintMap = (function () {
     }
   }
 
-  function cloneOverlays(exportMap) {
+  function geojsonFeatureList(geojson) {
+    if (!geojson) return [];
+    if (geojson.type === "FeatureCollection") return geojson.features || [];
+    if (geojson.type === "Feature") return [geojson];
+    return [{ type: "Feature", properties: {}, geometry: geojson }];
+  }
+
+  /** Adiciona GeoJSON em lotes para não congelar a aba. */
+  async function addGeoJSONChunked(exportMap, geojson, options) {
+    const features = geojsonFeatureList(geojson);
+    const group = L.geoJSON(null, options).addTo(exportMap);
+    if (!features.length) return group;
+
+    for (let i = 0; i < features.length; i += GEOJSON_CHUNK) {
+      const slice = features.slice(i, i + GEOJSON_CHUNK);
+      for (let j = 0; j < slice.length; j += 1) {
+        try {
+          group.addData(slice[j]);
+        } catch {
+          /* feição inválida */
+        }
+      }
+      if (i + GEOJSON_CHUNK < features.length) {
+        await wait(0);
+      }
+    }
+    return group;
+  }
+
+  async function cloneOverlays(exportMap) {
     const layers = layersForExport();
     const edit = editOptions();
     const thematicCount = layers.filter((l) => !isLimiteEstadualMeta(l)).length;
@@ -1317,11 +1367,11 @@ window.InfraGeoPrintMap = (function () {
       return aLim - bLim;
     });
 
-    ordered.forEach((meta) => {
+    for (const meta of ordered) {
       const entry = window.InfraGeoMap.overlayRegistry?.[meta.id];
-      if (!entry?.leaflet) return;
+      if (!entry?.leaflet) continue;
       const geojson = layerGeoJSONForExport(entry);
-      if (!geojson) return;
+      if (!geojson) continue;
 
       const style = meta.style || {};
       const isLimite = isLimiteEstadualMeta(meta);
@@ -1331,6 +1381,8 @@ window.InfraGeoPrintMap = (function () {
         meta.type === "LineString" ||
         meta.type === "MultiLineString" ||
         String(meta.type || "").toLowerCase().includes("line");
+      const featCount = geojsonFeatureList(geojson).length;
+      const densePoints = featCount > 400;
 
       const fill = isLimite
         ? style.fillColor || "transparent"
@@ -1350,8 +1402,11 @@ window.InfraGeoPrintMap = (function () {
       const exportWeight = isLimite
         ? baseWeight
         : Math.max(baseWeight, isLine ? 2.5 : 1.5);
+      const pointRadius = densePoints
+        ? Math.max(3, Math.round((style.radius || 7) * 0.55))
+        : Math.max(style.radius || 7, 5);
 
-      L.geoJSON(geojson, {
+      await addGeoJSONChunked(exportMap, geojson, {
         renderer: vectorRenderer,
         style: () => ({
           color: stroke,
@@ -1367,17 +1422,18 @@ window.InfraGeoPrintMap = (function () {
         pointToLayer: (_f, latlng) =>
           L.circleMarker(latlng, {
             renderer: vectorRenderer,
-            radius: Math.max(style.radius || 7, 6),
+            radius: pointRadius,
             fillColor: fill,
             color: stroke,
-            weight: style.weight || 2,
+            weight: densePoints ? 1 : style.weight || 2,
             opacity: 1,
             fillOpacity: style.fillOpacity ?? 0.9,
           }),
         interactive: false,
-      }).addTo(exportMap);
+      });
 
-      if (entry.brShield && window.InfraGeoBrShield) {
+      // Escudos BR são HTML — caros na captura; só com poucas feições
+      if (entry.brShield && !densePoints && window.InfraGeoBrShield) {
         try {
           const markers = window.InfraGeoBrShield.buildMarkers?.(
             entry.leaflet,
@@ -1388,7 +1444,9 @@ window.InfraGeoPrintMap = (function () {
           /* ignore */
         }
       }
-    });
+
+      await wait(0);
+    }
   }
 
   /**
@@ -1453,13 +1511,16 @@ window.InfraGeoPrintMap = (function () {
     } catch {
       /* ignore */
     }
+    // Atualiza cada renderer canvas uma vez — NÃO chamar redraw() por feição
+    // (milhares de bueiros/pontes congelam a aba).
+    const seen = new Set();
     try {
       exportMap.eachLayer((layer) => {
+        const renderer = layer._renderer;
+        if (!renderer || seen.has(renderer)) return;
+        seen.add(renderer);
         try {
-          if (typeof layer.redraw === "function") layer.redraw();
-          if (layer._renderer && typeof layer._renderer._update === "function") {
-            layer._renderer._update();
-          }
+          if (typeof renderer._update === "function") renderer._update();
         } catch {
           /* ignore */
         }
@@ -1758,7 +1819,7 @@ window.InfraGeoPrintMap = (function () {
         ? { center: mainMap.getCenter(), zoom: mainMap.getZoom() }
         : null;
 
-    const { mapW, mapH } = getExportMapSize();
+    const { mapW, mapH } = getCaptureMapSize();
 
     const host = document.createElement("div");
     host.id = "print-capture-host";
@@ -1790,6 +1851,9 @@ window.InfraGeoPrintMap = (function () {
 
     let exportMap = null;
     const runCapture = async () => {
+      setStatus("Preparando mapa de captura…");
+      await wait(0);
+
       exportMap = L.map(mapDiv, {
         zoomControl: false,
         attributionControl: false,
@@ -1801,7 +1865,8 @@ window.InfraGeoPrintMap = (function () {
       });
 
       cloneBasemap(exportMap);
-      cloneOverlays(exportMap);
+      setStatus("Desenhando camadas no layout…");
+      await cloneOverlays(exportMap);
       try {
         window.InfraGeoMap?.addAmazonasMaskToMap?.(exportMap);
       } catch {
@@ -1810,19 +1875,16 @@ window.InfraGeoPrintMap = (function () {
 
       // Visão = zoom/área que o usuário está vendo (inclui “Mexer no mapa”)
       exportMap.invalidateSize({ animate: false });
+      await wait(40);
+      syncExportView(exportMap, mainMap, lockedSnapshot);
+      forceExportRedraw(exportMap);
+      setStatus("Carregando mapa base…");
+      await waitForTiles(exportMap, 2800);
+      forceExportRedraw(exportMap);
       await wait(120);
       syncExportView(exportMap, mainMap, lockedSnapshot);
-      await wait(180);
-      exportMap.invalidateSize({ animate: false });
-      syncExportView(exportMap, mainMap, lockedSnapshot);
       forceExportRedraw(exportMap);
-      await waitForTiles(exportMap, 3500);
-      forceExportRedraw(exportMap);
-      await wait(450);
-      exportMap.invalidateSize({ animate: false });
-      syncExportView(exportMap, mainMap, lockedSnapshot);
-      forceExportRedraw(exportMap);
-      await wait(250);
+      await wait(80);
 
       // html2canvas costuma falhar nos canvases do Leaflet; captura o basemap
       // e carimba os overlays depois (com preserveDrawingBuffer ativo).
@@ -1831,6 +1893,8 @@ window.InfraGeoPrintMap = (function () {
       if (overlayPane) overlayPane.style.visibility = "hidden";
       if (markerPane) markerPane.style.visibility = "hidden";
 
+      setStatus("Capturando imagem…");
+      await wait(0);
       const shot = await window.html2canvas(mapDiv, {
         useCORS: true,
         allowTaint: false,
@@ -1940,6 +2004,8 @@ window.InfraGeoPrintMap = (function () {
     ctx.beginPath();
     ctx.rect(mapX, mapY, mapW, mapH);
     ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(mapShot, mapX, mapY, mapW, mapH);
     ctx.restore();
     drawGraticuleFrame(ctx, mapX, mapY, mapW, mapH, map);
@@ -2053,17 +2119,22 @@ window.InfraGeoPrintMap = (function () {
     try {
       // Garante limite estadual ligado e enquadra a captura no Amazonas
       await window.InfraGeoLayers?.ensureLimiteEstadualOn?.();
+      await wait(0);
       document
         .querySelectorAll("#print-capture-host, #print-capture-shield")
         .forEach((el) => el.remove());
       const shot = await captureExportMapImage();
+      await wait(0);
       setStatus("Montando layout…");
       const composed = await compose(shot, title?.value?.trim() || defaultTitle());
+      await wait(0);
       if (preview) {
         preview.width = composed.width;
         preview.height = composed.height;
         const pctx = preview.getContext("2d");
         pctx.clearRect(0, 0, preview.width, preview.height);
+        pctx.imageSmoothingEnabled = true;
+        pctx.imageSmoothingQuality = "high";
         pctx.drawImage(composed, 0, 0);
         preview.dataset.ready = "1";
       }
