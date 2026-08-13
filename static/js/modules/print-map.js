@@ -736,11 +736,18 @@ window.InfraGeoPrintMap = (function () {
    * (Não filtra pela seleção — o clique só destaca no mapa principal.)
    */
   function layersForExport() {
-    const all = window.InfraGeoMap?.getVisibleLayers?.() || [];
-    if (all.length) return all.slice();
-
-    // Fallback: registry marcado como visível
     const registry = window.InfraGeoMap?.overlayRegistry || {};
+    const visible = window.InfraGeoMap?.getVisibleLayers?.() || [];
+    if (visible.length) return visible.slice();
+
+    // Fallback: checkboxes ligados no painel (mesmo se flag visible divergir)
+    const checked = window.InfraGeoLayers?.getState?.()?.checked || {};
+    const fromChecked = Object.keys(checked)
+      .filter((id) => checked[id] && registry[id]?.leaflet)
+      .map((id) => registry[id].meta)
+      .filter(Boolean);
+    if (fromChecked.length) return fromChecked;
+
     const fromRegistry = Object.values(registry)
       .filter((e) => e?.visible && e?.meta)
       .map((e) => e.meta);
@@ -1286,10 +1293,22 @@ window.InfraGeoPrintMap = (function () {
     L.tileLayer(url, opts).addTo(exportMap);
   }
 
+  function layerGeoJSONForExport(entry) {
+    if (!entry) return null;
+    if (entry.geojson) return entry.geojson;
+    try {
+      return entry.leaflet?.toGeoJSON?.() || null;
+    } catch {
+      return null;
+    }
+  }
+
   function cloneOverlays(exportMap) {
     const layers = layersForExport();
     const edit = editOptions();
     const thematicCount = layers.filter((l) => !isLimiteEstadualMeta(l)).length;
+    // Canvas dedicado — html2canvas lê melhor vetores em canvas do que SVG
+    const vectorRenderer = L.canvas({ padding: 0.5 });
 
     // Limite primeiro (embaixo), demais na ordem em que estão ligadas
     const ordered = [...layers].sort((a, b) => {
@@ -1301,17 +1320,17 @@ window.InfraGeoPrintMap = (function () {
     ordered.forEach((meta) => {
       const entry = window.InfraGeoMap.overlayRegistry?.[meta.id];
       if (!entry?.leaflet) return;
-      let geojson;
-      try {
-        geojson = entry.leaflet.toGeoJSON();
-      } catch {
-        return;
-      }
+      const geojson = layerGeoJSONForExport(entry);
+      if (!geojson) return;
 
       const style = meta.style || {};
       const isLimite = isLimiteEstadualMeta(meta);
       // Cor do painel “Editar” só com uma única camada temática
       const useEdit = !isLimite && thematicCount === 1;
+      const isLine =
+        meta.type === "LineString" ||
+        meta.type === "MultiLineString" ||
+        String(meta.type || "").toLowerCase().includes("line");
 
       const fill = isLimite
         ? style.fillColor || "transparent"
@@ -1324,17 +1343,31 @@ window.InfraGeoPrintMap = (function () {
           ? edit.featureStroke || style.color || "#0f766e"
           : style.color || style.fillColor || "#0f766e";
 
+      // Linhas um pouco mais grossas na exportação (visíveis em zoom estadual)
+      const baseWeight = isLimite
+        ? style.weight ?? 2.5
+        : style.weight ?? (isLine ? 2.5 : 2);
+      const exportWeight = isLimite
+        ? baseWeight
+        : Math.max(baseWeight, isLine ? 2.5 : 1.5);
+
       L.geoJSON(geojson, {
+        renderer: vectorRenderer,
         style: () => ({
           color: stroke,
           fillColor: fill,
-          weight: isLimite ? style.weight ?? 2.5 : style.weight ?? 2,
+          weight: exportWeight,
           opacity: style.opacity ?? 1,
-          fillOpacity: isLimite ? 0 : style.fillOpacity ?? 0.35,
+          fillOpacity: isLimite
+            ? 0
+            : isLine
+              ? 0
+              : style.fillOpacity ?? 0.45,
         }),
         pointToLayer: (_f, latlng) =>
           L.circleMarker(latlng, {
-            radius: style.radius || 7,
+            renderer: vectorRenderer,
+            radius: Math.max(style.radius || 7, 6),
             fillColor: fill,
             color: stroke,
             weight: style.weight || 2,
@@ -1356,6 +1389,84 @@ window.InfraGeoPrintMap = (function () {
         }
       }
     });
+  }
+
+  /**
+   * Navegadores limpam o buffer do canvas após pintar — sem isto o html2canvas
+   * captura tiles mas perde polígonos/linhas do Leaflet (preferCanvas).
+   */
+  async function withPreservedCanvasBuffer(fn) {
+    const proto = HTMLCanvasElement.prototype;
+    const original = proto.getContext;
+    proto.getContext = function patchedGetContext(type, attrs) {
+      if (type === "2d") {
+        const next = attrs ? { ...attrs } : {};
+        next.preserveDrawingBuffer = true;
+        return original.call(this, type, next);
+      }
+      return original.call(this, type, attrs);
+    };
+    try {
+      return await fn();
+    } finally {
+      proto.getContext = original;
+    }
+  }
+
+  /** Garante que os canvases de overlay do Leaflet entrem no bitmap final. */
+  function stampLeafletOverlayCanvases(mapDiv, shotCanvas) {
+    if (!mapDiv || !shotCanvas) return shotCanvas;
+    const ctx = shotCanvas.getContext("2d");
+    if (!ctx) return shotCanvas;
+
+    const hostRect = mapDiv.getBoundingClientRect();
+    if (!(hostRect.width > 0) || !(hostRect.height > 0)) return shotCanvas;
+
+    const scaleX = shotCanvas.width / hostRect.width;
+    const scaleY = shotCanvas.height / hostRect.height;
+    const panes = mapDiv.querySelectorAll(
+      ".leaflet-overlay-pane canvas, .leaflet-marker-pane canvas"
+    );
+
+    panes.forEach((c) => {
+      try {
+        if (!(c.width > 0) || !(c.height > 0)) return;
+        const r = c.getBoundingClientRect();
+        ctx.drawImage(
+          c,
+          (r.left - hostRect.left) * scaleX,
+          (r.top - hostRect.top) * scaleY,
+          r.width * scaleX,
+          r.height * scaleY
+        );
+      } catch {
+        /* canvas tainted ou vazio */
+      }
+    });
+    return shotCanvas;
+  }
+
+  function forceExportRedraw(exportMap) {
+    if (!exportMap) return;
+    try {
+      exportMap.invalidateSize({ animate: false });
+    } catch {
+      /* ignore */
+    }
+    try {
+      exportMap.eachLayer((layer) => {
+        try {
+          if (typeof layer.redraw === "function") layer.redraw();
+          if (layer._renderer && typeof layer._renderer._update === "function") {
+            layer._renderer._update();
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   function waitForTiles(map, timeoutMs = 2500) {
@@ -1652,14 +1763,16 @@ window.InfraGeoPrintMap = (function () {
     const host = document.createElement("div");
     host.id = "print-capture-host";
     host.setAttribute("aria-hidden", "true");
-    // Fora da viewport: não aparece atrás do modal nem altera o mapa de fundo
+    // Dentro da viewport, sob o modal (z-index 2100). opacity:0 pode impedir
+    // o browser de rasterizar o canvas das camadas vetoriais.
     host.style.cssText = [
       "position:fixed",
-      "left:-12000px",
+      "left:0",
       "top:0",
       `width:${mapW}px`,
       `height:${mapH}px`,
-      "z-index:-1",
+      "z-index:2000",
+      "opacity:1",
       "margin:0",
       "padding:0",
       "border:0",
@@ -1676,7 +1789,7 @@ window.InfraGeoPrintMap = (function () {
     document.body.appendChild(host);
 
     let exportMap = null;
-    try {
+    const runCapture = async () => {
       exportMap = L.map(mapDiv, {
         zoomControl: false,
         attributionControl: false,
@@ -1702,11 +1815,21 @@ window.InfraGeoPrintMap = (function () {
       await wait(180);
       exportMap.invalidateSize({ animate: false });
       syncExportView(exportMap, mainMap, lockedSnapshot);
+      forceExportRedraw(exportMap);
       await waitForTiles(exportMap, 3500);
-      await wait(350);
+      forceExportRedraw(exportMap);
+      await wait(450);
       exportMap.invalidateSize({ animate: false });
       syncExportView(exportMap, mainMap, lockedSnapshot);
-      await wait(200);
+      forceExportRedraw(exportMap);
+      await wait(250);
+
+      // html2canvas costuma falhar nos canvases do Leaflet; captura o basemap
+      // e carimba os overlays depois (com preserveDrawingBuffer ativo).
+      const overlayPane = mapDiv.querySelector(".leaflet-overlay-pane");
+      const markerPane = mapDiv.querySelector(".leaflet-marker-pane");
+      if (overlayPane) overlayPane.style.visibility = "hidden";
+      if (markerPane) markerPane.style.visibility = "hidden";
 
       const shot = await window.html2canvas(mapDiv, {
         useCORS: true,
@@ -1717,7 +1840,16 @@ window.InfraGeoPrintMap = (function () {
         width: mapW,
         height: mapH,
       });
-      return shot;
+
+      if (overlayPane) overlayPane.style.visibility = "";
+      if (markerPane) markerPane.style.visibility = "";
+
+      return stampLeafletOverlayCanvases(mapDiv, shot);
+    };
+
+    try {
+      // preserveDrawingBuffer precisa estar ativo ao criar o renderer Canvas
+      return await withPreservedCanvasBuffer(runCapture);
     } finally {
       try {
         if (exportMap) {

@@ -347,6 +347,8 @@ window.InfraGeoMap = (function () {
       meta,
       leaflet: group,
       brShield,
+      // GeoJSON original — exportação não depende de toGeoJSON() no mapa vivo
+      geojson,
       visible: false,
     };
 
