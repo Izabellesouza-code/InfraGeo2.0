@@ -14,8 +14,9 @@ window.InfraGeoPrintMap = (function () {
    * Captura do mapa em resolução limitada (evita “Página sem resposta”).
    * O layout final continua em 300 DPI — a imagem é ampliada no compose.
    */
-  const CAPTURE_MAX_EDGE = 1600;
-  const GEOJSON_CHUNK = 250;
+  const CAPTURE_MAX_EDGE = 1400;
+  const GEOJSON_CHUNK = 200;
+  const GENERATE_TIMEOUT_MS = 90000;
 
   const PAPER_SIZES = {
     a4: { label: "A4", wMm: 210, hMm: 297 },
@@ -1291,7 +1292,8 @@ window.InfraGeoPrintMap = (function () {
   }
 
   function findActiveBasemapLayer() {
-    const map = window.InfraGeoMap.getMap();
+    const map = window.InfraGeoMap?.getMap?.();
+    if (!map) return null;
     let tile = null;
     map.eachLayer((layer) => {
       if (layer instanceof L.TileLayer) tile = layer;
@@ -1311,6 +1313,7 @@ window.InfraGeoPrintMap = (function () {
     };
     delete opts.pane;
     delete opts.map;
+    delete opts.renderer;
     L.tileLayer(url, opts).addTo(exportMap);
   }
 
@@ -1357,8 +1360,6 @@ window.InfraGeoPrintMap = (function () {
     const layers = layersForExport();
     const edit = editOptions();
     const thematicCount = layers.filter((l) => !isLimiteEstadualMeta(l)).length;
-    // Canvas dedicado — html2canvas lê melhor vetores em canvas do que SVG
-    const vectorRenderer = L.canvas({ padding: 0.5 });
 
     // Limite primeiro (embaixo), demais na ordem em que estão ligadas
     const ordered = [...layers].sort((a, b) => {
@@ -1407,7 +1408,6 @@ window.InfraGeoPrintMap = (function () {
         : Math.max(style.radius || 7, 5);
 
       await addGeoJSONChunked(exportMap, geojson, {
-        renderer: vectorRenderer,
         style: () => ({
           color: stroke,
           fillColor: fill,
@@ -1421,7 +1421,6 @@ window.InfraGeoPrintMap = (function () {
         }),
         pointToLayer: (_f, latlng) =>
           L.circleMarker(latlng, {
-            renderer: vectorRenderer,
             radius: pointRadius,
             fillColor: fill,
             color: stroke,
@@ -1432,26 +1431,13 @@ window.InfraGeoPrintMap = (function () {
         interactive: false,
       });
 
-      // Escudos BR são HTML — caros na captura; só com poucas feições
-      if (entry.brShield && !densePoints && window.InfraGeoBrShield) {
-        try {
-          const markers = window.InfraGeoBrShield.buildMarkers?.(
-            entry.leaflet,
-            meta
-          );
-          if (markers) markers.addTo(exportMap);
-        } catch {
-          /* ignore */
-        }
-      }
-
       await wait(0);
     }
   }
 
   /**
-   * Navegadores limpam o buffer do canvas após pintar — sem isto o html2canvas
-   * captura tiles mas perde polígonos/linhas do Leaflet (preferCanvas).
+   * Navegadores limpam o buffer do canvas após pintar — sem isto a captura
+   * perde polígonos/linhas do Leaflet (preferCanvas).
    */
   async function withPreservedCanvasBuffer(fn) {
     const proto = HTMLCanvasElement.prototype;
@@ -1471,37 +1457,57 @@ window.InfraGeoPrintMap = (function () {
     }
   }
 
-  /** Garante que os canvases de overlay do Leaflet entrem no bitmap final. */
-  function stampLeafletOverlayCanvases(mapDiv, shotCanvas) {
-    if (!mapDiv || !shotCanvas) return shotCanvas;
-    const ctx = shotCanvas.getContext("2d");
-    if (!ctx) return shotCanvas;
+  function drawElementToCapture(ctx, el, hostRect, scaleX, scaleY) {
+    if (!el || !hostRect) return;
+    try {
+      const r = el.getBoundingClientRect();
+      if (!(r.width > 0) || !(r.height > 0)) return;
+      ctx.drawImage(
+        el,
+        (r.left - hostRect.left) * scaleX,
+        (r.top - hostRect.top) * scaleY,
+        r.width * scaleX,
+        r.height * scaleY
+      );
+    } catch {
+      /* tainted / vazio */
+    }
+  }
+
+  /**
+   * Rasteriza o mapa Leaflet direto no canvas (sem html2canvas).
+   * Mais estável e rápido para tiles + overlays em canvas.
+   */
+  function rasterizeExportMap(mapDiv, mapW, mapH) {
+    const canvas = document.createElement("canvas");
+    canvas.width = mapW;
+    canvas.height = mapH;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#e8eef5";
+    ctx.fillRect(0, 0, mapW, mapH);
 
     const hostRect = mapDiv.getBoundingClientRect();
-    if (!(hostRect.width > 0) || !(hostRect.height > 0)) return shotCanvas;
+    if (!(hostRect.width > 0) || !(hostRect.height > 0)) {
+      return canvas;
+    }
+    const scaleX = mapW / hostRect.width;
+    const scaleY = mapH / hostRect.height;
 
-    const scaleX = shotCanvas.width / hostRect.width;
-    const scaleY = shotCanvas.height / hostRect.height;
-    const panes = mapDiv.querySelectorAll(
-      ".leaflet-overlay-pane canvas, .leaflet-marker-pane canvas"
-    );
+    mapDiv
+      .querySelectorAll(".leaflet-tile-pane img.leaflet-tile")
+      .forEach((img) => {
+        if (!img.complete || !(img.naturalWidth > 0)) return;
+        drawElementToCapture(ctx, img, hostRect, scaleX, scaleY);
+      });
 
-    panes.forEach((c) => {
-      try {
+    mapDiv
+      .querySelectorAll(".leaflet-overlay-pane canvas, .leaflet-marker-pane canvas")
+      .forEach((c) => {
         if (!(c.width > 0) || !(c.height > 0)) return;
-        const r = c.getBoundingClientRect();
-        ctx.drawImage(
-          c,
-          (r.left - hostRect.left) * scaleX,
-          (r.top - hostRect.top) * scaleY,
-          r.width * scaleX,
-          r.height * scaleY
-        );
-      } catch {
-        /* canvas tainted ou vazio */
-      }
-    });
-    return shotCanvas;
+        drawElementToCapture(ctx, c, hostRect, scaleX, scaleY);
+      });
+
+    return canvas;
   }
 
   function forceExportRedraw(exportMap) {
@@ -1512,7 +1518,6 @@ window.InfraGeoPrintMap = (function () {
       /* ignore */
     }
     // Atualiza cada renderer canvas uma vez — NÃO chamar redraw() por feição
-    // (milhares de bueiros/pontes congelam a aba).
     const seen = new Set();
     try {
       exportMap.eachLayer((layer) => {
@@ -1795,10 +1800,6 @@ window.InfraGeoPrintMap = (function () {
    * e não aparece o mapa enquadrado atrás do modal.
    */
   async function captureExportMapImage() {
-    if (!window.html2canvas) {
-      throw new Error("html2canvas não carregou. Atualize a página (Ctrl+F5).");
-    }
-
     // remove só artefatos de captura; não mexe na visão do mapa principal
     document
       .querySelectorAll("#print-capture-host, #print-capture-shield")
@@ -1811,21 +1812,21 @@ window.InfraGeoPrintMap = (function () {
       });
 
     const mainMap = window.InfraGeoMap?.getMap?.();
+    if (!mainMap) {
+      throw new Error("Mapa principal não está pronto. Recarregue a página.");
+    }
     // Trava a visão ANTES de qualquer async / invalidate (zoom do “Mexer no mapa”)
     const lockedSnapshot = getVisibleMapSnapshot(mainMap);
     const savedView = lockedSnapshot
       ? { center: lockedSnapshot.center, zoom: lockedSnapshot.zoom }
-      : mainMap
-        ? { center: mainMap.getCenter(), zoom: mainMap.getZoom() }
-        : null;
+      : { center: mainMap.getCenter(), zoom: mainMap.getZoom() };
 
     const { mapW, mapH } = getCaptureMapSize();
 
     const host = document.createElement("div");
     host.id = "print-capture-host";
     host.setAttribute("aria-hidden", "true");
-    // Dentro da viewport, sob o modal (z-index 2100). opacity:0 pode impedir
-    // o browser de rasterizar o canvas das camadas vetoriais.
+    // Dentro da viewport, sob o modal (z-index 2100)
     host.style.cssText = [
       "position:fixed",
       "left:0",
@@ -1873,46 +1874,50 @@ window.InfraGeoPrintMap = (function () {
         /* ignore */
       }
 
-      // Visão = zoom/área que o usuário está vendo (inclui “Mexer no mapa”)
       exportMap.invalidateSize({ animate: false });
-      await wait(40);
+      await wait(50);
       syncExportView(exportMap, mainMap, lockedSnapshot);
       forceExportRedraw(exportMap);
       setStatus("Carregando mapa base…");
-      await waitForTiles(exportMap, 2800);
+      await waitForTiles(exportMap, 2500);
       forceExportRedraw(exportMap);
-      await wait(120);
+      await wait(100);
       syncExportView(exportMap, mainMap, lockedSnapshot);
       forceExportRedraw(exportMap);
-      await wait(80);
-
-      // html2canvas costuma falhar nos canvases do Leaflet; captura o basemap
-      // e carimba os overlays depois (com preserveDrawingBuffer ativo).
-      const overlayPane = mapDiv.querySelector(".leaflet-overlay-pane");
-      const markerPane = mapDiv.querySelector(".leaflet-marker-pane");
-      if (overlayPane) overlayPane.style.visibility = "hidden";
-      if (markerPane) markerPane.style.visibility = "hidden";
+      await wait(50);
 
       setStatus("Capturando imagem…");
       await wait(0);
-      const shot = await window.html2canvas(mapDiv, {
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#e8eef5",
-        logging: false,
-        scale: CAPTURE_SCALE,
-        width: mapW,
-        height: mapH,
-      });
+      const shot = rasterizeExportMap(mapDiv, mapW, mapH);
 
-      if (overlayPane) overlayPane.style.visibility = "";
-      if (markerPane) markerPane.style.visibility = "";
-
-      return stampLeafletOverlayCanvases(mapDiv, shot);
+      // Fallback: se quase vazio (só fundo), tenta html2canvas
+      const probe = shot.getContext("2d").getImageData(
+        Math.floor(mapW / 2),
+        Math.floor(mapH / 2),
+        1,
+        1
+      ).data;
+      const almostEmpty =
+        probe[0] > 220 && probe[1] > 220 && probe[2] > 220 && probe[3] > 200;
+      if (almostEmpty && window.html2canvas) {
+        try {
+          return await window.html2canvas(mapDiv, {
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor: "#e8eef5",
+            logging: false,
+            scale: CAPTURE_SCALE,
+            width: mapW,
+            height: mapH,
+          });
+        } catch {
+          /* mantém shot direto */
+        }
+      }
+      return shot;
     };
 
     try {
-      // preserveDrawingBuffer precisa estar ativo ao criar o renderer Canvas
       return await withPreservedCanvasBuffer(runCapture);
     } finally {
       try {
@@ -1929,7 +1934,6 @@ window.InfraGeoPrintMap = (function () {
       } catch {
         /* ignore */
       }
-      // restaura exatamente a visão que o usuário tinha
       if (mainMap && savedView) {
         try {
           mainMap.setView(savedView.center, savedView.zoom, {
@@ -2116,14 +2120,23 @@ window.InfraGeoPrintMap = (function () {
         : `Gerando ${format.toUpperCase()} da visão atual do mapa…`
     );
 
-    try {
-      // Garante limite estadual ligado e enquadra a captura no Amazonas
-      await window.InfraGeoLayers?.ensureLimiteEstadualOn?.();
+    const run = async () => {
+      try {
+        await Promise.race([
+          window.InfraGeoLayers?.ensureLimiteEstadualOn?.() || Promise.resolve(),
+          wait(6000),
+        ]);
+      } catch {
+        /* segue mesmo sem limite */
+      }
       await wait(0);
       document
         .querySelectorAll("#print-capture-host, #print-capture-shield")
         .forEach((el) => el.remove());
       const shot = await captureExportMapImage();
+      if (!shot || !(shot.width > 0) || !(shot.height > 0)) {
+        throw new Error("A captura do mapa ficou vazia.");
+      }
       await wait(0);
       setStatus("Montando layout…");
       const composed = await compose(shot, title?.value?.trim() || defaultTitle());
@@ -2147,11 +2160,22 @@ window.InfraGeoPrintMap = (function () {
       setStatus(
         `Pronto · ${layout.paperLabel} ${layout.orientLabel}. Baixe PNG ou PDF.`
       );
+    };
+
+    try {
+      await Promise.race([
+        run(),
+        wait(GENERATE_TIMEOUT_MS).then(() => {
+          throw new Error(
+            "Tempo esgotado ao gerar o mapa. Aproxime o zoom ou ligue menos camadas e tente de novo."
+          );
+        }),
+      ]);
     } catch (err) {
       console.error("print-map", err);
       setStatus(`Falha ao gerar: ${err.message || err}`);
       window.alert(
-        `Não foi possível gerar o arquivo.\n${err.message || err}\n\nDica: use o basemap Carto Positron ou OpenStreetMap.`
+        `Não foi possível gerar o arquivo.\n${err.message || err}\n\nDica: use o basemap Carto Light ou OpenStreetMap e tente novamente.`
       );
     } finally {
       if (modal) modal.classList.remove("is-generating");
