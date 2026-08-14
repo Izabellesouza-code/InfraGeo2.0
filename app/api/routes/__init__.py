@@ -2,7 +2,17 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, features, geocoding, layers, map_view, postgis, spatial, system
+from app.api.routes import (
+    auth,
+    features,
+    geocoding,
+    layers,
+    map_view,
+    postgis,
+    schema_sync,
+    spatial,
+    system,
+)
 
 api_router = APIRouter(prefix="/api")
 
@@ -14,3 +24,6 @@ api_router.include_router(spatial.router, prefix="/spatial", tags=["Análise Esp
 api_router.include_router(geocoding.router, prefix="/geocoding", tags=["Geocoding"])
 api_router.include_router(map_view.router, prefix="/map", tags=["Mapa"])
 api_router.include_router(postgis.router, prefix="/postgis", tags=["PostGIS"])
+api_router.include_router(
+    schema_sync.router, prefix="/admin", tags=["Admin · Sync Schemas"]
+)

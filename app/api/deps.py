@@ -68,3 +68,13 @@ def require_upload_user(user: User = Depends(get_current_user)) -> User:
             status_code=403,
         )
     return user
+
+
+def require_admin_user(user: User = Depends(get_current_user)) -> User:
+    """Exige usuário administrador (is_admin)."""
+    if not user or not user.is_active or not user.is_admin:
+        raise WebGISException(
+            "Apenas administradores podem executar esta ação",
+            status_code=403,
+        )
+    return user

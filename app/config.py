@@ -42,6 +42,18 @@ class Settings(BaseSettings):
     auth_bootstrap_password: str = "InfraGeo@2026"
     auth_bootstrap_email: str = "admin@infrageo.local"
 
+    # Sync de schemas: origem local → Neon (nuvem). Se vazio, usa só DATABASE_URL.
+    source_database_url: str = ""
+    neon_database_url: str = ""
+    schema_sync_auto_git: bool = False
+    schema_sync_git_remote: str = "origin"
+    schema_sync_git_branch: str = "main"
+    schema_sync_protected: str = (
+        "public,topology,tiger,tiger_data,pg_catalog,information_schema,"
+        "LIMITE_ESTADUAL,LIMITE_MUNICIPAL"
+    )
+    schema_sync_delete_phrase_prefix: str = "EXCLUIR"
+
     cors_origins: str = (
         "http://localhost:8000,http://127.0.0.1:8000,"
         "http://localhost:3000,http://127.0.0.1:3000"
