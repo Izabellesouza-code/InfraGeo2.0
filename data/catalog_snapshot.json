@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-08-14T15:17:35.350263+00:00",
+  "updated_at": "2026-08-14T15:42:05.202253+00:00",
   "updated_by": "sync-script",
   "reason": "no-changes",
   "schemas": [
@@ -118,6 +118,11 @@
       "geom_type": "POINT"
     },
     {
+      "schema": "PONTES_319",
+      "table": "PONTES_BR-319",
+      "geom_type": "POINT"
+    },
+    {
       "schema": "PRADS_319",
       "table": "BR-319_PRAD — Segmento A (1 - 38)",
       "geom_type": "MULTIPOLYGON"
@@ -194,5 +199,5 @@
     }
   ],
   "schema_count": 27,
-  "table_count": 32
+  "table_count": 33
 }
