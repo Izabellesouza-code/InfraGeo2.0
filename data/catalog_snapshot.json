@@ -1,9 +1,198 @@
 {
-  "updated_at": null,
-  "updated_by": "bootstrap",
-  "reason": "initial",
-  "schemas": [],
-  "geometry_tables": [],
-  "schema_count": 0,
-  "table_count": 0
+  "updated_at": "2026-08-14T15:17:35.350263+00:00",
+  "updated_by": "sync-script",
+  "reason": "no-changes",
+  "schemas": [
+    "BALSA_IGAPO_ACU",
+    "BR_174",
+    "BR_230",
+    "BR_307",
+    "BR_317",
+    "BR_319",
+    "BUEIROS_174",
+    "BUEIROS_230",
+    "BUEIROS_317",
+    "BUEIROS_319",
+    "IP4",
+    "JAZIDAS_307",
+    "LIMITE_ESTADUAL",
+    "LIMITE_MUNICIPAL",
+    "PCA_PRAD_319",
+    "PCA_PRAD_CMM_319",
+    "PONTES_230",
+    "PONTES_307",
+    "PONTES_319",
+    "PRADS_319",
+    "PRAD_174",
+    "TI_AM_ATUALIZADA",
+    "UC_ESTADUAL",
+    "UC_FEDERAL_AM_ATUALIZADA",
+    "UC_MUNICIPAL",
+    "ZA_UC_ESTADUAL_ATUALIZADA",
+    "ZA_UC_MUNICIPAL_ATUALIZADA"
+  ],
+  "geometry_tables": [
+    {
+      "schema": "BALSA_IGAPO_ACU",
+      "table": "BALSA_IGAPO_ACU",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "BR_174",
+      "table": "BR_174",
+      "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BR_230",
+      "table": "BR_230",
+      "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BR_307",
+      "table": "BR_307",
+      "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BR_317",
+      "table": "BR_317",
+      "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BR_319",
+      "table": "BR_319",
+      "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BUEIROS_174",
+      "table": "BUEIROS",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "BUEIROS_230",
+      "table": "BUEIROS",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "BUEIROS_317",
+      "table": "BUEIROS",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "BUEIROS_319",
+      "table": "BUIEROS BR-319",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "JAZIDAS_307",
+      "table": "JAZIDAS",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "LIMITE_ESTADUAL",
+      "table": "LIMITE_ESTADUAL_SEPLAN",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "LIMITE_MUNICIPAL",
+      "table": "LIMITE_MUNICIPAL_SEPLAN",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "PCA_PRAD_319",
+      "table": "PCA_PRAD_LCM",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PCA_PRAD_CMM_319",
+      "table": "PCA_PRAD_CMM",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PONTES_230",
+      "table": "PONTES_BR230",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PONTES_307",
+      "table": "PONTES",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Segmento A (1 - 38)",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Segmento A (pontos)",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Segmento C (39 - 61)",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Segmento C (pontos)",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Trecho do Meio (62 - 225)",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Trecho do Meio (pontos 101-150)",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Trecho do Meio (pontos 151-225)",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRADS_319",
+      "table": "BR-319_PRAD — Trecho do Meio (pontos 62-100)",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "PRAD_174",
+      "table": "PRAD_174",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "TI_AM_ATUALIZADA",
+      "table": "TI_AM_ATUALIZADA",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "UC_ESTADUAL",
+      "table": "UC_ESTADUAL",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "UC_FEDERAL_AM_ATUALIZADA",
+      "table": "UC_FEDERAL_AM_ATUALIZADA",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "UC_MUNICIPAL",
+      "table": "UC Municipal",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "ZA_UC_ESTADUAL_ATUALIZADA",
+      "table": "ZA_UC_ESTADUAL_ATUALIZADA",
+      "geom_type": "MULTIPOLYGON"
+    },
+    {
+      "schema": "ZA_UC_MUNICIPAL_ATUALIZADA",
+      "table": "ZA_UC_MUNICIPAL_ATUALIZADA",
+      "geom_type": "MULTIPOLYGON"
+    }
+  ],
+  "schema_count": 27,
+  "table_count": 32
 }

@@ -109,6 +109,7 @@ class SchemaSyncService:
             FROM pg_namespace
             WHERE nspname NOT LIKE 'pg_%'
               AND nspname <> 'information_schema'
+              AND lower(nspname) <> 'public'
             ORDER BY 1
             """
         )
@@ -189,6 +190,11 @@ class SchemaSyncService:
         auto_git: bool | None = None,
     ) -> dict[str, Any]:
         schema = _safe_ident(schema)
+        if schema.lower() == "public":
+            raise WebGISException(
+                "Schema public nunca é sincronizado/atualizado por este fluxo",
+                status_code=400,
+            )
         if self.is_protected(schema) and schema.lower() in SYSTEM_SCHEMAS:
             raise WebGISException(
                 f"Schema de sistema não pode ser gerenciado: {schema}",
@@ -236,7 +242,9 @@ class SchemaSyncService:
         diff = self.diff()
         created = []
         for schema in diff["source_only"]:
-            if self.is_protected(schema):
+            if schema.lower() == "public":
+                continue
+            if self.is_protected(schema) and schema.lower() in SYSTEM_SCHEMAS:
                 continue
             created.append(
                 self.create_schema_on_neon(
@@ -266,25 +274,31 @@ class SchemaSyncService:
         neon_dsn = _dsn_for_cli(self.neon_url)
         tmp = Path(tempfile.mkdtemp(prefix="infrageo_schema_"))
         dump_file = tmp / f"{schema}.dump"
+        # Schemas em MAIÚSCULAS exigem aspas no -n do pg_dump
+        schema_pattern = f'"{schema}"'
         try:
-            subprocess.run(
+            dump = subprocess.run(
                 [
                     pg_dump,
                     f"--dbname={source_dsn}",
                     "-n",
-                    schema,
+                    schema_pattern,
                     "-Fc",
                     "--no-owner",
                     "--no-acl",
                     "-f",
                     str(dump_file),
                 ],
-                check=True,
                 capture_output=True,
                 text=True,
             )
+            if dump.returncode != 0:
+                raise RuntimeError(dump.stderr or dump.stdout or "pg_dump falhou")
+            if not dump_file.exists() or dump_file.stat().st_size == 0:
+                raise RuntimeError("pg_dump gerou arquivo vazio")
+
             # drop objects inside schema on neon then restore (schema already exists)
-            subprocess.run(
+            restore = subprocess.run(
                 [
                     pg_restore,
                     f"--dbname={neon_dsn}",
@@ -294,10 +308,13 @@ class SchemaSyncService:
                     "--if-exists",
                     str(dump_file),
                 ],
-                check=False,  # warnings de "already exists" ok
                 capture_output=True,
                 text=True,
             )
+            # returncode 1 = warnings (ex.: already exists) — aceitável
+            if restore.returncode not in (0, 1):
+                raise RuntimeError(restore.stderr or "pg_restore falhou")
+
             with self.source_engine.connect() as conn:
                 rows = conn.execute(
                     text(
