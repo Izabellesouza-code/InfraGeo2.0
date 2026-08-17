@@ -19,12 +19,13 @@ class Settings(BaseSettings):
     app_name: str = "InfraGeo AM"
     app_version: str = "2.0.0"
     debug: bool = True
-    secret_key: str = "altere-esta-chave-em-producao"
+    secret_key: str = ""
 
     host: str = "0.0.0.0"
     port: int = 8000
 
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/infrageo"
+    # Obrigatório via DATABASE_URL no .env / Render
+    database_url: str = ""
 
     default_crs: str = "EPSG:4326"
     default_map_center_lat: float = -3.4653
@@ -39,7 +40,8 @@ class Settings(BaseSettings):
     export_dir: str = "data/exports"
 
     auth_bootstrap_username: str = "admin"
-    auth_bootstrap_password: str = "InfraGeo@2026"
+    # Obrigatório via AUTH_BOOTSTRAP_PASSWORD no .env (sem default no código)
+    auth_bootstrap_password: str = ""
     auth_bootstrap_email: str = "admin@infrageo.local"
 
     # Sync de schemas: origem local → Neon (nuvem). Se vazio, usa só DATABASE_URL.

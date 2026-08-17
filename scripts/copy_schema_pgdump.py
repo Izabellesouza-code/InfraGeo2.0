@@ -13,14 +13,21 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env", override=True)
 
-schema = sys.argv[1] if len(sys.argv) > 1 else "ZA_UC_ESTADUAL_ATUALIZADA"
-src = os.getenv(
-    "SOURCE_DATABASE_URL",
-    "postgresql+psycopg2://postgres:Manaus%402026@192.168.0.102:5432/infrageo",
-).replace("postgresql+psycopg2://", "postgresql://", 1)
-neon = (
-    os.getenv("NEON_DATABASE_URL") or os.getenv("DATABASE_URL", "")
-).replace("postgresql+psycopg2://", "postgresql://", 1)
+schema = sys.argv[1] if len(sys.argv) > 1 else ""
+if not schema:
+    raise SystemExit("Uso: python scripts/copy_schema_pgdump.py NOME_DO_SCHEMA")
+
+src_raw = (os.getenv("SOURCE_DATABASE_URL") or "").strip()
+neon_raw = (
+    os.getenv("NEON_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+).strip()
+if not src_raw:
+    raise SystemExit("Defina SOURCE_DATABASE_URL no .env")
+if not neon_raw:
+    raise SystemExit("Defina NEON_DATABASE_URL ou DATABASE_URL no .env")
+
+src = src_raw.replace("postgresql+psycopg2://", "postgresql://", 1)
+neon = neon_raw.replace("postgresql+psycopg2://", "postgresql://", 1)
 
 # pg_dump exige aspas duplas no pattern para preservar maiúsculas
 pattern = f'"{schema}"'

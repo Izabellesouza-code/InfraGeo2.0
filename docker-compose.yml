@@ -3,9 +3,9 @@ services:
     image: postgis/postgis:16-3.4
     container_name: infrageo-postgis
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: infrageo
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-infrageo}
     ports:
       - "5432:5432"
     volumes:

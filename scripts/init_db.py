@@ -73,19 +73,33 @@ def seed() -> None:
         else:
             print("→ Camada 'capitais' já existe — pulando.")
 
+        from app.config import get_settings
+
+        settings = get_settings()
         admin = db.scalars(select(User).where(User.username == "admin")).first()
         if not admin:
-            print("→ Criando usuário admin / admin123 ...")
-            db.add(
-                User(
-                    username="admin",
-                    email="admin@infrageo.local",
-                    hashed_password=hash_password("admin123"),
-                    full_name="Administrador",
-                    is_admin=True,
+            bootstrap_pwd = (settings.auth_bootstrap_password or "").strip()
+            if not bootstrap_pwd:
+                print(
+                    "→ AUTH_BOOTSTRAP_PASSWORD não definido — "
+                    "usuário admin não foi criado."
                 )
-            )
-            db.commit()
+            else:
+                print(
+                    f"→ Criando usuário {settings.auth_bootstrap_username} "
+                    "(senha via AUTH_BOOTSTRAP_PASSWORD)..."
+                )
+                db.add(
+                    User(
+                        username=settings.auth_bootstrap_username or "admin",
+                        email=settings.auth_bootstrap_email
+                        or "admin@infrageo.local",
+                        hashed_password=hash_password(bootstrap_pwd),
+                        full_name="Administrador",
+                        is_admin=True,
+                    )
+                )
+                db.commit()
         else:
             print("→ Usuário admin já existe — pulando.")
 

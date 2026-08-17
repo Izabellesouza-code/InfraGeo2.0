@@ -34,7 +34,17 @@ No PowerShell (ajuste o caminho do `pg_dump` se necessário):
 
 ```powershell
 cd C:\Users\izabelle\Desktop\IZA\novaversaoInfraGeo
-$env:PGPASSWORD = "Manaus@2026"
+# Use a senha do Postgres origem (não versionar no Git)
+$env:PGPASSWORD = $env:SOURCE_PGPASSWORD  # ou digite manualmente
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" `
+  -h $env:SOURCE_PGHOST -p 5432 -U postgres -d infrageo `
+  -Fc -f ".\data\exports\infrageo.dump"
+```
+
+Exemplo com valores locais (substitua pelos seus):
+
+```powershell
+$env:PGPASSWORD = "SUA_SENHA"
 & "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" `
   -h 192.168.0.102 -p 5432 -U postgres -d infrageo `
   -Fc -f ".\data\exports\infrageo.dump"

@@ -19,14 +19,21 @@ from app.services.schema_sync_service import SchemaSyncService, _sa_url
 
 get_settings.cache_clear()
 
-SOURCE = os.getenv(
-    "SOURCE_DATABASE_URL",
-    "postgresql+psycopg2://postgres:Manaus%402026@192.168.0.102:5432/infrageo",
-)
-NEON = os.getenv("NEON_DATABASE_URL") or os.getenv("DATABASE_URL")
+SOURCE = os.getenv("SOURCE_DATABASE_URL", "").strip()
+NEON = (os.getenv("NEON_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
+
+if not SOURCE:
+    raise SystemExit(
+        "Defina SOURCE_DATABASE_URL no .env (Postgres origem). "
+        "Não há fallback com senha no código."
+    )
+if not NEON:
+    raise SystemExit(
+        "Defina NEON_DATABASE_URL ou DATABASE_URL no .env (Neon/nuvem)."
+    )
 
 os.environ["SOURCE_DATABASE_URL"] = SOURCE
-os.environ["NEON_DATABASE_URL"] = NEON or ""
+os.environ["NEON_DATABASE_URL"] = NEON
 # força re-leitura
 get_settings.cache_clear()
 

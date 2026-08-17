@@ -1,3 +1,5 @@
+"""Verifica auth usando apenas variáveis de ambiente (.env)."""
+
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=True)
@@ -6,7 +8,9 @@ from app.config import get_settings
 
 get_settings.cache_clear()
 s = get_settings()
-print("bootstrap", s.auth_bootstrap_username, s.auth_bootstrap_password)
+pwd = (s.auth_bootstrap_password or "").strip()
+print("bootstrap user", s.auth_bootstrap_username)
+print("bootstrap password set", bool(pwd))
 
 from sqlalchemy import text
 
@@ -27,11 +31,15 @@ try:
     print("count", len(users))
     for u in users:
         print(u.id, u.username, u.is_active, u.hashed_password[:30])
-        print("verify", verify_password("InfraGeo@2026", u.hashed_password))
-    try:
-        authenticate(db, "admin", "InfraGeo@2026")
-        print("auth OK")
-    except Exception as e:
-        print("auth fail", type(e).__name__, e)
+        if pwd:
+            print("verify bootstrap", verify_password(pwd, u.hashed_password))
+    if pwd:
+        try:
+            authenticate(db, s.auth_bootstrap_username or "admin", pwd)
+            print("auth OK")
+        except Exception as e:
+            print("auth fail", type(e).__name__, e)
+    else:
+        print("AUTH_BOOTSTRAP_PASSWORD vazio — pulando teste de login")
 finally:
     db.close()

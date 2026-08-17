@@ -102,7 +102,13 @@ def ensure_auth_ready(db: Session) -> None:
         return
 
     username = (settings.auth_bootstrap_username or "admin").strip()
-    password = settings.auth_bootstrap_password or "InfraGeo@2026"
+    password = (settings.auth_bootstrap_password or "").strip()
+    if not password:
+        raise WebGISException(
+            "AUTH_BOOTSTRAP_PASSWORD não definido — "
+            "impossível criar o usuário administrador inicial",
+            status_code=500,
+        )
     email = settings.auth_bootstrap_email or f"{username}@infrageo.local"
 
     admin = User(
