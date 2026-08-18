@@ -27,7 +27,16 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "name": "OAE/OAC",
         "icon": "🌉",
         "iconClass": "layer-group__icon--teal",
-        "match": ("PONTES_", "BUEIROS_", "JAZIDAS_", "IP4", "PRAD", "PCA_PRAD"),
+        "match": (
+            "PONTES_",
+            "BUEIROS_",
+            "JAZIDAS_",
+            "IP4",
+            "PRAD",
+            "PCA_PRAD",
+            "USINA_",
+            "CANTEIRO_",
+        ),
     },
     {
         "id": "br_am",
@@ -170,6 +179,10 @@ def _display_name(schema: str, table: str) -> str:
         return f"Pontes BR-{br_num}" if br_num else "Pontes"
     if s.startswith("JAZIDAS"):
         return f"Jazidas BR-{br_num}" if br_num else "Jazidas"
+    if s.startswith("USINA"):
+        return f"Usina BR-{br_num}" if br_num else "Usina"
+    if s.startswith("CANTEIRO"):
+        return f"Canteiro BR-{br_num}" if br_num else "Canteiro"
     if s.startswith("PRAD"):
         # Mantém detalhe do segmento se houver
         seg = re.search(r"(Segmento\s+[A-Z]|Trecho[^)]*)", t, re.I)
@@ -279,8 +292,8 @@ def _style_for(
             "weight": 2,
         }
 
-    # OAE/OAC (pontes, bueiros, jazidas) — mesma cor da BR correspondente
-    if s.startswith(("PONTES_", "BUEIROS_", "JAZIDAS_")):
+    # OAE/OAC (pontes, bueiros, jazidas, usina, canteiro) — cor da BR
+    if s.startswith(("PONTES_", "BUEIROS_", "JAZIDAS_", "USINA_", "CANTEIRO_")):
         if br_num:
             stroke, fill = _br_colors(br_num)
             return {
