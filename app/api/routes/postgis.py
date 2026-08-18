@@ -111,6 +111,26 @@ async def upload_shapefile(
         import shutil
 
         shutil.rmtree(upload_dir, ignore_errors=True)
+
+        # Espelha schema novo no Postgres local (se SOURCE_DATABASE_URL alcançável)
+        if settings.upload_mirror_to_source and result.get("schema"):
+            try:
+                from app.services.schema_sync_service import SchemaSyncService
+
+                sync = SchemaSyncService()
+                result["mirror_local"] = sync.mirror_schema_to_source(
+                    result["schema"],
+                    actor=getattr(_user, "username", None) or "upload",
+                )
+            except Exception as exc:  # noqa: BLE001
+                result["mirror_local"] = {
+                    "ok": False,
+                    "error": str(exc),
+                    "note": (
+                        "Upload no Neon OK. No PC local rode: "
+                        "python scripts/sync_neon_to_local.py"
+                    ),
+                }
         return result
     except WebGISException:
         import shutil

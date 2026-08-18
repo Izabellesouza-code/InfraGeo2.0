@@ -64,6 +64,23 @@ def sync_missing(
     )
 
 
+@router.post("/schemas/sync-missing-from-neon")
+def sync_missing_from_neon(
+    admin: User = Depends(require_admin_user),
+) -> dict[str, Any]:
+    """Espelha no Postgres local os schemas que existem só no Neon (ex.: uploads)."""
+    return _svc().sync_missing_from_neon(actor=admin.username)
+
+
+@router.post("/schemas/{schema_name}/mirror-to-local")
+def mirror_schema_to_local(
+    schema_name: str,
+    admin: User = Depends(require_admin_user),
+) -> dict[str, Any]:
+    """Espelha um schema específico Neon → Postgres local."""
+    return _svc().mirror_schema_to_source(schema_name, actor=admin.username)
+
+
 @router.post("/schemas")
 def create_schema(
     body: SchemaCreateBody,

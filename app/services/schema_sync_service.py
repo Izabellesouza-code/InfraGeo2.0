@@ -1,10 +1,9 @@
 """
-Sincronização de schemas PostGIS: origem (local) → Neon (nuvem).
+Sincronização de schemas PostGIS entre origem (local) e Neon (nuvem).
 
-Fluxo:
-  CREATE SCHEMA na origem  → cria/espelha no Neon + snapshot + git (opcional)
-  DROP SCHEMA na origem    → NÃO apaga no Neon automaticamente;
-                             registra exclusão pendente (confirmação admin)
+Fluxos:
+  Local → Neon: CREATE na origem / sync-missing / watcher
+  Neon → Local: após upload no site, ou sync-missing-from-neon (pgAdmin local)
 """
 
 from __future__ import annotations
@@ -265,13 +264,55 @@ class SchemaSyncService:
         }
 
     def _mirror_schema_with_pg_dump(self, schema: str) -> list[str]:
+        """Espelha schema da origem (local) → Neon."""
+        return self._mirror_schema(
+            schema,
+            from_url=self.source_url,
+            to_url=self.neon_url,
+            from_engine=self.source_engine,
+            to_engine=self.neon_engine,
+        )
+
+    def _mirror_schema(
+        self,
+        schema: str,
+        *,
+        from_url: str,
+        to_url: str,
+        from_engine: Engine,
+        to_engine: Engine | None = None,
+    ) -> list[str]:
         pg_dump = shutil.which("pg_dump")
         pg_restore = shutil.which("pg_restore")
-        if not pg_dump or not pg_restore:
-            raise RuntimeError("pg_dump/pg_restore não encontrados no PATH")
+        if pg_dump and pg_restore:
+            return self._mirror_schema_pg_dump(
+                schema, from_url=from_url, to_url=to_url, from_engine=from_engine
+            )
+        dest = to_engine
+        if dest is None:
+            dest = (
+                self.neon_engine
+                if to_url == self.neon_url
+                else self.source_engine
+            )
+        return self._mirror_schema_geopandas(
+            schema, from_engine=from_engine, to_engine=dest
+        )
 
-        source_dsn = _dsn_for_cli(self.source_url)
-        neon_dsn = _dsn_for_cli(self.neon_url)
+    def _mirror_schema_pg_dump(
+        self,
+        schema: str,
+        *,
+        from_url: str,
+        to_url: str,
+        from_engine: Engine,
+    ) -> list[str]:
+        pg_dump = shutil.which("pg_dump")
+        pg_restore = shutil.which("pg_restore")
+        assert pg_dump and pg_restore
+
+        from_dsn = _dsn_for_cli(from_url)
+        to_dsn = _dsn_for_cli(to_url)
         tmp = Path(tempfile.mkdtemp(prefix="infrageo_schema_"))
         dump_file = tmp / f"{schema}.dump"
         # Schemas em MAIÚSCULAS exigem aspas no -n do pg_dump
@@ -280,7 +321,7 @@ class SchemaSyncService:
             dump = subprocess.run(
                 [
                     pg_dump,
-                    f"--dbname={source_dsn}",
+                    f"--dbname={from_dsn}",
                     "-n",
                     schema_pattern,
                     "-Fc",
@@ -297,11 +338,10 @@ class SchemaSyncService:
             if not dump_file.exists() or dump_file.stat().st_size == 0:
                 raise RuntimeError("pg_dump gerou arquivo vazio")
 
-            # drop objects inside schema on neon then restore (schema already exists)
             restore = subprocess.run(
                 [
                     pg_restore,
-                    f"--dbname={neon_dsn}",
+                    f"--dbname={to_dsn}",
                     "--no-owner",
                     "--no-acl",
                     "--clean",
@@ -315,7 +355,7 @@ class SchemaSyncService:
             if restore.returncode not in (0, 1):
                 raise RuntimeError(restore.stderr or "pg_restore falhou")
 
-            with self.source_engine.connect() as conn:
+            with from_engine.connect() as conn:
                 rows = conn.execute(
                     text(
                         """
@@ -328,6 +368,182 @@ class SchemaSyncService:
             return [r[0] for r in rows]
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    def _mirror_schema_geopandas(
+        self,
+        schema: str,
+        *,
+        from_engine: Engine,
+        to_engine: Engine,
+    ) -> list[str]:
+        """Fallback sem pg_dump: copia tabelas com geometria via GeoPandas."""
+        try:
+            import geopandas as gpd
+        except ImportError as exc:
+            raise RuntimeError(
+                "pg_dump/pg_restore ausentes e geopandas não instalado"
+            ) from exc
+
+        with from_engine.connect() as conn:
+            tables = conn.execute(
+                text(
+                    """
+                    SELECT f_table_name, f_geometry_column
+                    FROM geometry_columns
+                    WHERE f_table_schema = :s
+                    ORDER BY 1
+                    """
+                ),
+                {"s": schema},
+            ).fetchall()
+            if not tables:
+                tables = conn.execute(
+                    text(
+                        """
+                        SELECT tablename, 'geometry'
+                        FROM pg_tables
+                        WHERE schemaname = :s
+                        ORDER BY 1
+                        """
+                    ),
+                    {"s": schema},
+                ).fetchall()
+
+        with to_engine.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+
+        copied: list[str] = []
+        for table, geom_col in tables:
+            sql = f'SELECT * FROM "{schema}"."{table}"'
+            try:
+                gdf = gpd.read_postgis(sql, from_engine, geom_col=geom_col)
+            except Exception:
+                # tabela sem geometria reconhecida — tenta geom_col comum
+                gdf = gpd.read_postgis(sql, from_engine, geom_col="geom")
+            if gdf.empty and len(gdf.columns) == 0:
+                continue
+            gdf.to_postgis(
+                table,
+                to_engine,
+                schema=schema,
+                if_exists="replace",
+                index=False,
+            )
+            copied.append(table)
+        if not copied:
+            raise RuntimeError(
+                f"Nenhuma tabela copiável no schema {schema}"
+            )
+        return copied
+
+    def can_mirror_to_source(self) -> bool:
+        """True se origem ≠ Neon e SOURCE_DATABASE_URL está configurada."""
+        if not (settings.source_database_url or "").strip():
+            return False
+        return self.source_url != self.neon_url
+
+    def mirror_schema_to_source(
+        self,
+        schema: str,
+        *,
+        actor: str = "system",
+    ) -> dict[str, Any]:
+        """
+        Espelha um schema do Neon → Postgres local (origem).
+        Usado após upload no site, ou manualmente via sync.
+        """
+        schema = _safe_ident(schema)
+        if schema.lower() == "public":
+            raise WebGISException(
+                "Schema public nunca é sincronizado por este fluxo",
+                status_code=400,
+            )
+        if not self.can_mirror_to_source():
+            return {
+                "ok": False,
+                "skipped": True,
+                "schema": schema,
+                "error": (
+                    "SOURCE_DATABASE_URL não configurada ou igual ao Neon — "
+                    "nada a espelhar no Postgres local."
+                ),
+            }
+
+        neon_schemas = {s.lower() for s in self.list_schemas("neon")}
+        if schema.lower() not in neon_schemas:
+            raise WebGISException(
+                f"Schema não existe no Neon: {schema}", status_code=404
+            )
+
+        with self.source_engine.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+
+        copied: list[str] = []
+        dump_ok = False
+        try:
+            copied = self._mirror_schema(
+                schema,
+                from_url=self.neon_url,
+                to_url=self.source_url,
+                from_engine=self.neon_engine,
+                to_engine=self.source_engine,
+            )
+            dump_ok = True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Espelho Neon→local falhou para %s: %s", schema, exc
+            )
+            return {
+                "ok": False,
+                "schema": schema,
+                "dump_ok": False,
+                "error": str(exc),
+                "note": (
+                    "O Neon já tem o schema. Rode no PC (rede local): "
+                    "python scripts/sync_neon_to_local.py"
+                ),
+            }
+
+        return {
+            "ok": True,
+            "action": "mirror_to_source",
+            "schema": schema,
+            "copied_objects": copied,
+            "dump_ok": dump_ok,
+            "actor": actor,
+        }
+
+    def sync_missing_from_neon(
+        self, *, actor: str = "system"
+    ) -> dict[str, Any]:
+        """Copia para o Postgres local todos os schemas que só existem no Neon."""
+        if not self.can_mirror_to_source():
+            return {
+                "ok": False,
+                "skipped": True,
+                "error": "SOURCE_DATABASE_URL não configurada ou igual ao Neon",
+                "diff": self.diff(),
+            }
+        diff = self.diff()
+        mirrored = []
+        errors = []
+        for schema in diff["neon_only"]:
+            if schema.lower() == "public":
+                continue
+            if self.is_protected(schema) and schema.lower() in SYSTEM_SCHEMAS:
+                continue
+            try:
+                mirrored.append(
+                    self.mirror_schema_to_source(schema, actor=actor)
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"schema": schema, "error": str(exc)})
+        return {
+            "ok": True,
+            "mirrored": mirrored,
+            "errors": errors,
+            "diff": self.diff(),
+        }
 
     # ── delete (secure) ─────────────────────────────────────────────
 

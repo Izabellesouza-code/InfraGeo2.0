@@ -55,6 +55,8 @@ class Settings(BaseSettings):
         "LIMITE_ESTADUAL,LIMITE_MUNICIPAL"
     )
     schema_sync_delete_phrase_prefix: str = "EXCLUIR"
+    # Após upload no Neon, tenta espelhar no Postgres local (SOURCE_DATABASE_URL)
+    upload_mirror_to_source: bool = True
 
     cors_origins: str = (
         "http://localhost:8000,http://127.0.0.1:8000,"
