@@ -1,8 +1,6 @@
-# Extra para desenvolvimento local (upload SHP, testes, etc.)
+# Extra para desenvolvimento local (testes, raster, etc.)
 -r requirements.txt
 
-geopandas==1.0.1
-fiona==1.10.1
 rasterio==1.4.3
 folium==0.19.2
 alembic==1.14.0

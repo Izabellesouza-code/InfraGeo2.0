@@ -57,7 +57,7 @@ window.InfraGeoSidebar = (function () {
     btn.classList.toggle("is-busy", !!busy);
     const label = btn.querySelector(".menu-btn__label");
     if (label) {
-      label.innerHTML = busy ? "Enviando…" : "Upload<br />SHP";
+      label.innerHTML = busy ? "Enviando…" : "Upload<br />SHP/GeoJSON";
     }
   }
 
@@ -67,17 +67,29 @@ window.InfraGeoSidebar = (function () {
 
     const hasZip = files.some((f) => /\.zip$/i.test(f.name));
     const hasShp = files.some((f) => /\.shp$/i.test(f.name));
-    if (!hasZip && !hasShp) {
-      window.alert("Envie um .zip do shapefile ou os arquivos .shp/.shx/.dbf.");
+    const hasGeojson = files.some((f) => /\.(geojson|json)$/i.test(f.name));
+    if (!hasZip && !hasShp && !hasGeojson) {
+      window.alert(
+        "Envie um .zip (somente shapefile ou GeoJSON), os arquivos .shp/.shx/.dbf ou um .geojson."
+      );
+      return;
+    }
+
+    // ZIP misturado com outros tipos no cliente (avisar cedo)
+    if (hasZip && files.length > 1) {
+      window.alert(
+        "Envie o .zip sozinho, ou o conjunto .shp/.shx/.dbf, ou um único .geojson."
+      );
       return;
     }
 
     const form = new FormData();
     files.forEach((f) => form.append("files", f, f.name));
-    const baseName = (files.find((f) => /\.shp$/i.test(f.name)) || files[0]).name.replace(
-      /\.(zip|shp)$/i,
-      ""
-    );
+    const baseName = (
+      files.find((f) => /\.shp$/i.test(f.name)) ||
+      files.find((f) => /\.(geojson|json)$/i.test(f.name)) ||
+      files[0]
+    ).name.replace(/\.(zip|shp|geojson|json)$/i, "");
     form.append("name", baseName);
 
     setUploadBusy(true);

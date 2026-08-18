@@ -57,10 +57,12 @@ async def upload_shapefile(
     _user: User = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
-    Recebe shapefile (.zip ou .shp+.shx+.dbf) e grava no PostGIS.
-    Requer login com permissão de upload (public.users).
-    Cria schema com o nome do SHP e tabela homônima.
+    Recebe shapefile (.zip com .shp ou .shp+.shx+.dbf) ou GeoJSON
+    (.geojson/.json ou .zip só com GeoJSON) e grava no PostGIS.
+    ZIP com outros tipos de arquivo é rejeitado.
     """
+    from app.utils.file_utils import UPLOAD_ALLOWED_EXTENSIONS
+
     if not files:
         raise WebGISException("Nenhum arquivo enviado", status_code=400)
 
@@ -77,9 +79,10 @@ async def upload_shapefile(
             if not uf.filename:
                 continue
             ext = Path(uf.filename).suffix.lower()
-            if ext not in {".zip", ".shp", ".shx", ".dbf", ".prj", ".cpg", ".sbn", ".sbx"}:
+            if ext not in UPLOAD_ALLOWED_EXTENSIONS:
                 raise WebGISException(
-                    f"Extensão não permitida: {ext or '(vazia)'}. Use .zip do shapefile.",
+                    f"Extensão não permitida: {ext or '(vazia)'}. "
+                    "Use .zip (shapefile ou GeoJSON), .shp/.shx/.dbf ou .geojson.",
                     status_code=415,
                 )
             # Mantém o nome original para o conjunto .shp/.shx/.dbf bater.

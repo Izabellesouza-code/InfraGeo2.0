@@ -549,13 +549,25 @@ class PostGISService:
         schema: str | None = None,
     ) -> dict[str, Any]:
         """
-        Lê shapefile e grava no PostGIS.
-        Cria um schema específico com o nome do SHP (padrão UPPERCASE_COM_UNDERSCORE),
-        e uma tabela com o mesmo nome — no estilo BUEIROS_319, PONTES_307, etc.
+        Lê shapefile ou GeoJSON e grava no PostGIS.
+        ZIP: somente componentes de SHP ou arquivos .geojson/.json.
+        Cria schema com o nome do arquivo e tabela homônima.
         """
         import os
 
-        import geopandas as gpd
+        try:
+            import geopandas as gpd
+        except ImportError as exc:
+            raise WebGISException(
+                "Servidor sem suporte a SHP/GeoJSON (geopandas não instalado). "
+                "Redeploy da API com requirements atualizado.",
+                status_code=500,
+            ) from exc
+
+        from app.utils.file_utils import (
+            GEOJSON_EXTENSIONS,
+            validate_vector_zip,
+        )
 
         # Permite ler .shp mesmo sem .shx (GDAL/pyogrio recria o índice)
         os.environ["SHAPE_RESTORE_SHX"] = "YES"
@@ -564,60 +576,95 @@ class PostGISService:
             raise WebGISException("Nenhum arquivo enviado", status_code=400)
 
         work = Path(tempfile.mkdtemp(prefix="infrageo_shp_"))
-        shp_path: Path | None = None
+        vector_path: Path | None = None
         preferred_name = table_name or schema
+        kind = "shapefile"
 
         try:
-            # Um único ZIP
+            # Um único ZIP — valida conteúdo antes de extrair
             if len(source_paths) == 1 and source_paths[0].suffix.lower() == ".zip":
+                kind = validate_vector_zip(source_paths[0])
                 with zipfile.ZipFile(source_paths[0], "r") as zf:
                     zf.extractall(work)
-                shp_candidates = list(work.rglob("*.shp"))
-                if not shp_candidates:
-                    raise WebGISException(
-                        "O ZIP não contém arquivo .shp",
-                        status_code=400,
-                    )
-                shp_path = shp_candidates[0]
+                if kind == "shapefile":
+                    shp_candidates = list(work.rglob("*.shp"))
+                    if not shp_candidates:
+                        raise WebGISException(
+                            "O ZIP não contém arquivo .shp",
+                            status_code=400,
+                        )
+                    vector_path = shp_candidates[0]
+                else:
+                    gj_candidates = [
+                        p
+                        for p in work.rglob("*")
+                        if p.is_file() and p.suffix.lower() in GEOJSON_EXTENSIONS
+                    ]
+                    if not gj_candidates:
+                        raise WebGISException(
+                            "O ZIP não contém arquivo GeoJSON (.geojson/.json)",
+                            status_code=400,
+                        )
+                    vector_path = gj_candidates[0]
                 if not preferred_name:
-                    preferred_name = shp_path.stem
+                    preferred_name = vector_path.stem
             else:
                 for src in source_paths:
                     dest = work / src.name
                     shutil.copy2(src, dest)
-                    if src.suffix.lower() == ".shp":
-                        shp_path = dest
+                    ext = src.suffix.lower()
+                    if ext == ".shp":
+                        vector_path = dest
+                        kind = "shapefile"
                         if not preferred_name:
                             preferred_name = src.stem
-                if shp_path is None:
-                    found = list(work.glob("*.shp"))
-                    if found:
-                        shp_path = found[0]
+                    elif ext in GEOJSON_EXTENSIONS and vector_path is None:
+                        vector_path = dest
+                        kind = "geojson"
                         if not preferred_name:
-                            preferred_name = shp_path.stem
-                if shp_path is None:
+                            preferred_name = src.stem
+
+                if vector_path is None:
+                    found_shp = list(work.glob("*.shp"))
+                    found_gj = [
+                        p
+                        for p in work.glob("*")
+                        if p.suffix.lower() in GEOJSON_EXTENSIONS
+                    ]
+                    if found_shp:
+                        vector_path = found_shp[0]
+                        kind = "shapefile"
+                    elif found_gj:
+                        vector_path = found_gj[0]
+                        kind = "geojson"
+                    if vector_path and not preferred_name:
+                        preferred_name = vector_path.stem
+
+                if vector_path is None:
                     raise WebGISException(
-                        "Envie um .zip do shapefile ou os arquivos .shp/.shx/.dbf",
+                        "Envie um .zip (shapefile ou GeoJSON), "
+                        "arquivos .shp/.shx/.dbf ou um .geojson",
                         status_code=400,
                     )
 
             try:
-                gdf = gpd.read_file(shp_path)
+                gdf = gpd.read_file(vector_path)
             except Exception as exc:  # noqa: BLE001
-                # tenta de novo com engine fiona + restore
                 try:
-                    gdf = gpd.read_file(shp_path, engine="fiona")
+                    gdf = gpd.read_file(vector_path, engine="fiona")
                 except Exception as exc2:  # noqa: BLE001
+                    label = "GeoJSON" if kind == "geojson" else "shapefile"
                     raise WebGISException(
-                        f"Falha ao ler shapefile: {exc2}. "
-                        "Envie o .zip completo (.shp, .shx, .dbf e .prj) ou todos os arquivos juntos.",
+                        f"Falha ao ler {label}: {exc2}. "
+                        "Para SHP, envie o .zip completo (.shp, .shx, .dbf e .prj). "
+                        "Para GeoJSON, use .geojson ou .json válido.",
                         status_code=400,
                     ) from exc2
 
             if gdf.empty:
-                raise WebGISException("Shapefile sem feições", status_code=400)
+                raise WebGISException("Arquivo sem feições", status_code=400)
             if "geometry" not in gdf.columns and gdf.geometry.name not in gdf.columns:
-                raise WebGISException("Shapefile sem geometria", status_code=400)
+                raise WebGISException("Arquivo sem geometria", status_code=400)
 
             if gdf.crs is None:
                 gdf = gdf.set_crs(4326)
@@ -642,8 +689,10 @@ class PostGISService:
             if rename:
                 gdf = gdf.rename(columns=rename)
 
-            # Schema e tabela = nome do SHP no padrão das camadas existentes
-            schema_name = self._safe_table_name(preferred_name or shp_path.stem)
+            # Schema e tabela = nome do arquivo no padrão das camadas existentes
+            schema_name = self._safe_table_name(
+                preferred_name or (vector_path.stem if vector_path else "camada")
+            )
             table = schema_name
 
             # Não sobrescreve schemas do inventário oficial (OAE, BR, UC, etc.)
@@ -655,7 +704,7 @@ class PostGISService:
             if schema_name in protected:
                 raise WebGISException(
                     f"O nome '{schema_name}' já existe no inventário. "
-                    "Renomeie o shapefile e envie de novo.",
+                    "Renomeie o arquivo e envie de novo.",
                     status_code=409,
                 )
 
@@ -684,6 +733,7 @@ class PostGISService:
                 "layer_id": layer_id,
                 "feature_count": int(len(gdf)),
                 "geom_type": str(gdf.geom_type.mode().iloc[0]) if len(gdf) else None,
+                "format": kind,
                 "name": _display_name(schema_name, table),
                 "url": (
                     "/api/postgis/geojson"
