@@ -58,8 +58,8 @@ async def upload_shapefile(
 ) -> dict[str, Any]:
     """
     Recebe shapefile (.zip com .shp ou .shp+.shx+.dbf) ou GeoJSON
-    (.geojson/.json ou .zip só com GeoJSON) e grava no PostGIS.
-    ZIP com outros tipos de arquivo é rejeitado.
+    (.geojson/.json ou .zip com GeoJSON) e grava no PostGIS.
+    Extras no ZIP (desktop.ini, locks, xml…) são ignorados.
     """
     from app.utils.file_utils import UPLOAD_ALLOWED_EXTENSIONS
 

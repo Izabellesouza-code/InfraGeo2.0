@@ -7,7 +7,6 @@ import json
 import re
 import shutil
 import tempfile
-import zipfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -566,6 +565,7 @@ class PostGISService:
 
         from app.utils.file_utils import (
             GEOJSON_EXTENSIONS,
+            extract_vector_zip,
             validate_vector_zip,
         )
 
@@ -584,8 +584,7 @@ class PostGISService:
             # Um único ZIP — valida conteúdo antes de extrair
             if len(source_paths) == 1 and source_paths[0].suffix.lower() == ".zip":
                 kind = validate_vector_zip(source_paths[0])
-                with zipfile.ZipFile(source_paths[0], "r") as zf:
-                    zf.extractall(work)
+                extract_vector_zip(source_paths[0], work)
                 if kind == "shapefile":
                     shp_candidates = list(work.rglob("*.shp"))
                     if not shp_candidates:

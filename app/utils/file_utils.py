@@ -24,8 +24,48 @@ SHP_COMPONENT_EXTENSIONS = {
 }
 GEOJSON_EXTENSIONS = {".geojson", ".json"}
 UPLOAD_ALLOWED_EXTENSIONS = SHP_COMPONENT_EXTENSIONS | GEOJSON_EXTENSIONS | {".zip"}
-# Dentro de um ZIP: só componentes de SHP ou GeoJSON
+# Dentro de um ZIP: componentes de SHP ou GeoJSON (os demais são ignorados)
 ZIP_ALLOWED_EXTENSIONS = SHP_COMPONENT_EXTENSIONS | GEOJSON_EXTENSIONS
+
+# Lixo comum do Windows / GIS — aceito no ZIP, mas filtrado (não usado)
+ZIP_IGNORE_NAMES = {
+    "desktop.ini",
+    "thumbs.db",
+    ".ds_store",
+    "ehthumbs.db",
+    "ehthumbs_vista.db",
+}
+ZIP_IGNORE_EXTENSIONS = {
+    ".lock",
+    ".xml",
+    ".html",
+    ".htm",
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".csv",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".atx",
+    ".ixs",
+    ".mxs",
+    ".qix",
+    ".ain",
+    ".aih",
+    ".fbn",
+    ".fbx",
+    ".tin",
+    ".tmp",
+    ".bak",
+    ".log",
+}
 
 ALLOWED_VECTOR_EXTENSIONS = {".geojson", ".json", ".zip", ".shp", ".gpkg", ".kml"}
 ALLOWED_RASTER_EXTENSIONS = {".tif", ".tiff", ".geotiff"}
@@ -53,21 +93,42 @@ def validate_extension(filename: str, allowed: Iterable[str] | None = None) -> s
 
 
 def _zip_entry_basename(name: str) -> str | None:
-    """Ignora pastas, __MACOSX e arquivos ocultos; retorna só o nome do arquivo."""
+    """Ignora pastas e __MACOSX; retorna só o nome do arquivo."""
     if not name or name.endswith("/"):
         return None
     normalized = name.replace("\\", "/")
     if normalized.startswith("__MACOSX/") or "/__MACOSX/" in normalized:
         return None
     base = Path(normalized).name
-    if not base or base.startswith("."):
+    if not base:
         return None
     return base
 
 
+def _is_zip_noise(base: str) -> bool:
+    """Arquivos de sistema/metadado: entram no ZIP, mas são barrados no processamento."""
+    lower = base.lower()
+    if lower in ZIP_IGNORE_NAMES or lower.startswith("~$"):
+        return True
+    # Ocultos tipo .DS_Store já cobertos; demais dotfiles
+    if base.startswith("."):
+        return True
+    # Locks do ArcGIS: nome.shp.<id>.sr.lock
+    if ".sr.lock" in lower or lower.endswith(".lock"):
+        return True
+    # Metadado .shp.xml etc.
+    suffixes = Path(lower).suffixes
+    if any(s in ZIP_IGNORE_EXTENSIONS for s in suffixes):
+        return True
+    if Path(lower).suffix in ZIP_IGNORE_EXTENSIONS:
+        return True
+    return False
+
+
 def validate_vector_zip(zip_path: Path) -> str:
     """
-    Garante que o ZIP contenha somente dados de shapefile ou GeoJSON.
+    Garante que o ZIP contenha shapefile ou GeoJSON.
+    Arquivos extras (desktop.ini, locks, xml…) são ignorados — não apaga o ZIP original.
     Retorna 'shapefile' ou 'geojson'.
     """
     import zipfile
@@ -85,21 +146,20 @@ def validate_vector_zip(zip_path: Path) -> str:
                         f"ZIP inválido (caminho suspeito): {info.filename}",
                         status_code=400,
                     )
+                if _is_zip_noise(base):
+                    continue
                 ext = Path(base).suffix.lower()
                 if ext not in ZIP_ALLOWED_EXTENSIONS:
-                    raise WebGISException(
-                        f"ZIP contém arquivo não permitido: {base}. "
-                        "Aceitos apenas shapefile (.shp + .shx/.dbf/.prj…) "
-                        "ou GeoJSON (.geojson / .json).",
-                        status_code=415,
-                    )
+                    # Outros extras: ignora (não rejeita o pacote inteiro)
+                    continue
                 entries.append(base)
     except zipfile.BadZipFile as exc:
         raise WebGISException("Arquivo ZIP inválido ou corrompido", status_code=400) from exc
 
     if not entries:
         raise WebGISException(
-            "ZIP vazio — envie um shapefile (.shp) ou um GeoJSON",
+            "ZIP sem shapefile (.shp) ou GeoJSON — "
+            "envie o pacote com os arquivos da camada.",
             status_code=400,
         )
 
@@ -116,6 +176,31 @@ def validate_vector_zip(zip_path: Path) -> str:
         "Envie um pacote shapefile ou um arquivo GeoJSON.",
         status_code=400,
     )
+
+
+def extract_vector_zip(zip_path: Path, dest: Path) -> None:
+    """
+    Extrai só componentes SHP/GeoJSON para dest.
+    Ignora desktop.ini, locks, xml etc. Sem alterar o ZIP original do usuário.
+    """
+    import zipfile
+
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            if ".." in Path(info.filename).parts:
+                continue
+            base = _zip_entry_basename(info.filename)
+            if base is None or _is_zip_noise(base):
+                continue
+            if Path(base).suffix.lower() not in ZIP_ALLOWED_EXTENSIONS:
+                continue
+            # Evita paths aninhados perigosos: grava só o basename
+            target = dest / base
+            with zf.open(info, "r") as src, target.open("wb") as out:
+                shutil.copyfileobj(src, out)
 
 
 async def save_upload(file: UploadFile, subfolder: str = "") -> Path:
