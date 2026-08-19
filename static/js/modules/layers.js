@@ -114,10 +114,12 @@ window.InfraGeoLayers = (function () {
   function groupAccent(groupId) {
     const map = {
       oae_oac: "#14b8a6",
+      oac: "#0d9488",
       br_am: "#22c55e",
       aquaviario: "#3b82f6",
       ucs: "#34d399",
       limites_am: "#38bdf8",
+      uploads: "#2dd4bf",
       outros: "#94a3b8",
     };
     return map[groupId] || "#38bdf8";

@@ -55,8 +55,15 @@ window.InfraGeoConfig = {
   groups: [
     {
       id: "oae_oac",
-      name: "OAE/OAC",
+      name: "OAE",
       icon: "🌉",
+      iconClass: "layer-group__icon--teal",
+      layers: [],
+    },
+    {
+      id: "oac",
+      name: "OAC",
+      icon: "🕳️",
       iconClass: "layer-group__icon--teal",
       layers: [],
     },

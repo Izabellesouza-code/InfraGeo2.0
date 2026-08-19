@@ -24,12 +24,11 @@ settings = get_settings()
 GROUP_DEFS: list[dict[str, Any]] = [
     {
         "id": "oae_oac",
-        "name": "OAE/OAC",
+        "name": "OAE",
         "icon": "🌉",
         "iconClass": "layer-group__icon--teal",
         "match": (
             "PONTES_",
-            "BUEIROS_",
             "JAZIDAS_",
             "IP4",
             "PRAD",
@@ -37,6 +36,13 @@ GROUP_DEFS: list[dict[str, Any]] = [
             "USINA_",
             "CANTEIRO_",
         ),
+    },
+    {
+        "id": "oac",
+        "name": "OAC",
+        "icon": "🕳️",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("BUEIROS_", "BUEIRO_"),
     },
     {
         "id": "br_am",
@@ -292,8 +298,8 @@ def _style_for(
             "weight": 2,
         }
 
-    # OAE/OAC (pontes, bueiros, jazidas, usina, canteiro) — cor da BR
-    if s.startswith(("PONTES_", "BUEIROS_", "JAZIDAS_", "USINA_", "CANTEIRO_")):
+    # OAE (pontes, jazidas, usina, canteiro) / OAC (bueiros) — cor da BR
+    if s.startswith(("PONTES_", "BUEIROS_", "BUEIRO_", "JAZIDAS_", "USINA_", "CANTEIRO_")):
         if br_num:
             stroke, fill = _br_colors(br_num)
             return {
