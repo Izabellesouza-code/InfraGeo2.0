@@ -112,6 +112,29 @@ async def upload_shapefile(
 
         shutil.rmtree(upload_dir, ignore_errors=True)
 
+        try:
+            from app.services.system_meta_service import touch_data_upload
+
+            touch_engines = []
+            try:
+                from app.services.schema_sync_service import SchemaSyncService
+
+                sync = SchemaSyncService()
+                touch_engines.append(sync.neon_engine)
+                if sync.can_mirror_to_source():
+                    touch_engines.append(sync.source_engine)
+            except Exception:  # noqa: BLE001
+                pass
+            touch_data_upload(
+                result.get("name")
+                or result.get("schema")
+                or name
+                or "",
+                engines=touch_engines or None,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
         # Espelha schema novo no Postgres local (se SOURCE_DATABASE_URL alcançável)
         if settings.upload_mirror_to_source and result.get("schema"):
             try:

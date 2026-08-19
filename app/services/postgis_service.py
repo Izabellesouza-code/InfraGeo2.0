@@ -23,19 +23,11 @@ settings = get_settings()
 # Grupos da sidebar → regras de encaixe por schema
 GROUP_DEFS: list[dict[str, Any]] = [
     {
-        "id": "oae_oac",
+        "id": "oae",
         "name": "OAE",
         "icon": "🌉",
         "iconClass": "layer-group__icon--teal",
-        "match": (
-            "PONTES_",
-            "JAZIDAS_",
-            "IP4",
-            "PRAD",
-            "PCA_PRAD",
-            "USINA_",
-            "CANTEIRO_",
-        ),
+        "match": ("PONTES_", "PONTE_"),
     },
     {
         "id": "oac",
@@ -43,6 +35,49 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "icon": "🕳️",
         "iconClass": "layer-group__icon--teal",
         "match": ("BUEIROS_", "BUEIRO_"),
+    },
+    {
+        "id": "usina",
+        "name": "Usina",
+        "icon": "🏭",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("USINA_",),
+    },
+    {
+        "id": "canteiro",
+        "name": "Canteiro",
+        "icon": "🏕️",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("CANTEIRO_",),
+    },
+    {
+        "id": "prads",
+        "name": "PRADS",
+        "icon": "📍",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("PRADS_", "PRAD_"),
+    },
+    {
+        "id": "pca_prads",
+        "name": "PCA PRADS",
+        "icon": "📌",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("PCA_PRAD",),
+    },
+    {
+        "id": "faixa_dominio",
+        "name": "Faixa de domínio",
+        "icon": "📏",
+        "iconClass": "layer-group__icon--grid",
+        "match": (),
+        "show_empty": True,
+    },
+    {
+        "id": "jazidas",
+        "name": "Jazidas",
+        "icon": "⛰️",
+        "iconClass": "layer-group__icon--teal",
+        "match": ("JAZIDAS_", "JAZIDA_"),
     },
     {
         "id": "br_am",
@@ -56,7 +91,7 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "name": "Aquaviário",
         "icon": "🚢",
         "iconClass": "layer-group__icon--blue",
-        "match": ("BALSA_", "HIDROVIA"),
+        "match": ("BALSA_", "HIDROVIA", "IP4"),
     },
     {
         "id": "ucs",
@@ -462,7 +497,11 @@ class PostGISService:
                 }
             )
 
-        result_groups = [groups[g["id"]] for g in GROUP_DEFS if groups[g["id"]]["layers"]]
+        result_groups = [
+            groups[g["id"]]
+            for g in GROUP_DEFS
+            if groups[g["id"]]["layers"] or g.get("show_empty")
+        ]
         if other["layers"]:
             result_groups.append(other)
 

@@ -1,6 +1,7 @@
 """Ponto de entrada FastAPI do InfraGeo WebGIS."""
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -31,12 +32,14 @@ async def lifespan(_app: FastAPI):
     try:
         from app.database import SessionLocal
         from app.services.auth_service import ensure_auth_ready
+        from app.services.system_meta_service import ensure_meta_ready
 
         db = SessionLocal()
         try:
             ensure_auth_ready(db)
         finally:
             db.close()
+        ensure_meta_ready()
     except Exception as exc:  # noqa: BLE001
         print(f"[auth] aviso ao preparar usuarios: {exc}")
     yield
@@ -82,9 +85,11 @@ async def home(request: Request):
         "pages/mapa.html",
         {
             "app_name": settings.app_name,
+            "app_version": settings.app_version,
             "center_lat": settings.default_map_center_lat,
             "center_lon": settings.default_map_center_lon,
             "zoom": settings.default_map_zoom,
+            "year": datetime.now().year,
         },
     )
 

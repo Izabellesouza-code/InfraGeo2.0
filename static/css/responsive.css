@@ -198,8 +198,10 @@ canvas {
     border-right: 1px solid var(--border);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 0.7rem;
-    gap: 0.65rem;
+    padding: 0.65rem;
+    gap: 0.5rem;
+    overflow: hidden;
+    height: auto;
   }
 
   body.sidebar-open .sidebar {
@@ -275,7 +277,13 @@ canvas {
   }
 
   .active-layers {
-    max-height: min(26vh, 200px);
+    max-height: 100%;
+  }
+
+  .panel--active {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(32vh, 220px);
   }
 
   .coords-bar {
@@ -593,8 +601,14 @@ canvas {
     height: 10px;
   }
 
+  .panel--active {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(28vh, 180px);
+  }
+
   .active-layers {
-    max-height: min(22vh, 160px);
+    max-height: 100%;
   }
 }
 
@@ -657,8 +671,14 @@ canvas {
     height: 18px;
   }
 
+  .panel--active {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(34vh, 140px);
+  }
+
   .active-layers {
-    max-height: min(30vh, 120px);
+    max-height: 100%;
   }
 
   .attr-panel {

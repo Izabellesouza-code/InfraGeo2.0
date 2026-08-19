@@ -62,6 +62,53 @@
 </aside>
 
 <div
+  id="modal-sobre"
+  class="about-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sobre-title"
+>
+  <div class="about-modal__card">
+    <div class="about-modal__head">
+      <h2 id="sobre-title">Sobre o InfraGeo AM</h2>
+      <button type="button" class="icon-btn" id="btn-fechar-sobre" aria-label="Fechar">×</button>
+    </div>
+    <div class="about-modal__body">
+      <p>
+        Sistema de Informações Geográficas para visualização e gestão de
+        camadas territoriais no Amazonas.
+      </p>
+      <p class="about-modal__meta">
+        <strong>Versão</strong> <span id="sobre-versao">{{ app_version|default("2.0.0") }}</span>
+      </p>
+      <p class="about-modal__meta">
+        <strong>Atualização</strong><br />
+        <span id="sobre-ultima-atualizacao">Carregando…</span>
+      </p>
+      <p class="about-modal__meta">
+        <strong>Institucional</strong> CONSÓRCIO SPU - DNIT
+      </p>
+      <p class="about-modal__meta">
+        <strong>Desenvolvimento</strong>
+      </p>
+      <ul class="about-modal__authors">
+        <li>Bianca Silveira</li>
+        <li>Fabíola Alencar</li>
+        <li>Izabelle Mendonça</li>
+      </ul>
+      <p class="about-modal__note">
+        © {{ year|default(2026) }} InfraGeo AM
+      </p>
+    </div>
+    <div class="about-modal__actions">
+      <button type="button" class="btn-primary" id="btn-ok-sobre">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div
   id="modal-login"
   class="login-modal"
   hidden

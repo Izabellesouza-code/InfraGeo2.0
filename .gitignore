@@ -29,6 +29,7 @@ data/uploads/*
 data/exports/*
 !data/exports/.gitkeep
 data/pending_schema_deletes.json
+data/last_data_update.json
 
 # Frontend build (gerado na Vercel)
 frontend/dist/

@@ -57,6 +57,7 @@
     window.InfraGeoMap.createMap("map");
     window.InfraGeoHoverPopup.init();
     window.InfraGeoAuth.init();
+    window.InfraGeoAbout?.init?.();
     window.InfraGeoLegend.init();
     window.InfraGeoFilters.init();
     window.InfraGeoPrintMap.init();

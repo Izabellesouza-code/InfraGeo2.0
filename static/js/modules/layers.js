@@ -113,8 +113,16 @@ window.InfraGeoLayers = (function () {
 
   function groupAccent(groupId) {
     const map = {
+      oae: "#14b8a6",
       oae_oac: "#14b8a6",
       oac: "#0d9488",
+      obras: "#f59e0b",
+      usina: "#b45309",
+      canteiro: "#d97706",
+      prads: "#ea580c",
+      pca_prads: "#c2410c",
+      faixa_dominio: "#64748b",
+      jazidas: "#a16207",
       br_am: "#22c55e",
       aquaviario: "#3b82f6",
       ucs: "#34d399",
