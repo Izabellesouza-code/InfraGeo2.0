@@ -200,7 +200,8 @@ canvas {
     overscroll-behavior: contain;
     padding: 0.65rem;
     gap: 0.5rem;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     height: auto;
   }
 
@@ -274,16 +275,6 @@ canvas {
   .layer-item input {
     width: 16px;
     height: 16px;
-  }
-
-  .active-layers {
-    max-height: 100%;
-  }
-
-  .panel--active {
-    flex: 0 1 auto;
-    min-height: 0;
-    max-height: min(32vh, 220px);
   }
 
   .coords-bar {
@@ -600,16 +591,6 @@ canvas {
     width: 18px;
     height: 10px;
   }
-
-  .panel--active {
-    flex: 0 1 auto;
-    min-height: 0;
-    max-height: min(28vh, 180px);
-  }
-
-  .active-layers {
-    max-height: 100%;
-  }
 }
 
 /* —— Telas muito estreitas —— */
@@ -669,16 +650,6 @@ canvas {
   .menu-btn__icon {
     width: 18px;
     height: 18px;
-  }
-
-  .panel--active {
-    flex: 0 1 auto;
-    min-height: 0;
-    max-height: min(34vh, 140px);
-  }
-
-  .active-layers {
-    max-height: 100%;
   }
 
   .attr-panel {

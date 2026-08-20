@@ -4,7 +4,8 @@
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-soft);
   padding: 0.7rem;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -12,6 +13,8 @@
   max-width: 100%;
   height: 100%;
   min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .panel {
@@ -125,13 +128,12 @@
   font-weight: 600;
 }
 
-/* Lista de grupos e "no mapa": dividem a altura restante */
+/* Camadas e "no mapa": altura natural; a sidebar inteira rola */
 .panel--layers {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panel--layers > .panel__title {
@@ -142,12 +144,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  overflow: visible;
   padding-right: 0.2rem;
-  scrollbar-gutter: stable;
   align-content: flex-start;
 }
 
@@ -255,31 +254,25 @@
   /* mesmo grid; ícone BR ocupa a 1ª coluna */
 }
 
-/* ===== No mapa agora — altura pelo conteúdo, com teto e rolagem ===== */
+/* ===== No mapa agora — altura pelo conteúdo, sem encolher Camadas ===== */
 .panel--active {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: min(38vh, 280px);
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .active-layers {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  overflow: visible;
   padding-right: 0.3rem;
   margin-right: -0.05rem;
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  scrollbar-gutter: stable;
 }
 
 .active-chip {
