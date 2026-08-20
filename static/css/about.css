@@ -164,20 +164,25 @@
 
 @media (max-width: 720px) {
   .map-footer {
-    left: max(8px, env(safe-area-inset-left));
-    right: max(8px, env(safe-area-inset-right));
-    transform: none;
-    max-width: none;
-    border-radius: 12px;
-    font-size: 0.62rem;
-    justify-content: flex-start;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    max-width: min(92%, 320px);
+    border-radius: 999px;
+    font-size: 0.64rem;
+    padding: 0.24rem 0.65rem;
+    justify-content: center;
   }
 
   .map-footer__authors {
-    flex-wrap: wrap;
+    display: none;
   }
+}
 
-  .map-footer__authors-list {
-    width: 100%;
+@media (max-width: 560px) {
+  .map-footer {
+    max-width: min(88%, 280px);
+    font-size: 0.6rem;
   }
 }
