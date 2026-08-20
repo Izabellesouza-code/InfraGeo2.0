@@ -88,3 +88,58 @@
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
+
+.upload-destino-modal__card {
+  width: min(440px, 100%);
+}
+
+.upload-destino-modal__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.upload-destino-modal__fieldset legend {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.15rem;
+}
+
+.upload-destino-modal__radio {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+  color: #e2e8f0 !important;
+  font-size: 0.86rem !important;
+  cursor: pointer;
+}
+
+.upload-destino-modal__radio input {
+  width: auto;
+  margin: 0;
+}
+
+.upload-destino-modal__block[hidden] {
+  display: none !important;
+}
+
+.login-modal__form select {
+  border: 1px solid #243049;
+  background: #0c1220;
+  color: #f3f6fb;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  width: 100%;
+}
+
+.login-modal__form select:focus {
+  outline: none;
+  border-color: rgba(20, 184, 166, 0.55);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+}

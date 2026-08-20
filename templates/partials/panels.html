@@ -141,6 +141,66 @@
 </div>
 
 <div
+  id="modal-upload-destino"
+  class="login-modal upload-destino-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="upload-destino-title"
+>
+  <div class="login-modal__card upload-destino-modal__card">
+    <div class="login-modal__head">
+      <h2 id="upload-destino-title">Destino do upload</h2>
+      <button type="button" class="icon-btn" id="btn-fechar-upload-destino" aria-label="Fechar">×</button>
+    </div>
+    <p class="login-modal__hint" id="upload-destino-arquivo">Selecione onde gravar a camada.</p>
+    <form id="form-upload-destino" class="login-modal__form">
+      <fieldset class="upload-destino-modal__fieldset">
+        <legend>Opção</legend>
+        <label class="upload-destino-modal__radio">
+          <input type="radio" name="upload_destination" value="existing" checked />
+          Adicionar em camada existente
+        </label>
+        <label class="upload-destino-modal__radio">
+          <input type="radio" name="upload_destination" value="new" />
+          Criar uma nova camada
+        </label>
+      </fieldset>
+
+      <div id="upload-destino-existing" class="upload-destino-modal__block">
+        <label>
+          Camada existente
+          <select id="upload-destino-layer" required>
+            <option value="">Carregando…</option>
+          </select>
+        </label>
+        <p class="login-modal__hint">Os dados da camada escolhida serão substituídos.</p>
+      </div>
+
+      <div id="upload-destino-new" class="upload-destino-modal__block" hidden>
+        <label>
+          Nome da nova camada
+          <input id="upload-destino-nome" type="text" maxlength="60" placeholder="Ex.: PONTES_174" />
+        </label>
+        <label>
+          Grupo na sidebar
+          <select id="upload-destino-grupo">
+            <option value="">Selecione…</option>
+          </select>
+        </label>
+      </div>
+
+      <p id="upload-destino-erro" class="login-modal__erro" hidden></p>
+      <div class="login-modal__actions">
+        <button type="button" class="btn-ghost" id="btn-cancelar-upload-destino">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-confirmar-upload-destino">Enviar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div
   id="modal-print-map"
   class="print-modal"
   hidden

@@ -9,7 +9,7 @@ from app.api.deps import require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
 from app.models.user import User
-from app.services.postgis_service import PostGISService
+from app.services.postgis_service import GROUP_DEFS, PostGISService
 from app.utils.file_utils import ensure_directories, unique_filename
 
 router = APIRouter()
@@ -36,6 +36,31 @@ def list_layers() -> dict[str, Any]:
     return {"count": len(rows), "layers": rows}
 
 
+@router.get("/upload-options")
+def upload_options(_user: User = Depends(require_upload_user)) -> dict[str, Any]:
+    """Grupos da sidebar + camadas existentes para o modal de upload."""
+    catalog = service.catalog()
+    layers: list[dict[str, Any]] = []
+    for group in catalog.get("groups") or []:
+        for layer in group.get("layers") or []:
+            layers.append(
+                {
+                    "id": layer.get("id"),
+                    "name": layer.get("name"),
+                    "schema": layer.get("schema"),
+                    "table": layer.get("table"),
+                    "group_id": group.get("id"),
+                    "group_name": group.get("name"),
+                }
+            )
+    layers.sort(key=lambda x: (x.get("group_name") or "", x.get("name") or ""))
+    return {
+        "ok": True,
+        "groups": [{"id": g["id"], "name": g["name"]} for g in GROUP_DEFS],
+        "layers": layers,
+    }
+
+
 @router.get("/geojson")
 def layer_geojson(
     schema: str = Query(..., min_length=1),
@@ -54,12 +79,15 @@ def layer_geojson(
 async def upload_shapefile(
     files: list[UploadFile] = File(...),
     name: Optional[str] = Form(None),
+    destination: Optional[str] = Form("new"),
+    target_schema: Optional[str] = Form(None),
+    target_table: Optional[str] = Form(None),
+    group_id: Optional[str] = Form(None),
     _user: User = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
-    Recebe shapefile (.zip com .shp ou .shp+.shx+.dbf) ou GeoJSON
-    (.geojson/.json ou .zip com GeoJSON) e grava no PostGIS.
-    Extras no ZIP (desktop.ini, locks, xml…) são ignorados.
+    Recebe shapefile/GeoJSON e grava no PostGIS.
+    destination=existing atualiza uma camada; destination=new cria no grupo.
     """
     from app.utils.file_utils import UPLOAD_ALLOWED_EXTENSIONS
 
@@ -85,7 +113,6 @@ async def upload_shapefile(
                     "Use .zip (shapefile ou GeoJSON), .shp/.shx/.dbf ou .geojson.",
                     status_code=415,
                 )
-            # Mantém o nome original para o conjunto .shp/.shx/.dbf bater.
             safe_name = Path(uf.filename).name.replace("..", "_")
             dest = upload_dir / safe_name
             with dest.open("wb") as buffer:
@@ -106,8 +133,14 @@ async def upload_shapefile(
         if not saved:
             raise WebGISException("Nenhum arquivo válido", status_code=400)
 
-        result = service.import_shapefile(saved, table_name=name)
-        # limpa pasta temporária do upload
+        result = service.import_shapefile(
+            saved,
+            table_name=name,
+            destination=destination or "new",
+            target_schema=target_schema,
+            target_table=target_table,
+            group_id=group_id,
+        )
         import shutil
 
         shutil.rmtree(upload_dir, ignore_errors=True)
@@ -135,7 +168,6 @@ async def upload_shapefile(
         except Exception:  # noqa: BLE001
             pass
 
-        # Espelha schema novo no Postgres local (se SOURCE_DATABASE_URL alcançável)
         if settings.upload_mirror_to_source and result.get("schema"):
             try:
                 from app.services.schema_sync_service import SchemaSyncService

@@ -127,7 +127,6 @@ window.InfraGeoLayers = (function () {
       aquaviario: "#3b82f6",
       ucs: "#34d399",
       limites_am: "#38bdf8",
-      uploads: "#2dd4bf",
       outros: "#94a3b8",
     };
     return map[groupId] || "#38bdf8";

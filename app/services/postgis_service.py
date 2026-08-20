@@ -107,13 +107,6 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "iconClass": "layer-group__icon--grid",
         "match": ("LIMITE_",),
     },
-    {
-        "id": "uploads",
-        "name": "Uploads",
-        "icon": "📤",
-        "iconClass": "layer-group__icon--teal",
-        "match": ("UPLOADS",),
-    },
 ]
 
 STYLE_BY_TYPE: dict[str, dict[str, Any]] = {
@@ -194,10 +187,60 @@ def _qi(name: str) -> str:
 def _group_for_schema(schema: str) -> dict[str, Any] | None:
     upper = schema.upper()
     for group in GROUP_DEFS:
-        for prefix in group["match"]:
+        for prefix in group.get("match") or ():
             if upper.startswith(prefix) or upper == prefix:
                 return group
     return None
+
+
+def _valid_group_ids() -> set[str]:
+    return {g["id"] for g in GROUP_DEFS}
+
+
+def _ensure_placement_table(eng: Engine) -> None:
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.infrageo_layer_placement (
+                  schema_name TEXT PRIMARY KEY,
+                  group_id TEXT NOT NULL,
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+
+
+def _set_layer_placement(eng: Engine, schema_name: str, group_id: str) -> None:
+    _ensure_placement_table(eng)
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO public.infrageo_layer_placement (schema_name, group_id)
+                VALUES (:s, :g)
+                ON CONFLICT (schema_name) DO UPDATE
+                  SET group_id = EXCLUDED.group_id,
+                      updated_at = now()
+                """
+            ),
+            {"s": schema_name, "g": group_id},
+        )
+
+
+def _placement_map(eng: Engine) -> dict[str, str]:
+    try:
+        _ensure_placement_table(eng)
+        with eng.connect() as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT schema_name, group_id FROM public.infrageo_layer_placement"
+                )
+            ).fetchall()
+        return {str(r[0]).upper(): str(r[1]) for r in rows}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _display_name(schema: str, table: str) -> str:
@@ -458,19 +501,21 @@ class PostGISService:
             "iconClass": "layer-group__icon--grid",
             "layers": [],
         }
+        placements = _placement_map(self.engine)
 
         for row in tables:
             schema = row["schema"]
             table = row["table"]
             geom_type = row["geom_type"] or "GEOMETRY"
-            group = _group_for_schema(schema)
-            # Schemas de upload (nome do SHP) e demais não classificados → Uploads
-            if group and group["id"] != "uploads":
-                target = groups[group["id"]]
-            elif "uploads" in groups:
-                target = groups["uploads"]
+            placed = placements.get(schema.upper())
+            if placed and placed in groups:
+                target = groups[placed]
             else:
-                target = other
+                group = _group_for_schema(schema)
+                if group and group["id"] in groups:
+                    target = groups[group["id"]]
+                else:
+                    target = other
 
             layer_id = _layer_id(schema, table)
             default_on = (
@@ -604,11 +649,16 @@ class PostGISService:
         source_paths: list[Path],
         table_name: str | None = None,
         schema: str | None = None,
+        *,
+        destination: str = "new",
+        target_schema: str | None = None,
+        target_table: str | None = None,
+        group_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Lê shapefile ou GeoJSON e grava no PostGIS.
-        ZIP: somente componentes de SHP ou arquivos .geojson/.json.
-        Cria schema com o nome do arquivo e tabela homônima.
+        destination=existing → substitui a camada escolhida.
+        destination=new → cria schema novo no grupo da sidebar.
         """
         import os
 
@@ -627,8 +677,14 @@ class PostGISService:
             validate_vector_zip,
         )
 
-        # Permite ler .shp mesmo sem .shx (GDAL/pyogrio recria o índice)
         os.environ["SHAPE_RESTORE_SHX"] = "YES"
+        dest_mode = (destination or "new").strip().lower()
+        if dest_mode not in {"new", "existing"}:
+            raise WebGISException(
+                "destination inválido (use new ou existing)",
+                status_code=400,
+            )
+        chosen_group = (group_id or "").strip()
 
         if not source_paths:
             raise WebGISException("Nenhum arquivo enviado", status_code=400)
@@ -746,24 +802,40 @@ class PostGISService:
             if rename:
                 gdf = gdf.rename(columns=rename)
 
-            # Schema e tabela = nome do arquivo no padrão das camadas existentes
-            schema_name = self._safe_table_name(
-                preferred_name or (vector_path.stem if vector_path else "camada")
-            )
-            table = schema_name
+            existing_rows = self.list_geometry_tables()
+            existing_keys = {
+                (r["schema"].upper(), r["table"].upper()) for r in existing_rows
+            }
 
-            # Não sobrescreve schemas do inventário oficial (OAE, BR, UC, etc.)
-            protected = set()
-            for row in self.list_geometry_tables():
-                g = _group_for_schema(row["schema"])
-                if g and g["id"] != "uploads":
-                    protected.add(row["schema"].upper())
-            if schema_name in protected:
-                raise WebGISException(
-                    f"O nome '{schema_name}' já existe no inventário. "
-                    "Renomeie o arquivo e envie de novo.",
-                    status_code=409,
+            if dest_mode == "existing":
+                schema_name = (target_schema or "").strip()
+                table = (target_table or schema_name).strip()
+                if not schema_name or not table:
+                    raise WebGISException(
+                        "Selecione a camada existente (schema e tabela).",
+                        status_code=400,
+                    )
+                if (schema_name.upper(), table.upper()) not in existing_keys:
+                    raise WebGISException(
+                        f"Camada inexistente: {schema_name}.{table}",
+                        status_code=404,
+                    )
+            else:
+                schema_name = self._safe_table_name(
+                    preferred_name or (vector_path.stem if vector_path else "camada")
                 )
+                table = schema_name
+                if chosen_group not in _valid_group_ids():
+                    raise WebGISException(
+                        "Selecione um grupo da sidebar para a nova camada.",
+                        status_code=400,
+                    )
+                if any(r["schema"].upper() == schema_name for r in existing_rows):
+                    raise WebGISException(
+                        f"Já existe uma camada com o nome '{schema_name}'. "
+                        "Escolha outro nome ou atualize a camada existente.",
+                        status_code=409,
+                    )
 
             with self.engine.begin() as conn:
                 conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
@@ -782,6 +854,11 @@ class PostGISService:
                     status_code=500,
                 ) from exc
 
+            if dest_mode == "new":
+                _set_layer_placement(self.engine, schema_name, chosen_group)
+            elif chosen_group in _valid_group_ids():
+                _set_layer_placement(self.engine, schema_name, chosen_group)
+
             layer_id = _layer_id(schema_name, table)
             return {
                 "ok": True,
@@ -791,6 +868,8 @@ class PostGISService:
                 "feature_count": int(len(gdf)),
                 "geom_type": str(gdf.geom_type.mode().iloc[0]) if len(gdf) else None,
                 "format": kind,
+                "destination": dest_mode,
+                "group_id": chosen_group or None,
                 "name": _display_name(schema_name, table),
                 "url": (
                     "/api/postgis/geojson"
