@@ -69,7 +69,7 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "name": "Faixa de domínio",
         "icon": "📏",
         "iconClass": "layer-group__icon--grid",
-        "match": (),
+        "match": ("FAIXA_DOMINIO", "FAIXA_", "DOMINIO_"),
         "show_empty": True,
     },
     {
@@ -84,7 +84,16 @@ GROUP_DEFS: list[dict[str, Any]] = [
         "name": "BR-AM",
         "icon": "🛣️",
         "iconClass": "layer-group__icon--green",
-        "match": ("BR_174", "BR_230", "BR_307", "BR_317", "BR_319"),
+        "match": (
+            "BR_174",
+            "BR_210",
+            "BR_230",
+            "BR_307",
+            "BR_317",
+            "BR_319",
+            "BR_411",
+            "BR_413",
+        ),
     },
     {
         "id": "aquaviario",
@@ -139,6 +148,13 @@ LIMITE_STYLE = {
 }
 
 IDENT_RE = re.compile(r"^[A-Za-z0-9_ À-ÿ\-—().]+$")
+
+# BRs com traço tracejado e cor fixa (ligadas no mapa / destaque)
+_BR_DASHED: dict[str, str] = {
+    "210": "#2563eb",  # azul
+    "413": "#e11d48",  # vermelho
+    "411": "#7c3aed",  # violeta
+}
 
 # Paleta distinta para BRs (sorteio estável por número da rodovia)
 _BR_PALETTE: list[tuple[str, str]] = [
@@ -319,8 +335,16 @@ def _style_for(
     if s.startswith("LIMITE_"):
         return dict(LIMITE_STYLE)
 
-    # BRs — cores aleatórias (estáveis) por rodovia
+    # BRs — algumas com traço tracejado e cor fixa; demais por paleta
     if s.startswith("BR_"):
+        if br_num and br_num in _BR_DASHED:
+            return {
+                "color": _BR_DASHED[br_num],
+                "weight": 3.5,
+                "opacity": 0.95,
+                "fillOpacity": 0,
+                "dashArray": "12 8",
+            }
         stroke, _fill = _br_colors(br_num or "0")
         return {"color": stroke, "weight": 3.5, "opacity": 0.95}
 

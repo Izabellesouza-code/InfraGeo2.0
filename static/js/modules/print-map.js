@@ -1380,6 +1380,7 @@ window.InfraGeoPrintMap = (function () {
             ? style.fillOpacity ?? 0.9
             : style.fillOpacity ?? 0.45,
       radius: Math.max(style.radius || 7, 5),
+      dashArray: style.dashArray || null,
     };
   }
 
@@ -1391,6 +1392,18 @@ window.InfraGeoPrintMap = (function () {
       const p = projectPoint(exportMap, coord[0], coord[1]);
       if (i === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
+    }
+  }
+
+  function applyStrokeDash(ctx, style) {
+    if (style?.dashArray) {
+      const parts = String(style.dashArray)
+        .split(/[\s,]+/)
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      ctx.setLineDash(parts.length ? parts : []);
+    } else {
+      ctx.setLineDash([]);
     }
   }
 
@@ -1437,7 +1450,9 @@ window.InfraGeoPrintMap = (function () {
       ctx.globalAlpha = style.opacity ?? 1;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
+      applyStrokeDash(ctx, style);
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
       return;
     }
@@ -1469,7 +1484,9 @@ window.InfraGeoPrintMap = (function () {
       ctx.globalAlpha = style.opacity ?? 1;
       ctx.strokeStyle = style.color;
       ctx.lineWidth = style.weight;
+      applyStrokeDash(ctx, style);
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
       return;
     }
@@ -1553,6 +1570,7 @@ window.InfraGeoPrintMap = (function () {
             weight: style.weight,
             opacity: style.opacity,
             fillOpacity: style.fillOpacity,
+            ...(style.dashArray ? { dashArray: style.dashArray } : {}),
           }),
           pointToLayer: (_f, latlng) =>
             L.circleMarker(latlng, {

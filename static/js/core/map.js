@@ -301,13 +301,16 @@ window.InfraGeoMap = (function () {
         fillOpacity: s.fillOpacity ?? 0.8,
       };
     }
-    return {
+    const out = {
       color: s.color || "#111827",
       fillColor: s.fillColor || "#111827",
       weight: s.weight ?? 2,
       opacity: s.opacity ?? 1,
       fillOpacity: s.fillOpacity ?? 0.2,
     };
+    if (s.dashArray) out.dashArray = s.dashArray;
+    if (s.dashOffset) out.dashOffset = s.dashOffset;
+    return out;
   }
 
   async function loadGeoJSONLayer(meta) {
