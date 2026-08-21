@@ -289,8 +289,33 @@ window.InfraGeoMap = (function () {
     });
   }
 
+  const BR_DASHED_STYLES = {
+    "210": { color: "#2563eb", dashArray: "12 8" },
+    "413": { color: "#e11d48", dashArray: "12 8" },
+    "411": { color: "#7c3aed", dashArray: "12 8" },
+  };
+
+  function brDashStyle(meta) {
+    const schema = String(meta?.schema || "").toUpperCase();
+    const name = String(meta?.name || "").toUpperCase();
+    const m =
+      schema.match(/^BR_(\d{2,4})$/) ||
+      schema.match(/BR[_\-\s]*(\d{2,4})/) ||
+      name.match(/BR[_\-\s]*(\d{2,4})/);
+    if (!m) return null;
+    return BR_DASHED_STYLES[m[1]] || null;
+  }
+
   function styleFor(meta) {
-    const s = meta.style || {};
+    const s = { ...(meta.style || {}) };
+    const dashed = brDashStyle(meta);
+    if (dashed) {
+      s.color = dashed.color;
+      s.dashArray = dashed.dashArray;
+      s.fillOpacity = 0;
+      s.weight = s.weight ?? 3.5;
+      s.opacity = s.opacity ?? 0.95;
+    }
     if (meta.type === "Point" || meta.type === "MultiPoint") {
       return {
         radius: s.radius || 7,
@@ -303,7 +328,7 @@ window.InfraGeoMap = (function () {
     }
     const out = {
       color: s.color || "#111827",
-      fillColor: s.fillColor || "#111827",
+      fillColor: s.fillColor || s.color || "#111827",
       weight: s.weight ?? 2,
       opacity: s.opacity ?? 1,
       fillOpacity: s.fillOpacity ?? 0.2,
@@ -340,6 +365,12 @@ window.InfraGeoMap = (function () {
       },
       interactive: !isLimiteContext,
     });
+    // Garante dashArray/cor após o parse (alguns ambientes ignoram no style inicial)
+    try {
+      group.setStyle({ ...style });
+    } catch {
+      /* ignore */
+    }
 
     let brShield = null;
     if (window.InfraGeoBrShield && window.InfraGeoBrShield.isBrLayer(meta)) {
