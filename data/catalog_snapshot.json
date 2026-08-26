@@ -1,20 +1,26 @@
 {
-  "updated_at": "2026-08-14T15:42:05.202253+00:00",
-  "updated_by": "sync-script",
-  "reason": "no-changes",
+  "updated_at": "2026-08-26T13:59:44.964909+00:00",
+  "updated_by": "cli",
+  "reason": "mirror-jazidas-br-230",
   "schemas": [
     "BALSA_IGAPO_ACU",
     "BR_174",
+    "BR_210",
     "BR_230",
     "BR_307",
     "BR_317",
     "BR_319",
+    "BR_411",
+    "BR_413",
     "BUEIROS_174",
     "BUEIROS_230",
     "BUEIROS_317",
     "BUEIROS_319",
+    "CANTEIRO_BR_319",
+    "FAIXA_DE_DOMINIO",
     "IP4",
     "JAZIDAS_307",
+    "JAZIDAS_BR_230",
     "LIMITE_ESTADUAL",
     "LIMITE_MUNICIPAL",
     "PCA_PRAD_319",
@@ -22,12 +28,14 @@
     "PONTES_230",
     "PONTES_307",
     "PONTES_319",
+    "PONTES_BR_319",
     "PRADS_319",
     "PRAD_174",
     "TI_AM_ATUALIZADA",
     "UC_ESTADUAL",
     "UC_FEDERAL_AM_ATUALIZADA",
     "UC_MUNICIPAL",
+    "USINA_BR319",
     "ZA_UC_ESTADUAL_ATUALIZADA",
     "ZA_UC_MUNICIPAL_ATUALIZADA"
   ],
@@ -41,6 +49,11 @@
       "schema": "BR_174",
       "table": "BR_174",
       "geom_type": "MULTILINESTRING"
+    },
+    {
+      "schema": "BR_210",
+      "table": "BR_210",
+      "geom_type": "LINESTRING"
     },
     {
       "schema": "BR_230",
@@ -63,6 +76,16 @@
       "geom_type": "MULTILINESTRING"
     },
     {
+      "schema": "BR_411",
+      "table": "BR_411",
+      "geom_type": "LINESTRING"
+    },
+    {
+      "schema": "BR_413",
+      "table": "BR_413",
+      "geom_type": "LINESTRING"
+    },
+    {
       "schema": "BUEIROS_174",
       "table": "BUEIROS",
       "geom_type": "POINT"
@@ -83,8 +106,28 @@
       "geom_type": "POINT"
     },
     {
+      "schema": "CANTEIRO_BR_319",
+      "table": "CANTEIRO_BR_319",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "FAIXA_DE_DOMINIO",
+      "table": "FAIXA_DE_DOMINIO",
+      "geom_type": "GEOMETRY"
+    },
+    {
+      "schema": "IP4",
+      "table": "IP4",
+      "geom_type": "MULTIPOINT"
+    },
+    {
       "schema": "JAZIDAS_307",
       "table": "JAZIDAS",
+      "geom_type": "POINT"
+    },
+    {
+      "schema": "JAZIDAS_BR_230",
+      "table": "JAZIDAS_BR_230",
       "geom_type": "POINT"
     },
     {
@@ -118,8 +161,8 @@
       "geom_type": "POINT"
     },
     {
-      "schema": "PONTES_319",
-      "table": "PONTES_BR-319",
+      "schema": "PONTES_BR_319",
+      "table": "PONTES_BR_319",
       "geom_type": "POINT"
     },
     {
@@ -188,6 +231,11 @@
       "geom_type": "MULTIPOLYGON"
     },
     {
+      "schema": "USINA_BR319",
+      "table": "USINA_BR319",
+      "geom_type": "POINT"
+    },
+    {
       "schema": "ZA_UC_ESTADUAL_ATUALIZADA",
       "table": "ZA_UC_ESTADUAL_ATUALIZADA",
       "geom_type": "MULTIPOLYGON"
@@ -198,6 +246,6 @@
       "geom_type": "MULTIPOLYGON"
     }
   ],
-  "schema_count": 27,
-  "table_count": 33
+  "schema_count": 35,
+  "table_count": 41
 }

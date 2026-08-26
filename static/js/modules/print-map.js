@@ -1306,7 +1306,7 @@ window.InfraGeoPrintMap = (function () {
     const src = findActiveBasemapLayer();
     const url =
       src?._url ||
-      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
     const opts = {
       ...(src?.options || {}),
       crossOrigin: true,
@@ -2251,7 +2251,7 @@ window.InfraGeoPrintMap = (function () {
       console.error("print-map", err);
       setStatus(`Falha ao gerar: ${err.message || err}`);
       window.alert(
-        `Não foi possível gerar o arquivo.\n${err.message || err}\n\nDica: use o basemap Carto Light ou OpenStreetMap e tente novamente.`
+        `Não foi possível gerar o arquivo.\n${err.message || err}\n\nDica: use o basemap Esri Light Gray ou OpenStreetMap e tente novamente.`
       );
     } finally {
       if (modal) modal.classList.remove("is-generating");
@@ -2403,7 +2403,9 @@ window.InfraGeoPrintMap = (function () {
       fontSize,
       fontFamily,
     } = els();
-    if (btnOpen) btnOpen.addEventListener("click", () => open(true));
+    if (btnOpen) {
+      // Exportar abre o Modo Layout (InfraGeoLayoutMode). Modal legado fica disponível via API.
+    }
     if (btnClose) btnClose.addEventListener("click", () => open(false));
     if (btnCancel) btnCancel.addEventListener("click", () => open(false));
     if (btnGenerate) btnGenerate.addEventListener("click", () => generate());

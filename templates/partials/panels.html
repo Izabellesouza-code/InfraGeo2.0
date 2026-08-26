@@ -412,3 +412,131 @@
     </footer>
   </div>
 </div>
+
+<div id="layout-mode" class="layout-mode" hidden aria-hidden="true">
+  <aside class="layout-mode__sidebar" aria-label="Ferramentas do layout">
+    <div class="layout-mode__mode-toggle">
+      <button type="button" class="layout-mode__mode-btn is-active" id="btn-layout-mode-stay" disabled>
+        Modo Layout
+      </button>
+      <button type="button" class="layout-mode__mode-btn" id="btn-layout-back-map">
+        ← Mapa
+      </button>
+    </div>
+
+    <section class="layout-mode__section layout-mode__section--preset">
+      <button type="button" class="layout-preset-btn" id="btn-layout-recommended" title="Gera uma composição editorial pronta para exportar">
+        <span class="layout-preset-btn__label">Layout recomendado</span>
+        <span class="layout-preset-btn__hint">Composição moderna · pronta para PDF/PNG</span>
+      </button>
+    </section>
+
+    <section class="layout-mode__section">
+      <h3 class="layout-mode__section-title">Adicionar elementos</h3>
+      <div class="layout-mode__tools" role="toolbar">
+        <button type="button" class="layout-tool" data-add="map"><span class="layout-tool__icon" aria-hidden="true">🗺️</span><span>Mapa</span></button>
+        <button type="button" class="layout-tool" data-add="refresh-map"><span class="layout-tool__icon" aria-hidden="true">🔄</span><span>Atualizar Mapa</span></button>
+        <button type="button" class="layout-tool" data-add="adjust-map" id="btn-layout-adjust-map"><span class="layout-tool__icon" aria-hidden="true">⌖</span><span>Ajustar Mapa</span></button>
+        <button type="button" class="layout-tool" data-add="pick-layer" id="btn-layout-pick-layer"><span class="layout-tool__icon" aria-hidden="true">↖</span><span>Selecionar camada</span></button>
+        <button type="button" class="layout-tool" data-add="title"><span class="layout-tool__icon" aria-hidden="true">𝐓</span><span>Título</span></button>
+        <button type="button" class="layout-tool" data-add="subtitle"><span class="layout-tool__icon" aria-hidden="true">T</span><span>Subtítulo</span></button>
+        <button type="button" class="layout-tool" data-add="text"><span class="layout-tool__icon" aria-hidden="true">¶</span><span>Texto</span></button>
+        <button type="button" class="layout-tool" data-add="legend"><span class="layout-tool__icon" aria-hidden="true">☰</span><span>Legenda</span></button>
+        <button type="button" class="layout-tool" data-add="north"><span class="layout-tool__icon" aria-hidden="true">🧭</span><span>Norte</span></button>
+        <button type="button" class="layout-tool" data-add="scale"><span class="layout-tool__icon" aria-hidden="true">📏</span><span>Escala</span></button>
+        <button type="button" class="layout-tool" data-add="image"><span class="layout-tool__icon" aria-hidden="true">🖼</span><span>Imagem</span></button>
+        <button type="button" class="layout-tool" data-add="line"><span class="layout-tool__icon" aria-hidden="true">―</span><span>Linha</span></button>
+        <button type="button" class="layout-tool" data-add="rect"><span class="layout-tool__icon" aria-hidden="true">▭</span><span>Retângulo</span></button>
+        <button type="button" class="layout-tool" data-add="ellipse"><span class="layout-tool__icon" aria-hidden="true">◯</span><span>Elipse</span></button>
+        <button type="button" class="layout-tool" data-add="triangle"><span class="layout-tool__icon" aria-hidden="true">△</span><span>Triângulo</span></button>
+        <button type="button" class="layout-tool" data-add="arrow"><span class="layout-tool__icon" aria-hidden="true">➤</span><span>Seta</span></button>
+      </div>
+    </section>
+
+    <section class="layout-mode__section">
+      <h3 class="layout-mode__section-title">Cor da feição</h3>
+      <label class="layout-mode__field">
+        Camada no mapa
+        <select id="layout-layer-select">
+          <option value="">— selecione ou clique no mapa —</option>
+        </select>
+      </label>
+      <p class="layout-selected-layer" id="layout-selected-layer">Nenhuma camada selecionada</p>
+      <div class="layout-color-row">
+        <label class="layout-color-picker" title="Escolher cor">
+          <input type="color" id="layout-feature-color" value="#0f766e" />
+          <span id="layout-feature-color-hex">#0f766e</span>
+        </label>
+        <div class="layout-color-swatches" role="group" aria-label="Cores rápidas">
+          <button type="button" class="layout-color-swatch" data-color="#0f766e" style="--sw:#0f766e" title="Teal"></button>
+          <button type="button" class="layout-color-swatch" data-color="#0b1c24" style="--sw:#0b1c24" title="Grafite"></button>
+          <button type="button" class="layout-color-swatch" data-color="#1d4ed8" style="--sw:#1d4ed8" title="Azul"></button>
+          <button type="button" class="layout-color-swatch" data-color="#b91c1c" style="--sw:#b91c1c" title="Vermelho"></button>
+          <button type="button" class="layout-color-swatch" data-color="#ca8a04" style="--sw:#ca8a04" title="Âmbar"></button>
+          <button type="button" class="layout-color-swatch" data-color="#ffffff" style="--sw:#ffffff" title="Branco"></button>
+        </div>
+      </div>
+      <p class="layout-color-hint">Use <strong>Selecionar camada</strong> ou a lista, depois mude a cor. Arraste legenda, norte e escala pela página.</p>
+    </section>
+
+    <section class="layout-mode__section">
+      <h3 class="layout-mode__section-title">Grade e ajuste</h3>
+      <label class="layout-mode__check"><input type="checkbox" id="layout-snap" checked /> Encaixar (10px)</label>
+      <label class="layout-mode__check"><input type="checkbox" id="layout-screen-grid" checked /> Grid de tela</label>
+      <label class="layout-mode__check"><input type="checkbox" id="layout-wgs84-grid" /> Grade WGS84 (lat/lon)</label>
+      <label class="layout-mode__field">
+        Unidade da escala
+        <select id="layout-scale-unit">
+          <option value="metric" selected>Métrico</option>
+          <option value="imperial">Imperial</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="layout-mode__section">
+      <h3 class="layout-mode__section-title">Página</h3>
+      <label class="layout-mode__field">
+        Tamanho / orientação
+        <select id="layout-page-size">
+          <option value="a4-landscape" selected>A4 Paisagem (padrão)</option>
+          <option value="a4-portrait">A4 Retrato</option>
+          <option value="a3-landscape">A3 Paisagem</option>
+          <option value="letter-landscape">Carta Paisagem</option>
+          <option value="wide-16x9">16∶9</option>
+          <option value="square-1x1">1∶1</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="layout-mode__section">
+      <h3 class="layout-mode__section-title">Exportar</h3>
+      <div class="layout-mode__export-row">
+        <button type="button" class="btn-primary" id="btn-layout-export-png">PNG</button>
+        <button type="button" class="btn-primary" id="btn-layout-export-pdf">PDF</button>
+      </div>
+      <label class="layout-mode__field">
+        Qualidade PDF (DPI)
+        <input type="range" id="layout-dpi" min="96" max="300" step="12" value="180" />
+        <span class="layout-mode__dpi-labels"><span>menor</span><span id="layout-dpi-value">180</span><span>maior</span></span>
+      </label>
+    </section>
+
+    <section class="layout-mode__section layout-mode__section--items">
+      <div class="layout-mode__items-head">
+        <h3 class="layout-mode__section-title">Itens</h3>
+        <div class="layout-mode__items-actions">
+          <button type="button" class="btn-ghost" id="btn-layout-delete-sel">× Sel</button>
+          <button type="button" class="btn-ghost" id="btn-layout-clear">Limpar</button>
+        </div>
+      </div>
+      <ul class="layout-mode__items" id="layout-items-list"></ul>
+    </section>
+  </aside>
+
+  <div class="layout-mode__workspace" id="layout-workspace">
+    <div class="layout-mode__page-wrap">
+      <div class="layout-mode__page has-screen-grid" id="layout-page" role="region" aria-label="Página do layout"></div>
+    </div>
+  </div>
+  <input type="file" id="layout-image-input" accept="image/*" hidden />
+</div>

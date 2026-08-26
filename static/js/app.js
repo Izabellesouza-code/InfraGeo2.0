@@ -61,6 +61,7 @@
     window.InfraGeoLegend.init();
     window.InfraGeoFilters.init();
     window.InfraGeoPrintMap.init();
+    window.InfraGeoLayoutMode?.init?.();
 
     window.InfraGeoSidebar.init({
       onToggleLayers: async (allOn) => {

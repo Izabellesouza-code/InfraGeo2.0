@@ -12,6 +12,58 @@ window.InfraGeoConfig = {
   ],
   basemaps: [
     {
+      id: "esri-light-gray",
+      name: "Esri Light Gray",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS",
+      maxZoom: 16,
+      default: true,
+    },
+    {
+      id: "esri-light-gray-labels",
+      name: "Esri Light Gray + rótulos",
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS",
+      maxZoom: 16,
+      stack: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+      ],
+    },
+    {
+      id: "esri-topo",
+      name: "Esri Topográfico",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS",
+      maxZoom: 19,
+    },
+    {
+      id: "esri-streets",
+      name: "Esri Streets",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS",
+      maxZoom: 19,
+    },
+    {
+      id: "opentopomap",
+      name: "OpenTopoMap",
+      url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+      maxZoom: 17,
+      subdomains: "abc",
+    },
+    {
+      id: "osm",
+      name: "OpenStreetMap",
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 19,
+    },
+    {
       id: "google-earth",
       name: "Google Earth",
       url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
@@ -28,28 +80,12 @@ window.InfraGeoConfig = {
       subdomains: ["0", "1", "2", "3"],
     },
     {
-      id: "osm",
-      name: "OpenStreetMap",
-      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      attribution: "&copy; OpenStreetMap",
+      id: "esri-satellite",
+      name: "Satélite (Esri)",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
       maxZoom: 19,
-    },
-    {
-      id: "carto-positron",
-      name: "Carto Positron",
-      url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
-      maxZoom: 20,
-      subdomains: "abcd",
-      default: true,
-    },
-    {
-      id: "carto-dark",
-      name: "Carto Dark",
-      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
-      maxZoom: 20,
-      subdomains: "abcd",
     },
   ],
   groups: [

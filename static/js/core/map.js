@@ -35,11 +35,55 @@ window.InfraGeoMap = (function () {
     // Mapas base (controle de camadas Leaflet)
     const osmAttr =
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-    const cartoAttr =
-      osmAttr +
-      ' contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+    const esriAttr =
+      "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS";
+    const esriSatAttr =
+      "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics";
 
-    const basemapDefs = [
+    const defaultBasemaps = [
+      {
+        name: "Esri Light Gray",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        attribution: esriAttr,
+        maxZoom: 16,
+        default: true,
+      },
+      {
+        name: "Esri Light Gray + rótulos",
+        attribution: esriAttr,
+        maxZoom: 16,
+        stack: [
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        ],
+      },
+      {
+        name: "Esri Topográfico",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+        attribution: esriAttr,
+        maxZoom: 19,
+      },
+      {
+        name: "Esri Streets",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        attribution: esriAttr,
+        maxZoom: 19,
+      },
+      {
+        name: "OpenTopoMap",
+        url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        attribution:
+          osmAttr +
+          ' &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+        maxZoom: 17,
+        subdomains: "abc",
+      },
+      {
+        name: "OpenStreetMap",
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attribution: osmAttr,
+        maxZoom: 19,
+      },
       {
         name: "Google Earth",
         url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
@@ -55,27 +99,55 @@ window.InfraGeoMap = (function () {
         subdomains: ["0", "1", "2", "3"],
       },
       {
-        name: "OpenStreetMap",
-        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        attribution: osmAttr,
+        name: "Satélite (Esri)",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attribution: esriSatAttr,
         maxZoom: 19,
       },
-      {
-        name: "Carto Positron",
-        url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        attribution: cartoAttr,
-        maxZoom: 20,
-        subdomains: "abcd",
-        default: true,
-      },
-      {
-        name: "Carto Dark",
-        url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        attribution: cartoAttr,
-        maxZoom: 20,
-        subdomains: "abcd",
-      },
     ];
+
+    // Mescla config (se houver) por cima, mas garante a lista completa acima
+    const fromCfg = Array.isArray(cfg?.basemaps) ? cfg.basemaps : [];
+    const byName = new Map();
+    defaultBasemaps.forEach((bm) => byName.set(bm.name, bm));
+    fromCfg.forEach((bm) => {
+      if (!bm?.name) return;
+      // Ignora basemaps CARTO (descontinuados / exigem API key)
+      const id = String(bm.id || "").toLowerCase();
+      const name = String(bm.name || "").toLowerCase();
+      const url = String(bm.url || "").toLowerCase();
+      if (
+        id.includes("carto") ||
+        name.includes("carto") ||
+        url.includes("cartocdn.com")
+      ) {
+        return;
+      }
+      byName.set(bm.name, {
+        name: bm.name,
+        url: bm.url,
+        stack: bm.stack,
+        attribution: bm.attribution,
+        maxZoom: bm.maxZoom,
+        subdomains: bm.subdomains,
+        default: !!bm.default,
+      });
+    });
+    // Só um default ativo
+    let basemapDefs = Array.from(byName.values());
+    if (!basemapDefs.some((b) => b.default)) {
+      const light = basemapDefs.find((b) => b.name === "Esri Light Gray");
+      if (light) light.default = true;
+      else if (basemapDefs[0]) basemapDefs[0].default = true;
+    } else {
+      let seen = false;
+      basemapDefs = basemapDefs.map((b) => {
+        if (!b.default) return b;
+        if (seen) return { ...b, default: false };
+        seen = true;
+        return b;
+      });
+    }
 
     const basemapControls = {};
     basemapDefs.forEach((bm) => {
@@ -85,7 +157,16 @@ window.InfraGeoMap = (function () {
         crossOrigin: true,
       };
       if (bm.subdomains) opts.subdomains = bm.subdomains;
-      const tile = L.tileLayer(bm.url, opts);
+      let tile;
+      if (Array.isArray(bm.stack) && bm.stack.length) {
+        tile = L.layerGroup(
+          bm.stack.map((u) => L.tileLayer(u, { ...opts }))
+        );
+      } else if (bm.url) {
+        tile = L.tileLayer(bm.url, opts);
+      } else {
+        return;
+      }
       basemapControls[bm.name] = tile;
       if (bm.default) tile.addTo(map);
     });
@@ -309,12 +390,15 @@ window.InfraGeoMap = (function () {
   function styleFor(meta) {
     const s = { ...(meta.style || {}) };
     const dashed = brDashStyle(meta);
-    if (dashed) {
+    if (dashed && !s.userColor) {
       s.color = dashed.color;
       s.dashArray = dashed.dashArray;
       s.fillOpacity = 0;
       s.weight = s.weight ?? 3.5;
       s.opacity = s.opacity ?? 0.95;
+    } else if (dashed && s.userColor) {
+      s.dashArray = s.dashArray || dashed.dashArray;
+      s.fillOpacity = s.fillOpacity ?? 0;
     }
     if (meta.type === "Point" || meta.type === "MultiPoint") {
       return {
@@ -423,6 +507,40 @@ window.InfraGeoMap = (function () {
       .map((e) => e.meta);
   }
 
+  /** Recolore uma camada visível (estilo + Leaflet). */
+  function recolorLayer(id, color) {
+    const entry = overlayRegistry[id];
+    if (!entry?.meta) return false;
+    const hex = String(color || "").trim();
+    if (!/^#[0-9a-fA-F]{3,8}$/.test(hex)) return false;
+    entry.meta.style = {
+      ...(entry.meta.style || {}),
+      color: hex,
+      fillColor: hex,
+      userColor: true,
+    };
+    const style = styleFor(entry.meta);
+    style.color = hex;
+    style.fillColor = hex;
+    try {
+      entry.leaflet?.setStyle?.(style);
+      entry.leaflet?.eachLayer?.((lyr) => {
+        try {
+          if (lyr.setStyle) lyr.setStyle(style);
+          if (typeof lyr.setRadius === "function" && style.radius) {
+            lyr.setRadius(style.radius);
+            lyr.setStyle?.(style);
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch (err) {
+      console.warn("recolorLayer", id, err);
+    }
+    return true;
+  }
+
   function setAllLayersVisible(on) {
     Object.keys(overlayRegistry).forEach((id) => toggleLayer(id, on));
   }
@@ -442,8 +560,10 @@ window.InfraGeoMap = (function () {
     loadGeoJSONLayer,
     toggleLayer,
     getVisibleLayers,
+    recolorLayer,
     setAllLayersVisible,
     clearAllOverlays,
+    styleFor,
     overlayRegistry,
   };
 })();
