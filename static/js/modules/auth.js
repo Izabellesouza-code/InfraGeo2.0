@@ -172,6 +172,7 @@ window.InfraGeoAuth = (function () {
     getToken,
     getUser,
     isLoggedIn,
+    canUpload: isLoggedIn,
     authHeaders,
     requireLogin,
     login,

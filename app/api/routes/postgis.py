@@ -9,7 +9,7 @@ from app.api.deps import require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
 from app.models.user import User
-from app.services.postgis_service import GROUP_DEFS, PostGISService
+from app.services.postgis_service import PostGISService
 from app.utils.file_utils import ensure_directories, unique_filename
 
 router = APIRouter()
@@ -56,9 +56,35 @@ def upload_options(_user: User = Depends(require_upload_user)) -> dict[str, Any]
     layers.sort(key=lambda x: (x.get("group_name") or "", x.get("name") or ""))
     return {
         "ok": True,
-        "groups": [{"id": g["id"], "name": g["name"]} for g in GROUP_DEFS],
+        "groups": service.list_sidebar_groups(),
         "layers": layers,
     }
+
+
+@router.post("/groups")
+def create_group(
+    name: str = Form(...),
+    _user: User = Depends(require_upload_user),
+) -> dict[str, Any]:
+    """Cria um grupo customizado na sidebar (sem redeploy)."""
+    return service.create_custom_group(name)
+
+
+@router.patch("/layers/meta")
+def update_layer_meta(
+    layer_schema: str = Form(...),
+    layer_table: str = Form(...),
+    display_name: Optional[str] = Form(None),
+    group_id: Optional[str] = Form(None),
+    _user: User = Depends(require_upload_user),
+) -> dict[str, Any]:
+    """Renomeia (nome de exibição) e/ou move a camada de grupo."""
+    return service.update_layer_meta(
+        layer_schema,
+        layer_table,
+        display_name=display_name,
+        group_id=group_id,
+    )
 
 
 @router.get("/geojson")
@@ -79,10 +105,12 @@ def layer_geojson(
 async def upload_shapefile(
     files: list[UploadFile] = File(...),
     name: Optional[str] = Form(None),
+    display_name: Optional[str] = Form(None),
     destination: Optional[str] = Form("new"),
     target_schema: Optional[str] = Form(None),
     target_table: Optional[str] = Form(None),
     group_id: Optional[str] = Form(None),
+    new_group_name: Optional[str] = Form(None),
     _user: User = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
@@ -140,6 +168,8 @@ async def upload_shapefile(
             target_schema=target_schema,
             target_table=target_table,
             group_id=group_id,
+            display_name=display_name,
+            new_group_name=new_group_name,
         )
         import shutil
 

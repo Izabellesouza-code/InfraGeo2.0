@@ -154,47 +154,146 @@
       <h2 id="upload-destino-title">Destino do upload</h2>
       <button type="button" class="icon-btn" id="btn-fechar-upload-destino" aria-label="Fechar">×</button>
     </div>
-    <p class="login-modal__hint" id="upload-destino-arquivo">Selecione onde gravar a camada.</p>
-    <form id="form-upload-destino" class="login-modal__form">
-      <fieldset class="upload-destino-modal__fieldset">
-        <legend>Opção</legend>
-        <label class="upload-destino-modal__radio">
-          <input type="radio" name="upload_destination" value="existing" checked />
-          Adicionar em camada existente
-        </label>
-        <label class="upload-destino-modal__radio">
-          <input type="radio" name="upload_destination" value="new" />
-          Criar uma nova camada
-        </label>
-      </fieldset>
+    <p class="upload-destino-modal__file" id="upload-destino-arquivo">Selecione onde gravar os dados.</p>
 
-      <div id="upload-destino-existing" class="upload-destino-modal__block">
-        <label>
-          Camada existente
+    <form id="form-upload-destino" class="login-modal__form upload-destino-modal__form">
+      <div class="upload-choice" role="radiogroup" aria-label="Tipo de destino">
+        <label class="upload-choice__card">
+          <input type="radio" name="upload_destination" value="existing" checked />
+          <span class="upload-choice__icon" aria-hidden="true">↻</span>
+          <span class="upload-choice__title">Atualizar</span>
+          <span class="upload-choice__desc">Subcamada já existente</span>
+        </label>
+        <label class="upload-choice__card">
+          <input type="radio" name="upload_destination" value="new" />
+          <span class="upload-choice__icon" aria-hidden="true">＋</span>
+          <span class="upload-choice__title">Criar nova</span>
+          <span class="upload-choice__desc">Camada + subcamada</span>
+        </label>
+      </div>
+
+      <div id="upload-destino-existing" class="upload-panel">
+        <div class="upload-panel__head">
+          <span class="upload-panel__badge">1</span>
+          <div>
+            <strong>Escolha a subcamada</strong>
+            <p>Os dados atuais serão substituídos pelo arquivo enviado.</p>
+          </div>
+        </div>
+        <label class="upload-field">
+          <span>Subcamada</span>
           <select id="upload-destino-layer" required>
             <option value="">Carregando…</option>
           </select>
         </label>
-        <p class="login-modal__hint">Os dados da camada escolhida serão substituídos.</p>
       </div>
 
-      <div id="upload-destino-new" class="upload-destino-modal__block" hidden>
-        <label>
-          Nome da nova camada
-          <input id="upload-destino-nome" type="text" maxlength="60" placeholder="Ex.: PONTES_174" />
-        </label>
-        <label>
-          Grupo na sidebar
-          <select id="upload-destino-grupo">
-            <option value="">Selecione…</option>
-          </select>
-        </label>
+      <div id="upload-destino-new" class="upload-panel" hidden>
+        <div class="upload-step">
+          <div class="upload-panel__head">
+            <span class="upload-panel__badge">1</span>
+            <div>
+              <strong>Camada</strong>
+              <p>Grupo que aparece na sidebar (ex.: OAE, Pontes).</p>
+            </div>
+          </div>
+
+          <div class="upload-seg" role="radiogroup" aria-label="Como definir a camada">
+            <label class="upload-seg__item">
+              <input type="radio" name="upload_camada_mode" value="existing" checked />
+              <span>Usar existente</span>
+            </label>
+            <label class="upload-seg__item">
+              <input type="radio" name="upload_camada_mode" value="new" />
+              <span>Criar nova</span>
+            </label>
+          </div>
+
+          <label class="upload-field" id="upload-destino-grupo-wrap">
+            <span>Camada existente</span>
+            <select id="upload-destino-grupo">
+              <option value="">Selecione a camada…</option>
+            </select>
+          </label>
+          <label class="upload-field" id="upload-destino-grupo-novo-wrap" hidden>
+            <span>Nome da nova camada</span>
+            <input
+              id="upload-destino-grupo-nome"
+              type="text"
+              maxlength="60"
+              placeholder="Ex.: Passagem de Fauna"
+            />
+          </label>
+        </div>
+
+        <div class="upload-step upload-step--next">
+          <div class="upload-panel__head">
+            <span class="upload-panel__badge">2</span>
+            <div>
+              <strong>Subcamada</strong>
+              <p>Nome do arquivo no mapa, dentro da camada acima.</p>
+            </div>
+          </div>
+          <label class="upload-field">
+            <span>Nome de exibição</span>
+            <input
+              id="upload-destino-subnome"
+              type="text"
+              maxlength="80"
+              placeholder="Ex.: Passagem de Fauna BR-174"
+            />
+          </label>
+          <label class="upload-field">
+            <span>Identificador técnico</span>
+            <input
+              id="upload-destino-nome"
+              type="text"
+              maxlength="60"
+              placeholder="Ex.: PASSAGEM_DE_FAUNA_BR_174"
+            />
+          </label>
+        </div>
       </div>
 
       <p id="upload-destino-erro" class="login-modal__erro" hidden></p>
       <div class="login-modal__actions">
         <button type="button" class="btn-ghost" id="btn-cancelar-upload-destino">Cancelar</button>
         <button type="submit" class="btn-primary" id="btn-confirmar-upload-destino">Enviar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div
+  id="modal-renomear-camada"
+  class="login-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="renomear-camada-title"
+>
+  <div class="login-modal__card">
+    <div class="login-modal__head">
+      <h2 id="renomear-camada-title">Renomear subcamada</h2>
+      <button type="button" class="icon-btn" id="btn-fechar-renomear-camada" aria-label="Fechar">×</button>
+    </div>
+    <p class="login-modal__hint" id="renomear-camada-hint">Altere o nome e a camada (grupo) na sidebar.</p>
+    <form id="form-renomear-camada" class="login-modal__form">
+      <input type="hidden" id="renomear-schema" />
+      <input type="hidden" id="renomear-table" />
+      <label>
+        Nome da subcamada
+        <input id="renomear-display-name" type="text" maxlength="80" required />
+      </label>
+      <label>
+        Camada (grupo)
+        <select id="renomear-grupo"></select>
+      </label>
+      <p id="renomear-camada-erro" class="login-modal__erro" hidden></p>
+      <div class="login-modal__actions">
+        <button type="button" class="btn-ghost" id="btn-cancelar-renomear-camada">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-salvar-renomear-camada">Salvar</button>
       </div>
     </form>
   </div>

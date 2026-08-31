@@ -98,7 +98,9 @@
           }
         }
         window.alert(
-          `SHP gravado: schema ${data.schema} · tabela ${data.table}\n${data.feature_count} feições`
+          data.renamed
+            ? `Camada atualizada: ${data.name || data.layer_id}`
+            : `SHP gravado: schema ${data.schema} · tabela ${data.table}\n${data.feature_count} feições`
         );
       },
       onToggleLegend: (show) => {

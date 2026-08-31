@@ -87,12 +87,36 @@ window.InfraGeoSidebar = (function () {
     const neu = document.getElementById("upload-destino-new");
     const layerSel = document.getElementById("upload-destino-layer");
     const nome = document.getElementById("upload-destino-nome");
-    const grupo = document.getElementById("upload-destino-grupo");
+    const subnome = document.getElementById("upload-destino-subnome");
     if (existing) existing.hidden = mode !== "existing";
     if (neu) neu.hidden = mode !== "new";
     if (layerSel) layerSel.required = mode === "existing";
     if (nome) nome.required = mode === "new";
-    if (grupo) grupo.required = mode === "new";
+    if (subnome) subnome.required = mode === "new";
+    syncCamadaMode();
+  }
+
+  function syncCamadaMode() {
+    const isNewDest =
+      !(document.getElementById("upload-destino-new")?.hidden);
+    const mode =
+      document.querySelector('input[name="upload_camada_mode"]:checked')
+        ?.value || "existing";
+    const createNew = mode === "new";
+    const grupoWrap = document.getElementById("upload-destino-grupo-wrap");
+    const novoWrap = document.getElementById("upload-destino-grupo-novo-wrap");
+    const grupo = document.getElementById("upload-destino-grupo");
+    const nomeGrupo = document.getElementById("upload-destino-grupo-nome");
+    if (grupoWrap) grupoWrap.hidden = !isNewDest || createNew;
+    if (novoWrap) novoWrap.hidden = !isNewDest || !createNew;
+    if (grupo) {
+      grupo.disabled = !isNewDest || createNew;
+      grupo.required = isNewDest && !createNew;
+    }
+    if (nomeGrupo) {
+      nomeGrupo.disabled = !isNewDest || !createNew;
+      nomeGrupo.required = isNewDest && createNew;
+    }
   }
 
   function openDestinoModal(show) {
@@ -129,19 +153,20 @@ window.InfraGeoSidebar = (function () {
     const layerSel = document.getElementById("upload-destino-layer");
     const grupoSel = document.getElementById("upload-destino-grupo");
     const nome = document.getElementById("upload-destino-nome");
+    const subnome = document.getElementById("upload-destino-subnome");
     if (layerSel) {
       layerSel.innerHTML = "";
       const placeholder = document.createElement("option");
       placeholder.value = "";
       placeholder.textContent =
         (data.layers || []).length
-          ? "Selecione a camada…"
-          : "Nenhuma camada cadastrada";
+          ? "Selecione a subcamada…"
+          : "Nenhuma subcamada cadastrada";
       layerSel.appendChild(placeholder);
       (data.layers || []).forEach((layer) => {
         const opt = document.createElement("option");
         opt.value = `${layer.schema}||${layer.table}`;
-        opt.textContent = `${layer.group_name || "Grupo"} · ${layer.name}`;
+        opt.textContent = `${layer.group_name || "Camada"} · ${layer.name}`;
         layerSel.appendChild(opt);
       });
     }
@@ -149,7 +174,7 @@ window.InfraGeoSidebar = (function () {
       grupoSel.innerHTML = "";
       const placeholder = document.createElement("option");
       placeholder.value = "";
-      placeholder.textContent = "Selecione o grupo…";
+      placeholder.textContent = "Selecione a camada…";
       grupoSel.appendChild(placeholder);
       (data.groups || []).forEach((g) => {
         const opt = document.createElement("option");
@@ -158,7 +183,16 @@ window.InfraGeoSidebar = (function () {
         grupoSel.appendChild(opt);
       });
     }
-    if (nome && suggestedName) nome.value = suggestedName;
+    if (nome && suggestedName) {
+      nome.value = String(suggestedName)
+        .toUpperCase()
+        .replace(/[^A-Z0-9_]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 60);
+    }
+    if (subnome && suggestedName) {
+      subnome.value = suggestedName.replace(/[_-]+/g, " ").trim();
+    }
   }
 
   async function prepareUpload(fileList, handlers) {
@@ -238,7 +272,9 @@ window.InfraGeoSidebar = (function () {
     const destination = opts.destination || "new";
     form.append("destination", destination);
     if (opts.name) form.append("name", opts.name);
+    if (opts.display_name) form.append("display_name", opts.display_name);
     if (opts.group_id) form.append("group_id", opts.group_id);
+    if (opts.new_group_name) form.append("new_group_name", opts.new_group_name);
     if (opts.target_schema) form.append("target_schema", opts.target_schema);
     if (opts.target_table) form.append("target_table", opts.target_table);
 
@@ -392,7 +428,7 @@ window.InfraGeoSidebar = (function () {
           const raw = document.getElementById("upload-destino-layer")?.value || "";
           const [schema, table] = raw.split("||");
           if (!schema || !table) {
-            setDestinoError("Selecione uma camada existente");
+            setDestinoError("Selecione uma subcamada existente");
             return;
           }
           await uploadShapefile(pendingFiles, pendingHandlers || handlers, {
@@ -402,31 +438,173 @@ window.InfraGeoSidebar = (function () {
           });
           return;
         }
+        const camadaMode =
+          document.querySelector('input[name="upload_camada_mode"]:checked')
+            ?.value || "existing";
         const name = (
           document.getElementById("upload-destino-nome")?.value || ""
         ).trim();
+        const displayName = (
+          document.getElementById("upload-destino-subnome")?.value || ""
+        ).trim();
         const groupId = document.getElementById("upload-destino-grupo")?.value || "";
-        if (!name) {
-          setDestinoError("Informe o nome da nova camada");
+        const newGroupName = (
+          document.getElementById("upload-destino-grupo-nome")?.value || ""
+        ).trim();
+        if (camadaMode === "new") {
+          if (!newGroupName) {
+            setDestinoError("Informe o nome da nova camada (grupo)");
+            return;
+          }
+        } else if (!groupId) {
+          setDestinoError("Selecione a camada (grupo) na sidebar");
           return;
         }
-        if (!groupId) {
-          setDestinoError("Selecione o grupo da sidebar");
+        if (!displayName) {
+          setDestinoError("Informe o nome da subcamada");
+          return;
+        }
+        if (!name) {
+          setDestinoError("Informe o identificador técnico da subcamada");
           return;
         }
         await uploadShapefile(pendingFiles, pendingHandlers || handlers, {
           destination: "new",
           name,
-          group_id: groupId,
+          display_name: displayName,
+          group_id: camadaMode === "new" ? "" : groupId,
+          new_group_name: camadaMode === "new" ? newGroupName : "",
         });
       });
     }
+
+    document
+      .querySelectorAll('input[name="upload_camada_mode"]')
+      .forEach((el) => {
+        el.addEventListener("change", () => syncCamadaMode());
+      });
+
+    initRenameModal(handlers);
+  }
+
+  function setRenameError(msg) {
+    const el = document.getElementById("renomear-camada-erro");
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function openRenameModal(show, layer) {
+    const modal = document.getElementById("modal-renomear-camada");
+    if (!modal) return;
+    modal.hidden = !show;
+    modal.setAttribute("aria-hidden", String(!show));
+    if (!show) {
+      setRenameError("");
+      return;
+    }
+    document.getElementById("renomear-schema").value = layer?.schema || "";
+    document.getElementById("renomear-table").value = layer?.table || "";
+    document.getElementById("renomear-display-name").value = layer?.name || "";
+    const hint = document.getElementById("renomear-camada-hint");
+    if (hint) {
+      hint.textContent = `${layer?.schema || ""}.${layer?.table || ""}`;
+    }
+    const grupoSel = document.getElementById("renomear-grupo");
+    if (grupoSel) {
+      const groups = window.InfraGeoConfig?.groups || [];
+      grupoSel.innerHTML = "";
+      groups.forEach((g) => {
+        const opt = document.createElement("option");
+        opt.value = g.id;
+        opt.textContent = g.name;
+        if (g.id === layer?.groupId) opt.selected = true;
+        grupoSel.appendChild(opt);
+      });
+    }
+  }
+
+  async function initRenameModal(handlers) {
+    const form = document.getElementById("form-renomear-camada");
+    const closeBtn = document.getElementById("btn-fechar-renomear-camada");
+    const cancelBtn = document.getElementById("btn-cancelar-renomear-camada");
+    const modal = document.getElementById("modal-renomear-camada");
+    const close = () => openRenameModal(false);
+    closeBtn?.addEventListener("click", close);
+    cancelBtn?.addEventListener("click", close);
+    modal?.addEventListener("click", (ev) => {
+      if (ev.target === modal) close();
+    });
+    form?.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      setRenameError("");
+      const schema = document.getElementById("renomear-schema")?.value || "";
+      const table = document.getElementById("renomear-table")?.value || "";
+      const displayName = (
+        document.getElementById("renomear-display-name")?.value || ""
+      ).trim();
+      const groupId = document.getElementById("renomear-grupo")?.value || "";
+      if (!schema || !table || !displayName) {
+        setRenameError("Preencha o nome de exibição");
+        return;
+      }
+      const ok = window.InfraGeoAuth?.canUpload?.();
+      if (!ok) {
+        window.InfraGeoAuth?.requireLogin?.(() =>
+          openRenameModal(true, {
+            schema,
+            table,
+            name: displayName,
+            groupId,
+          })
+        );
+        return;
+      }
+      try {
+        const body = new FormData();
+        body.append("layer_schema", schema);
+        body.append("layer_table", table);
+        body.append("display_name", displayName);
+        if (groupId) body.append("group_id", groupId);
+        const headers = window.InfraGeoAuth?.authHeaders?.() || {};
+        const res = await fetch(
+          window.InfraGeoApi.url("/api/postgis/layers/meta"),
+          { method: "PATCH", headers, body }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          window.InfraGeoAuth?.logout?.();
+          window.alert("Sessão expirada. Faça login novamente.");
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(data.detail || data.message || `HTTP ${res.status}`);
+        }
+        openRenameModal(false);
+        if (handlers?.onUploadSuccess) {
+          await handlers.onUploadSuccess({
+            ...data,
+            renamed: true,
+          });
+        } else {
+          window.alert(`Camada renomeada: ${data.name}`);
+        }
+      } catch (err) {
+        setRenameError(err.message || String(err));
+      }
+    });
   }
 
   return {
     init,
     uploadShapefile,
     prepareUpload,
+    openRenameModal,
     setOpen,
     toggle,
     isMobileLayout,

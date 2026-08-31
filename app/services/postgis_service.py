@@ -213,7 +213,17 @@ def _valid_group_ids() -> set[str]:
     return {g["id"] for g in GROUP_DEFS}
 
 
-def _ensure_placement_table(eng: Engine) -> None:
+def _safe_group_id(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_]+", "_", (name or "").strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_").lower()
+    if not cleaned:
+        raise WebGISException("Nome de grupo inválido", status_code=400)
+    if cleaned[0].isdigit():
+        cleaned = f"g_{cleaned}"
+    return cleaned[:48]
+
+
+def _ensure_meta_table(eng: Engine) -> None:
     with eng.begin() as conn:
         conn.execute(
             text(
@@ -226,10 +236,38 @@ def _ensure_placement_table(eng: Engine) -> None:
                 """
             )
         )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.infrageo_layer_meta (
+                  schema_name TEXT NOT NULL,
+                  table_name TEXT NOT NULL,
+                  group_id TEXT,
+                  display_name TEXT,
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  PRIMARY KEY (schema_name, table_name)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.infrageo_custom_groups (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  icon TEXT NOT NULL DEFAULT '📁',
+                  icon_class TEXT NOT NULL DEFAULT 'layer-group__icon--grid',
+                  sort_order INT NOT NULL DEFAULT 200,
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
 
 
 def _set_layer_placement(eng: Engine, schema_name: str, group_id: str) -> None:
-    _ensure_placement_table(eng)
+    _ensure_meta_table(eng)
     with eng.begin() as conn:
         conn.execute(
             text(
@@ -245,9 +283,42 @@ def _set_layer_placement(eng: Engine, schema_name: str, group_id: str) -> None:
         )
 
 
+def _set_layer_meta(
+    eng: Engine,
+    schema_name: str,
+    table_name: str,
+    *,
+    group_id: str | None = None,
+    display_name: str | None = None,
+) -> None:
+    _ensure_meta_table(eng)
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO public.infrageo_layer_meta
+                  (schema_name, table_name, group_id, display_name)
+                VALUES (:s, :t, :g, :d)
+                ON CONFLICT (schema_name, table_name) DO UPDATE
+                  SET group_id = COALESCE(EXCLUDED.group_id, public.infrageo_layer_meta.group_id),
+                      display_name = COALESCE(EXCLUDED.display_name, public.infrageo_layer_meta.display_name),
+                      updated_at = now()
+                """
+            ),
+            {
+                "s": schema_name,
+                "t": table_name,
+                "g": (group_id or "").strip() or None,
+                "d": (display_name or "").strip() or None,
+            },
+        )
+    if group_id:
+        _set_layer_placement(eng, schema_name, group_id)
+
+
 def _placement_map(eng: Engine) -> dict[str, str]:
     try:
-        _ensure_placement_table(eng)
+        _ensure_meta_table(eng)
         with eng.connect() as conn:
             rows = conn.execute(
                 text(
@@ -258,6 +329,80 @@ def _placement_map(eng: Engine) -> dict[str, str]:
     except Exception:  # noqa: BLE001
         return {}
 
+
+def _meta_map(eng: Engine) -> dict[tuple[str, str], dict[str, str]]:
+    try:
+        _ensure_meta_table(eng)
+        with eng.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT schema_name, table_name, group_id, display_name
+                    FROM public.infrageo_layer_meta
+                    """
+                )
+            ).fetchall()
+        out: dict[tuple[str, str], dict[str, str]] = {}
+        for r in rows:
+            key = (str(r[0]).upper(), str(r[1]).upper())
+            out[key] = {
+                "group_id": str(r[2] or ""),
+                "display_name": str(r[3] or ""),
+            }
+        return out
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _custom_groups(eng: Engine) -> list[dict[str, Any]]:
+    try:
+        _ensure_meta_table(eng)
+        with eng.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT id, name, icon, icon_class, sort_order
+                    FROM public.infrageo_custom_groups
+                    ORDER BY sort_order, name
+                    """
+                )
+            ).mappings().all()
+        return [
+            {
+                "id": str(r["id"]),
+                "name": str(r["name"]),
+                "icon": str(r["icon"] or "📁"),
+                "iconClass": str(r["icon_class"] or "layer-group__icon--grid"),
+                "custom": True,
+            }
+            for r in rows
+        ]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _all_group_defs(eng: Engine | None = None) -> list[dict[str, Any]]:
+    base = [dict(g) for g in GROUP_DEFS]
+    if eng is None:
+        return base
+    customs = _custom_groups(eng)
+    known = {g["id"] for g in base}
+    for g in customs:
+        if g["id"] not in known:
+            base.append(g)
+            known.add(g["id"])
+    return base
+
+
+def _resolve_display_name(
+    schema: str,
+    table: str,
+    meta: dict[str, str] | None = None,
+) -> str:
+    custom = (meta or {}).get("display_name") or ""
+    if custom.strip():
+        return custom.strip()
+    return _display_name(schema, table)
 
 def _display_name(schema: str, table: str) -> str:
     """Nome amigável para a sidebar (sem SCHEMA · TABELA)."""
@@ -508,15 +653,17 @@ class PostGISService:
     def catalog(self) -> dict[str, Any]:
         """Monta grupos da sidebar com camadas vindas do PostGIS."""
         tables = self.list_geometry_tables()
+        group_defs = _all_group_defs(self.engine)
         groups: dict[str, dict[str, Any]] = {
             g["id"]: {
                 "id": g["id"],
                 "name": g["name"],
                 "icon": g["icon"],
                 "iconClass": g["iconClass"],
+                "custom": bool(g.get("custom")),
                 "layers": [],
             }
-            for g in GROUP_DEFS
+            for g in group_defs
         }
         other = {
             "id": "outros",
@@ -526,12 +673,17 @@ class PostGISService:
             "layers": [],
         }
         placements = _placement_map(self.engine)
+        metas = _meta_map(self.engine)
+        valid_ids = set(groups.keys())
 
         for row in tables:
             schema = row["schema"]
             table = row["table"]
             geom_type = row["geom_type"] or "GEOMETRY"
-            placed = placements.get(schema.upper())
+            meta = metas.get((schema.upper(), table.upper()), {})
+            placed = (meta.get("group_id") or "").strip() or placements.get(
+                schema.upper()
+            )
             if placed and placed in groups:
                 target = groups[placed]
             else:
@@ -549,7 +701,7 @@ class PostGISService:
             target["layers"].append(
                 {
                     "id": layer_id,
-                    "name": _display_name(schema, table),
+                    "name": _resolve_display_name(schema, table, meta),
                     "schema": schema,
                     "table": table,
                     "geom_column": row["geom_column"],
@@ -557,6 +709,7 @@ class PostGISService:
                     "srid": row["srid"],
                     "style": _style_for(schema, geom_type, table),
                     "defaultOn": default_on,
+                    "display_name_custom": bool((meta.get("display_name") or "").strip()),
                     "url": (
                         "/api/postgis/geojson"
                         f"?schema={quote(schema, safe='')}"
@@ -568,7 +721,7 @@ class PostGISService:
 
         result_groups = [
             groups[g["id"]]
-            for g in GROUP_DEFS
+            for g in group_defs
             if groups[g["id"]]["layers"] or g.get("show_empty")
         ]
         if other["layers"]:
@@ -579,6 +732,99 @@ class PostGISService:
             "source": "postgis",
             "groups": result_groups,
             "layer_count": sum(len(g["layers"]) for g in result_groups),
+            "group_ids": sorted(valid_ids | {"outros"}),
+        }
+
+    def list_sidebar_groups(self) -> list[dict[str, Any]]:
+        """Grupos disponíveis para upload (fixos + customizados)."""
+        return [
+            {"id": g["id"], "name": g["name"], "custom": bool(g.get("custom"))}
+            for g in _all_group_defs(self.engine)
+        ]
+
+    def create_custom_group(self, name: str) -> dict[str, Any]:
+        label = (name or "").strip()
+        if len(label) < 2:
+            raise WebGISException("Informe um nome de grupo (mín. 2 caracteres)", status_code=400)
+        gid = _safe_group_id(label)
+        reserved = _valid_group_ids() | {"outros"}
+        if gid in reserved:
+            raise WebGISException(
+                f"O grupo '{gid}' já existe no sistema. Escolha outro nome.",
+                status_code=409,
+            )
+        _ensure_meta_table(self.engine)
+        with self.engine.begin() as conn:
+            exists = conn.execute(
+                text("SELECT 1 FROM public.infrageo_custom_groups WHERE id = :id"),
+                {"id": gid},
+            ).first()
+            if exists:
+                raise WebGISException(
+                    f"Já existe um grupo com o id '{gid}'.",
+                    status_code=409,
+                )
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO public.infrageo_custom_groups (id, name)
+                    VALUES (:id, :name)
+                    """
+                ),
+                {"id": gid, "name": label},
+            )
+        return {"ok": True, "id": gid, "name": label, "custom": True}
+
+    def update_layer_meta(
+        self,
+        schema: str,
+        table: str,
+        *,
+        display_name: str | None = None,
+        group_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Atualiza nome de exibição e/ou grupo sem redeploy."""
+        meta_row = self._resolve_table(schema, table)
+        schema_name = meta_row["schema"]
+        table_name = meta_row["table"]
+
+        new_display = None if display_name is None else display_name.strip()
+        new_group = None if group_id is None else group_id.strip()
+
+        if display_name is not None and not new_display:
+            raise WebGISException("Nome de exibição não pode ser vazio", status_code=400)
+
+        if new_group is not None:
+            valid = {g["id"] for g in _all_group_defs(self.engine)}
+            if new_group not in valid:
+                raise WebGISException(
+                    f"Grupo inválido: {new_group}",
+                    status_code=400,
+                )
+
+        if new_display is None and new_group is None:
+            raise WebGISException(
+                "Informe display_name e/ou group_id para atualizar",
+                status_code=400,
+            )
+
+        _set_layer_meta(
+            self.engine,
+            schema_name,
+            table_name,
+            group_id=new_group,
+            display_name=new_display,
+        )
+        metas = _meta_map(self.engine)
+        meta = metas.get((schema_name.upper(), table_name.upper()), {})
+        return {
+            "ok": True,
+            "schema": schema_name,
+            "table": table_name,
+            "layer_id": _layer_id(schema_name, table_name),
+            "name": _resolve_display_name(schema_name, table_name, meta),
+            "group_id": meta.get("group_id")
+            or _placement_map(self.engine).get(schema_name.upper()),
         }
 
     def _resolve_table(self, schema: str, table: str) -> dict[str, Any]:
@@ -678,6 +924,8 @@ class PostGISService:
         target_schema: str | None = None,
         target_table: str | None = None,
         group_id: str | None = None,
+        display_name: str | None = None,
+        new_group_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Lê shapefile ou GeoJSON e grava no PostGIS.
@@ -709,6 +957,8 @@ class PostGISService:
                 status_code=400,
             )
         chosen_group = (group_id or "").strip()
+        label = (display_name or "").strip() or None
+        custom_group_label = (new_group_name or "").strip() or None
 
         if not source_paths:
             raise WebGISException("Nenhum arquivo enviado", status_code=400)
@@ -790,9 +1040,9 @@ class PostGISService:
                 try:
                     gdf = gpd.read_file(vector_path, engine="fiona")
                 except Exception as exc2:  # noqa: BLE001
-                    label = "GeoJSON" if kind == "geojson" else "shapefile"
+                    label_fmt = "GeoJSON" if kind == "geojson" else "shapefile"
                     raise WebGISException(
-                        f"Falha ao ler {label}: {exc2}. "
+                        f"Falha ao ler {label_fmt}: {exc2}. "
                         "Para SHP, envie o .zip completo (.shp, .shx, .dbf e .prj). "
                         "Para GeoJSON, use .geojson ou .json válido.",
                         status_code=400,
@@ -849,9 +1099,13 @@ class PostGISService:
                     preferred_name or (vector_path.stem if vector_path else "camada")
                 )
                 table = schema_name
-                if chosen_group not in _valid_group_ids():
+                if custom_group_label:
+                    created = self.create_custom_group(custom_group_label)
+                    chosen_group = created["id"]
+                valid_ids = {g["id"] for g in _all_group_defs(self.engine)}
+                if chosen_group not in valid_ids:
                     raise WebGISException(
-                        "Selecione um grupo da sidebar para a nova camada.",
+                        "Selecione a camada (grupo) ou informe uma nova camada.",
                         status_code=400,
                     )
                 if any(r["schema"].upper() == schema_name for r in existing_rows):
@@ -860,6 +1114,8 @@ class PostGISService:
                         "Escolha outro nome ou atualize a camada existente.",
                         status_code=409,
                     )
+                if not label:
+                    label = preferred_name or schema_name
 
             with self.engine.begin() as conn:
                 conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
@@ -879,11 +1135,26 @@ class PostGISService:
                 ) from exc
 
             if dest_mode == "new":
-                _set_layer_placement(self.engine, schema_name, chosen_group)
-            elif chosen_group in _valid_group_ids():
-                _set_layer_placement(self.engine, schema_name, chosen_group)
+                _set_layer_meta(
+                    self.engine,
+                    schema_name,
+                    table,
+                    group_id=chosen_group,
+                    display_name=label,
+                )
+            else:
+                if chosen_group or label:
+                    _set_layer_meta(
+                        self.engine,
+                        schema_name,
+                        table,
+                        group_id=chosen_group or None,
+                        display_name=label,
+                    )
 
             layer_id = _layer_id(schema_name, table)
+            metas = _meta_map(self.engine)
+            meta = metas.get((schema_name.upper(), table.upper()), {})
             return {
                 "ok": True,
                 "schema": schema_name,
@@ -893,8 +1164,8 @@ class PostGISService:
                 "geom_type": str(gdf.geom_type.mode().iloc[0]) if len(gdf) else None,
                 "format": kind,
                 "destination": dest_mode,
-                "group_id": chosen_group or None,
-                "name": _display_name(schema_name, table),
+                "group_id": chosen_group or meta.get("group_id") or None,
+                "name": _resolve_display_name(schema_name, table, meta),
                 "url": (
                     "/api/postgis/geojson"
                     f"?schema={quote(schema_name, safe='')}"

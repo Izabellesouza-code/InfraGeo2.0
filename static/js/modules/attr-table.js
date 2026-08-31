@@ -51,6 +51,18 @@ window.InfraGeoAttrTable = (function () {
           <span class="layer-kebab-item__hint">Abrir registros, filtrar e localizar no mapa</span>
         </span>
       </button>
+      <button type="button" class="layer-kebab-item" role="menuitem" data-layer-action="rename" data-layer-id="${layerId}">
+        <span class="layer-kebab-item__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+            <path d="M4 17.5V20h2.5L17 9.5 14.5 7 4 17.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M13.2 8.3l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="layer-kebab-item__copy">
+          <span class="layer-kebab-item__title">Renomear subcamada</span>
+          <span class="layer-kebab-item__hint">Alterar nome e camada (grupo)</span>
+        </span>
+      </button>
     `;
   }
 
@@ -107,11 +119,25 @@ window.InfraGeoAttrTable = (function () {
     });
 
     menu.addEventListener("click", async (ev) => {
-      const item = ev.target.closest("[data-layer-action='table']");
+      const item = ev.target.closest("[data-layer-action]");
       if (!item) return;
       ev.stopPropagation();
+      const action = item.getAttribute("data-layer-action");
       closeMenus();
-      await openForLayer(layer.id);
+      if (action === "table") {
+        await openForLayer(layer.id);
+        return;
+      }
+      if (action === "rename") {
+        const ok = window.InfraGeoAuth?.canUpload?.();
+        if (!ok) {
+          window.InfraGeoAuth?.requireLogin?.(() =>
+            window.InfraGeoSidebar?.openRenameModal?.(true, layer)
+          );
+          return;
+        }
+        window.InfraGeoSidebar?.openRenameModal?.(true, layer);
+      }
     });
 
     row.append(btn, menu);
