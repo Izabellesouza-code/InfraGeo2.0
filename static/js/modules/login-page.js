@@ -74,7 +74,7 @@
     try {
       const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
@@ -166,7 +166,7 @@
       try {
         const res = await fetch(apiUrl("/api/auth/recover-password"), {
           method: "POST",
-          credentials: "same-origin",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, nome, new_password: newPassword }),
         });
@@ -198,7 +198,7 @@
       try {
         const res = await fetch(apiUrl("/api/auth/forgot-password"), {
           method: "POST",
-          credentials: "same-origin",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         });
@@ -234,7 +234,7 @@
       try {
         const res = await fetch(apiUrl("/api/auth/reset-password"), {
           method: "POST",
-          credentials: "same-origin",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token, new_password: newPassword }),
         });

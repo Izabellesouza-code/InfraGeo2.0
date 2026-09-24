@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.api.deps import SESSION_COOKIE, extract_access_token, get_current_user, require_admin_user
+from app.config import get_settings
 from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_access_token
 from app.database import get_db
 from app.schemas.auth import (
@@ -27,14 +28,23 @@ router = APIRouter()
 bearer = HTTPBearer(auto_error=False)
 
 
+def _cookie_kwargs() -> dict[str, Any]:
+    """Em produção o front (Vercel) chama a API (Render): cookie precisa cruzar origem."""
+    cross_site = not get_settings().debug
+    return {
+        "httponly": True,
+        "secure": cross_site,
+        "samesite": "none" if cross_site else "lax",
+        "path": "/",
+    }
+
+
 def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
-        httponly=True,
-        samesite="lax",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/",
+        **_cookie_kwargs(),
     )
 
 
@@ -84,7 +94,13 @@ def reset_password(
 
 @router.post("/logout")
 def logout(response: Response) -> dict[str, bool]:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    kw = _cookie_kwargs()
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path=kw["path"],
+        samesite=kw["samesite"],
+        secure=kw["secure"],
+    )
     return {"ok": True}
 
 

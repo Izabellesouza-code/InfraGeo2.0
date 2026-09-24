@@ -28,18 +28,34 @@ def main() -> None:
         loader=FileSystemLoader(str(ROOT / "templates")),
         autoescape=select_autoescape(["html", "xml"]),
     )
-    html = templates.get_template("pages/mapa.html").render(
-        app_name=os.environ.get("APP_NAME", "InfraGeo AM"),
-        center_lat=float(os.environ.get("DEFAULT_MAP_CENTER_LAT", "-3.4653")),
-        center_lon=float(os.environ.get("DEFAULT_MAP_CENTER_LON", "-62.2159")),
-        zoom=int(os.environ.get("DEFAULT_MAP_ZOOM", "5")),
-    )
+    ctx_map = {
+        "app_name": os.environ.get("APP_NAME", "InfraGeo AM"),
+        "center_lat": float(os.environ.get("DEFAULT_MAP_CENTER_LAT", "-3.4653")),
+        "center_lon": float(os.environ.get("DEFAULT_MAP_CENTER_LON", "-62.2159")),
+        "zoom": int(os.environ.get("DEFAULT_MAP_ZOOM", "5")),
+    }
+    ctx_name = {"app_name": ctx_map["app_name"]}
+    html = templates.get_template("pages/mapa.html").render(**ctx_map)
 
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir(parents=True)
 
     (DIST / "index.html").write_text(html, encoding="utf-8")
+    (DIST / "login.html").write_text(
+        templates.get_template("pages/login.html").render(**ctx_name), encoding="utf-8"
+    )
+    (DIST / "admin.html").write_text(
+        templates.get_template("pages/admin.html").render(**ctx_name), encoding="utf-8"
+    )
+    (DIST / "esqueci-senha.html").write_text(
+        templates.get_template("pages/forgot-password.html").render(**ctx_name),
+        encoding="utf-8",
+    )
+    (DIST / "redefinir-senha.html").write_text(
+        templates.get_template("pages/reset-password.html").render(**ctx_name),
+        encoding="utf-8",
+    )
 
     static_src = ROOT / "static"
     static_dst = DIST / "static"

@@ -86,7 +86,7 @@ window.InfraGeoAuth = (function () {
   async function login(username, password) {
     const res = await fetch(window.InfraGeoApi.url("/api/auth/login"), {
       method: "POST",
-      credentials: "same-origin",
+      credentials: window.InfraGeoApi?.credentials?.() || "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
@@ -102,7 +102,7 @@ window.InfraGeoAuth = (function () {
     try {
       await fetch(window.InfraGeoApi.url("/api/auth/logout"), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
       });
     } catch {
       /* ignore */
@@ -141,7 +141,7 @@ window.InfraGeoAuth = (function () {
       if (el) el.textContent = val || "—";
     };
     set("perfil-nome", user?.full_name || user?.nome || user?.username);
-    set("perfil-usuario", user?.full_name || user?.nome || "—");
+    set("perfil-usuario", user?.username);
     set("perfil-permissao", permissionLabel(user));
     set("perfil-email", user?.email);
     const adminLink = document.getElementById("link-painel-admin");
@@ -169,7 +169,7 @@ window.InfraGeoAuth = (function () {
     let user = getUser();
     try {
       const res = await fetch(window.InfraGeoApi.url("/api/auth/me"), {
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(),
       });
       if (res.ok) {

@@ -302,6 +302,10 @@
   padding: 0 0.95rem 0.9rem;
 }
 
+.user-popover__admin[hidden] {
+  display: none !important;
+}
+
 .user-popover__admin {
   display: flex;
   align-items: center;

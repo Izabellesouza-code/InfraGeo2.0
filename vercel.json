@@ -30,6 +30,10 @@
     }
   ],
   "rewrites": [
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/esqueci-senha", "destination": "/esqueci-senha.html" },
+    { "source": "/redefinir-senha", "destination": "/redefinir-senha.html" },
     { "source": "/((?!static/).*)", "destination": "/index.html" }
   ]
 }

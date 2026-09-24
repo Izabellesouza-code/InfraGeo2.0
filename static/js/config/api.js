@@ -25,9 +25,15 @@ window.InfraGeoApi = (function () {
     return b ? `${b}${p}` : p;
   }
 
-  function fetch(path, opts) {
-    return window.fetch(url(path), opts);
+  function credentials() {
+    return "include";
   }
 
-  return { base, url, fetch };
+  function fetch(path, opts) {
+    const next = { credentials: credentials(), ...(opts || {}) };
+    if (!next.credentials) next.credentials = credentials();
+    return window.fetch(url(path), next);
+  }
+
+  return { base, url, fetch, credentials };
 })();

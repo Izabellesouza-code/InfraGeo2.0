@@ -323,14 +323,14 @@
   async function loadAll() {
     showError("");
     const [catalogRes, layersRes, usersRes, healthRes, pgHealthRes, infoRes, feedbackRes, meRes] = await Promise.all([
-      fetch(apiUrl("/api/postgis/catalog"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/postgis/layers"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/auth/users"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/health"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/postgis/health"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/info"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/feedback"), { credentials: "same-origin", headers: authHeaders() }),
-      fetch(apiUrl("/api/auth/me"), { credentials: "same-origin", headers: authHeaders() }),
+      fetch(apiUrl("/api/postgis/catalog"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/postgis/layers"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/auth/users"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/health"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/postgis/health"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/info"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/feedback"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/auth/me"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
     ]);
 
     if (usersRes.status === 401 || usersRes.status === 403) {
@@ -474,7 +474,7 @@
     try {
       const res = await fetch(apiUrl("/api/auth/users"), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(true),
         body: JSON.stringify(payload),
       });
@@ -684,7 +684,7 @@
     try {
       const res = await fetch(apiUrl(`/api/auth/users/${id}`), {
         method: "PATCH",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(true),
         body: JSON.stringify(payload),
       });
@@ -712,7 +712,7 @@
 
   document.getElementById("btn-admin-sair")?.addEventListener("click", async () => {
     try {
-      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "same-origin" });
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: window.InfraGeoApi?.credentials?.() || "include" });
     } catch {
       /* ignore */
     }
@@ -780,7 +780,7 @@
     try {
       const res = await fetch(apiUrl("/api/postgis/layers/meta"), {
         method: "PATCH",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(),
         body,
       });
@@ -851,7 +851,7 @@
     try {
       const res = await fetch(apiUrl("/api/postgis/upload"), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(),
         body: form,
       });
@@ -880,7 +880,7 @@
   async function setFeedbackStatus(id, status) {
     const res = await fetch(apiUrl(`/api/feedback/${id}`), {
       method: "PATCH",
-      credentials: "same-origin",
+      credentials: window.InfraGeoApi?.credentials?.() || "include",
       headers: authHeaders(true),
       body: JSON.stringify({ status }),
     });

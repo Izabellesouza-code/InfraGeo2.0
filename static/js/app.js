@@ -82,6 +82,10 @@
       window.InfraGeoMap.createMap("map");
       window.InfraGeoHoverPopup.init();
       window.InfraGeoAuth.init();
+      if (window.InfraGeoApi?.base?.() && !window.InfraGeoAuth.isLoggedIn()) {
+        window.location.replace("/login");
+        return;
+      }
       window.InfraGeoAbout?.init?.();
       window.InfraGeoLegend?.init?.();
       window.InfraGeoFilters.init();
