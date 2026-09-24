@@ -1,5 +1,23 @@
 <section class="panel panel--layers" aria-labelledby="camadas-title">
-  <h2 id="camadas-title" class="panel__title">CAMADAS</h2>
+  <label class="sidebar-more">
+    <span>Outras opções</span>
+    <select id="sidebar-more-select" aria-label="Outras opções do mapa">
+      <option value="camadas" selected>Camadas</option>
+      <option value="favoritos">Favoritos</option>
+      <option value="legenda">Legenda</option>
+      <option value="filtros">Filtrar dados</option>
+      <option value="exportar">Exportar mapa</option>
+      <option value="agente">Agente InfraGeo</option>
+      <option value="ligar">Ligar todas as camadas</option>
+      <option value="desligar">Desligar todas as camadas</option>
+      <option value="enquadrar">Enquadrar Amazonas</option>
+      <option value="ajuda">Ajuda / Sobre</option>
+    </select>
+  </label>
+  <header class="panel__head">
+    <h2 id="camadas-title" class="panel__title">Camadas</h2>
+    <p class="panel__hint">Abra o grupo e marque a opção para ela aparecer no mapa.</p>
+  </header>
 
   <div id="layer-groups" class="layer-groups" role="tree" aria-label="Grupos de camadas">
     <!-- Preenchido por static/js/modules/layers.js a partir de layers.config.js -->

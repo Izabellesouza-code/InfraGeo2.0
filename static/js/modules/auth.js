@@ -23,6 +23,10 @@ window.InfraGeoAuth = (function () {
   }
 
   function isLoggedIn() {
+    return !!(getToken() && getUser());
+  }
+
+  function canUpload() {
     const user = getUser();
     return !!(getToken() && user && (user.can_upload || user.is_admin));
   }
@@ -71,11 +75,10 @@ window.InfraGeoAuth = (function () {
   }
 
   function requireLogin(onSuccess) {
-    if (isLoggedIn()) {
+    if (canUpload()) {
       if (onSuccess) onSuccess();
       return;
     }
-    clearSession();
     pendingUpload = onSuccess || null;
     openLogin(true);
   }
@@ -83,6 +86,7 @@ window.InfraGeoAuth = (function () {
   async function login(username, password) {
     const res = await fetch(window.InfraGeoApi.url("/api/auth/login"), {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
@@ -90,23 +94,122 @@ window.InfraGeoAuth = (function () {
     if (!res.ok) {
       throw new Error(formatApiError(data, res.status));
     }
-    if (!data.user || !(data.user.can_upload || data.user.is_admin)) {
-      clearSession();
-      throw new Error("Usuário sem permissão para upload de camadas");
-    }
     setSession(data.access_token, data.user);
     return data.user;
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await fetch(window.InfraGeoApi.url("/api/auth/logout"), {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      /* ignore */
+    }
     clearSession();
     pendingUpload = null;
   }
 
+  function permissionLabel(user) {
+    if (!user) return "—";
+    if (user.is_admin) return "Administrador";
+    if (user.can_upload) return "Editor (upload)";
+    return "Leitura";
+  }
+
+  function originLabel(user) {
+    const email = String(user?.email || "");
+    if (email.endsWith("@neon.role")) return "Role Neon (Postgres)";
+    return "Usuário da aplicação";
+  }
+
+  function userInitial(user) {
+    const name = String(user?.full_name || user?.nome || user?.username || "").trim();
+    if (!name) return "";
+    const parts = name.split(/\s+/).filter(Boolean);
+    const first = parts[0] || "";
+    const last = parts.length > 1 ? parts[parts.length - 1] : "";
+    const a = first.charAt(0);
+    const b = last.charAt(0);
+    return `${a}${b}`.toLocaleUpperCase("pt-BR");
+  }
+
+  function fillProfile(user) {
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val || "—";
+    };
+    set("perfil-nome", user?.full_name || user?.nome || user?.username);
+    set("perfil-usuario", user?.full_name || user?.nome || "—");
+    set("perfil-permissao", permissionLabel(user));
+    set("perfil-email", user?.email);
+    const adminLink = document.getElementById("link-painel-admin");
+    if (adminLink) adminLink.hidden = !user?.is_admin;
+    const initial = userInitial(user) || "—";
+    const avatar = document.getElementById("btn-user-menu");
+    if (avatar) {
+      avatar.innerHTML = `<span class="app-header__user-initial">${initial}</span>`;
+      avatar.title = user?.full_name || user?.username || "Perfil";
+    }
+    const big = document.getElementById("perfil-avatar");
+    if (big) big.textContent = initial;
+  }
+
+  function setProfileOpen(open) {
+    const panel = document.getElementById("painel-perfil");
+    const btn = document.getElementById("btn-user-menu");
+    if (!panel) return;
+    panel.classList.toggle("is-open", !!open);
+    panel.setAttribute("aria-hidden", String(!open));
+    if (btn) btn.setAttribute("aria-expanded", String(!!open));
+  }
+
+  async function refreshProfile() {
+    let user = getUser();
+    try {
+      const res = await fetch(window.InfraGeoApi.url("/api/auth/me"), {
+        credentials: "same-origin",
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        user = await res.json();
+        if (user) {
+          const token = getToken();
+          if (token) setSession(token, user);
+          else localStorage.setItem(USER_KEY, JSON.stringify(user));
+        }
+      }
+    } catch {
+      /* usa sessão local */
+    }
+    fillProfile(user);
+    return user;
+  }
+
   function init() {
-    // Após F5 / reload, encerra a sessão — upload pede senha de novo
-    clearSession();
-    pendingUpload = null;
+    refreshProfile();
+
+    const userBtn = document.getElementById("btn-user-menu");
+    const panel = document.getElementById("painel-perfil");
+    if (userBtn && panel) {
+      userBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const willOpen = !panel.classList.contains("is-open");
+        if (willOpen) await refreshProfile();
+        setProfileOpen(willOpen);
+      });
+      document.addEventListener("click", (ev) => {
+        if (panel.classList.contains("is-open") && !ev.target.closest(".app-header__account")) {
+          setProfileOpen(false);
+        }
+      });
+    }
+
+    document.getElementById("btn-logout")?.addEventListener("click", async () => {
+      await logout();
+      window.location.href = "/login";
+    });
 
     const form = document.getElementById("form-login");
     const closeBtn = document.getElementById("btn-fechar-login");
@@ -172,7 +275,7 @@ window.InfraGeoAuth = (function () {
     getToken,
     getUser,
     isLoggedIn,
-    canUpload: isLoggedIn,
+    canUpload,
     authHeaders,
     requireLogin,
     login,

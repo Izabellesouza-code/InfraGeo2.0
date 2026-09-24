@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#dce8e4" />
+  <title>Entrar — {{ app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/login-page.css?v=68" />
+</head>
+<body class="login-page login-duo">
+  <main class="login-duo__card" id="login-duo-card">
+    <section class="login-duo__form-wrap">
+      <form id="form-login-page" class="login-duo__form" autocomplete="on">
+        <h1 id="login-duo-title">Entrar</h1>
+        <p class="login-duo__hint" id="login-duo-hint">Use o e-mail e a senha cadastrados</p>
+
+        <label class="login-duo__sr" for="login-page-usuario">E-mail</label>
+        <span class="login-field">
+          <input
+            id="login-page-usuario"
+            name="username"
+            type="email"
+            inputmode="email"
+            autocomplete="username"
+            placeholder="E-mail"
+            required
+          />
+        </span>
+
+        <label class="login-duo__sr" for="login-page-senha">Senha</label>
+        <span class="login-field">
+          <input
+            id="login-page-senha"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Senha"
+            required
+          />
+          <button type="button" class="login-field__toggle" id="btn-toggle-senha" aria-label="Mostrar senha">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </span>
+
+        <a class="login-page__link login-duo__forgot" href="/esqueci-senha">Esqueceu a senha?</a>
+
+        <p id="login-page-erro" class="login-page__erro" hidden></p>
+
+        <button type="submit" class="login-page__btn" id="login-duo-submit">
+          <span class="login-duo__btn-label">Entrar</span>
+        </button>
+      </form>
+    </section>
+
+    <aside class="login-duo__hero" id="login-duo-hero">
+      <img class="login-duo__hero-img" src="/static/img/login-amazonas.jpg?v=4" alt="" />
+      <div class="login-duo__hero-copy" data-side="user">
+        <h2>Olá</h2>
+        <p>InfraGEO AM</p>
+        <button type="button" class="login-duo__ghost" id="btn-login-admin">Administrador</button>
+      </div>
+      <div class="login-duo__hero-copy" data-side="admin">
+        <h2>Admin</h2>
+        <p>Voltar ao mapa</p>
+        <button type="button" class="login-duo__ghost" id="btn-login-user">Login</button>
+      </div>
+    </aside>
+    <div class="login-duo__loading" id="login-duo-loading" aria-live="polite" aria-busy="false">
+      <span class="login-duo__spinner" aria-hidden="true"></span>
+      <p>Entrando…</p>
+    </div>
+  </main>
+
+  <script src="/static/js/config/runtime.js?v=2"></script>
+  <script src="/static/js/config/api.js?v=2"></script>
+  <script src="/static/js/modules/login-page.js?v=7"></script>
+</body>
+</html>

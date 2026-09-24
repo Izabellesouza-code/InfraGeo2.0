@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Painel de administrador — {{ app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/select-combo.css?v=2" />
+  <link rel="stylesheet" href="/static/css/admin-page.css?v=34" />
+</head>
+<body class="admin-shell">
+  <aside class="admin-nav" aria-label="Console administrativo">
+    <div class="admin-nav__brand">
+      <div class="admin-nav__logos" aria-label="InfraGeo e Consórcio SPU">
+        <img
+          class="admin-nav__logo-img admin-nav__logo-img--infra"
+          src="/static/img/infrageo-splash.png?v=1"
+          alt="InfraGeo"
+          width="220"
+          height="72"
+          decoding="async"
+        />
+        <img
+          class="admin-nav__logo-img admin-nav__logo-img--spu"
+          src="/static/img/logo-consorcio-spu.png?v=5"
+          alt="Consórcio SPU — Assessoramento AM"
+          width="220"
+          height="64"
+          decoding="async"
+        />
+      </div>
+      <div class="admin-nav__titles">
+        <strong>InfraGeo AM</strong>
+        <span>Painel para gerir o mapa e os dados</span>
+      </div>
+    </div>
+
+    <p class="admin-nav__label">O que você pode fazer</p>
+    <nav class="admin-nav__menu">
+      <span class="admin-nav__slider" aria-hidden="true"></span>
+      <button type="button" class="is-active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14h4v6H4zM10 8h4v12h-4zM16 4h4v16h-4z"/></svg>
+        <span class="admin-nav__item">
+          <b>Visão geral</b>
+          <small>Números do sistema</small>
+        </span>
+      </button>
+      <button type="button" data-view="layers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/></svg>
+        <span class="admin-nav__item">
+          <b>Camadas</b>
+          <small>O que aparece no mapa</small>
+        </span>
+      </button>
+      <button type="button" data-view="imports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M12 18v-7M9 14l3 3 3-3"/></svg>
+        <span class="admin-nav__item">
+          <b>Importações</b>
+          <small>Enviar arquivos ao banco</small>
+        </span>
+      </button>
+      <button type="button" data-view="users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 19c.8-3 3-4.5 6-4.5S14.2 16 15 19"/><circle cx="17" cy="9" r="2.4"/><path d="M21 19c-.6-2.4-2.2-3.6-4-3.6"/></svg>
+        <span class="admin-nav__item">
+          <b>Usuários</b>
+          <small>Contas e permissões</small>
+        </span>
+      </button>
+      <button type="button" data-view="feedback">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5h14v10H8l-3 3V5z"/></svg>
+        <span class="admin-nav__item">
+          <b>Sugestões</b>
+          <small>Fila do agente InfraGeo</small>
+        </span>
+        <span class="admin-nav__badge" id="badge-feedback" hidden>0</span>
+      </button>
+      <button type="button" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+        <span class="admin-nav__item">
+          <b>Configurações</b>
+          <small>Ajustes do painel</small>
+        </span>
+      </button>
+    </nav>
+    <div class="admin-nav__fill">
+      <p class="admin-nav__label">Como usar</p>
+      <div class="admin-nav__tips">
+        <p><b>1</b> Camadas e importações publicam o que aparece no mapa.</p>
+        <p><b>2</b> Usuários define quem entra e o nível de acesso.</p>
+        <p><b>3</b> Sugestões é a fila do agente; o número indica envios novos.</p>
+      </div>
+      <p class="admin-nav__ver">{{ app_name }} · v{{ app_version }}</p>
+    </div>
+    <div class="admin-nav__foot">
+      <p class="admin-nav__label">Sua sessão</p>
+      <div class="admin-nav__user">
+        <span class="admin-nav__avatar" id="nav-user-avatar" aria-hidden="true">AM</span>
+        <span class="admin-nav__item">
+          <b id="nav-user-name">Administrador</b>
+          <small id="nav-user-role">Você tem acesso total a este painel</small>
+        </span>
+      </div>
+      <a class="admin-nav__back" href="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M15 18 9 12l6-6" />
+          <path d="M9 12h12" />
+        </svg>
+        Voltar ao mapa
+      </a>
+    </div>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-head">
+      <div>
+        <p class="admin-head__kicker">Painel de controle</p>
+        <h1 id="admin-title">Visão geral</h1>
+        <p class="admin-head__sub" id="admin-sub">Gerencie os dados e a publicação do WebGIS InfraGeo AM.</p>
+      </div>
+      <div class="admin-head__actions">
+        <label class="admin-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+          <input id="admin-search" type="search" placeholder="Buscar" />
+        </label>
+        <a class="admin-btn" href="#imports" id="btn-nova-camada" data-view="imports">+ Nova camada</a>
+      </div>
+    </header>
+
+    <p id="admin-erro" class="admin-flash" hidden></p>
+
+    <section class="admin-view is-active" data-view-panel="overview">
+      <div class="admin-kpis">
+        <article class="admin-kpi" data-view="layers" role="button" tabindex="0">
+          <span class="admin-kpi__icon admin-kpi__icon--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 12l9 5 9-5"/></svg>
+          </span>
+          <p>Camadas publicadas</p>
+          <strong id="kpi-layers">—</strong>
+          <small id="kpi-layers-sub">Catálogo PostGIS</small>
+        </article>
+        <article class="admin-kpi" data-view="users" role="button" tabindex="0">
+          <span class="admin-kpi__icon admin-kpi__icon--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+          <p>Usuários ativos</p>
+          <strong id="kpi-users">—</strong>
+          <small id="kpi-users-sub">Tabela usuarios</small>
+        </article>
+        <article class="admin-kpi" data-view="imports" role="button" tabindex="0">
+          <span class="admin-kpi__icon admin-kpi__icon--orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          </span>
+          <p>Registros processados</p>
+          <strong id="kpi-records">—</strong>
+          <small id="kpi-records-sub">Última atualização</small>
+        </article>
+        <article class="admin-kpi" data-view="settings" role="button" tabindex="0">
+          <span class="admin-kpi__icon admin-kpi__icon--mint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 4 7v6c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7l-8-4Z"/><path d="m8.5 12 2.3 2.3 4.7-5"/></svg>
+          </span>
+          <p>Saúde do sistema</p>
+          <strong id="kpi-health">—</strong>
+          <small id="kpi-health-sub">Serviços</small>
+        </article>
+      </div>
+
+      <div class="admin-mid">
+        <article class="admin-card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Monitoramento</p>
+              <h2>Status dos serviços</h2>
+            </div>
+            <span class="admin-pulse" aria-hidden="true"></span>
+          </div>
+          <ul class="admin-status" id="admin-status"></ul>
+          <a class="admin-more" href="#settings" id="link-status" data-view="settings">Ver status completo →</a>
+        </article>
+      </div>
+
+      <article class="admin-card">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Catálogo de dados</p>
+            <h2>Camadas recentes</h2>
+          </div>
+          <button type="button" class="admin-more" data-view="layers">Ver todas as camadas →</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Camada</th>
+                <th>Tipo</th>
+                <th>Atualização</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="overview-layers"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="admin-view" data-view-panel="layers">
+      <article class="admin-card admin-card--catalog">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Gestão de dados</p>
+            <h2>Camadas do catálogo</h2>
+          </div>
+          <a class="admin-btn admin-btn--ghost" href="#imports" data-view="imports">+ Nova camada</a>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table admin-table--layers">
+            <thead>
+              <tr>
+                <th>Camada</th>
+                <th>Tipo</th>
+                <th>Atualização</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="all-layers"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="admin-view" data-view-panel="imports">
+      <div class="admin-split">
+        <article class="admin-card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Upload</p>
+              <h2>Enviar shapefile ou GeoJSON</h2>
+            </div>
+          </div>
+          <form id="form-admin-upload" class="admin-form">
+            <label>Arquivo
+              <span class="admin-file">
+                <input id="admin-upload-files" type="file" accept=".zip,.shp,.shx,.dbf,.prj,.cpg,.geojson,.json" multiple required />
+                <span class="admin-file__btn">Escolher arquivos</span>
+                <span class="admin-file__name" id="admin-upload-files-label">Nenhum arquivo escolhido</span>
+              </span>
+            </label>
+            <p class="admin-help">Envie um .zip do shapefile ou um .geojson. Atualize uma subcamada existente ou crie uma nova.</p>
+            <div class="admin-seg" role="radiogroup" aria-label="Destino">
+              <label class="admin-seg__item"><input type="radio" name="admin_upload_dest" value="existing" checked /> Atualizar existente</label>
+              <label class="admin-seg__item"><input type="radio" name="admin_upload_dest" value="new" /> Criar nova</label>
+            </div>
+            <label id="admin-upload-existing-wrap">Subcamada
+              <select id="admin-upload-layer"></select>
+            </label>
+            <div id="admin-upload-new-wrap" hidden>
+              <label>Camada (grupo)
+                <select id="admin-upload-group"></select>
+              </label>
+              <label>Nome da subcamada
+                <input id="admin-upload-display" type="text" maxlength="80" placeholder="Ex.: Pontes BR-319" />
+              </label>
+              <label>Identificador técnico (opcional)
+                <input id="admin-upload-tech" type="text" maxlength="80" placeholder="pontes_br_319" />
+              </label>
+            </div>
+            <p id="admin-upload-erro" class="admin-flash" hidden></p>
+            <p id="admin-upload-ok" class="admin-ok" hidden></p>
+            <button type="submit" class="admin-btn" id="btn-admin-upload">Enviar dados</button>
+          </form>
+        </article>
+
+        <article class="admin-card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Catálogo</p>
+              <h2>Renomear subcamada</h2>
+            </div>
+          </div>
+          <form id="form-admin-rename" class="admin-form">
+            <label>Subcamada
+              <select id="admin-rename-layer" required></select>
+            </label>
+            <label>Nome de exibição
+              <input id="admin-rename-name" type="text" maxlength="80" required />
+            </label>
+            <label>Camada (grupo)
+              <select id="admin-rename-group"></select>
+            </label>
+            <p id="admin-rename-erro" class="admin-flash" hidden></p>
+            <p id="admin-rename-ok" class="admin-ok" hidden></p>
+            <button type="submit" class="admin-btn" id="btn-admin-rename">Salvar nome</button>
+          </form>
+        </article>
+      </div>
+    </section>
+
+    <section class="admin-view" data-view-panel="users">
+      <article class="admin-card">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Controle de acesso</p>
+            <h2>Usuários e permissões</h2>
+          </div>
+          <button type="button" class="admin-btn" id="btn-convidar">+ Convidar usuário</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table admin-table--users">
+            <thead>
+              <tr>
+                <th>Usuário</th>
+                <th>Perfil</th>
+                <th>Status</th>
+                <th>Acesso</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-body"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <div class="admin-modal" id="modal-convidar" hidden>
+        <div class="admin-modal__card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Cadastro</p>
+              <h2>Convidar usuário</h2>
+            </div>
+            <button type="button" class="admin-more" id="btn-fechar-convidar">Fechar</button>
+          </div>
+          <form id="form-admin-user" class="admin-form">
+            <label>Nome completo <input id="admin-nome" name="nome" type="text" required /></label>
+            <label>E-mail <input id="admin-email" name="email" type="email" required /></label>
+            <label>Senha <input id="admin-senha" name="password" type="password" minlength="6" required /></label>
+            <label class="admin-check"><input id="admin-is-admin" type="checkbox" /> Administrador</label>
+            <label class="admin-check"><input id="admin-can-upload" type="checkbox" checked /> Editor GIS (pode enviar camadas)</label>
+            <p id="admin-form-erro" class="admin-flash" hidden></p>
+            <p id="admin-ok" class="admin-ok" hidden></p>
+            <button type="submit" class="admin-btn" id="btn-admin-cadastrar">Cadastrar no Neon</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="admin-modal" id="modal-editar-usuario" hidden>
+        <div class="admin-modal__card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Usuário</p>
+              <h2 id="edit-user-title">Editar usuário</h2>
+            </div>
+            <button type="button" class="admin-more" id="btn-fechar-editar">Fechar</button>
+          </div>
+          <form id="form-admin-edit" class="admin-form">
+            <input type="hidden" id="edit-user-id" />
+            <div id="edit-block-dados">
+              <label>Nome completo <input id="edit-nome" type="text" required /></label>
+              <label>E-mail <input id="edit-email" type="email" required /></label>
+            </div>
+            <div id="edit-block-acesso">
+              <p class="admin-form-hint">Perfil e permissões</p>
+              <label>Acesso
+                <select id="edit-acesso" data-native-select="1">
+                  <option value="admin">Administrador — acesso total</option>
+                  <option value="editor">Editor GIS — pode enviar camadas</option>
+                  <option value="view">Visualizador — somente leitura</option>
+                </select>
+              </label>
+              <label class="admin-check"><input id="edit-ativo" type="checkbox" /> Conta ativa</label>
+            </div>
+            <div id="edit-block-senha">
+              <label>Nova senha <input id="edit-senha" type="password" minlength="6" autocomplete="new-password" /></label>
+              <p class="admin-form-hint" id="edit-senha-hint">Deixe em branco para manter a senha atual.</p>
+            </div>
+            <p id="edit-form-erro" class="admin-flash" hidden></p>
+            <p id="edit-form-ok" class="admin-ok" hidden></p>
+            <button type="submit" class="admin-btn" id="btn-admin-salvar">Salvar alterações</button>
+          </form>
+        </div>
+      </div>
+      <div id="user-row-menu" class="admin-row-menu" hidden>
+        <button type="button" data-user-action="edit">Editar nome e e-mail</button>
+        <button type="button" data-user-action="access">Alterar acesso e permissões</button>
+        <button type="button" data-user-action="password">Redefinir senha</button>
+      </div>
+    </section>
+
+    <section class="admin-view" data-view-panel="feedback">
+      <article class="admin-card">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Fila</p>
+            <h2>Envios</h2>
+          </div>
+          <div class="admin-seg" id="feedback-filter" role="radiogroup" aria-label="Filtro por status">
+            <label class="admin-seg__item"><input type="radio" name="feedback_filter" value="todas" checked /> Todas <span data-fb-count="todas">0</span></label>
+            <label class="admin-seg__item"><input type="radio" name="feedback_filter" value="nova" /> Novas <span data-fb-count="nova">0</span></label>
+            <label class="admin-seg__item"><input type="radio" name="feedback_filter" value="em_analise" /> Em análise <span data-fb-count="em_analise">0</span></label>
+            <label class="admin-seg__item"><input type="radio" name="feedback_filter" value="resolvida" /> Resolvidas <span data-fb-count="resolvida">0</span></label>
+          </div>
+        </div>
+        <div id="admin-feedback-list" class="admin-feedback"></div>
+      </article>
+    </section>
+
+    <section class="admin-view" data-view-panel="settings">
+      <article class="admin-card">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Sistema</p>
+            <h2>Configurações</h2>
+          </div>
+        </div>
+        <ul class="admin-settings">
+          <li><span>Aplicação</span><strong>{{ app_name }} {{ app_version }}</strong></li>
+          <li><span>Mapa</span><a href="/">Abrir visualizador</a></li>
+          <li><span>Sessão</span><button type="button" class="admin-linkish" id="btn-admin-sair">Sair</button></li>
+        </ul>
+      </article>
+    </section>
+  </div>
+
+  <script src="/static/js/config/runtime.js?v=2"></script>
+  <script src="/static/js/config/api.js?v=2"></script>
+  <script src="/static/js/modules/select-combo.js?v=1"></script>
+  <script src="/static/js/modules/admin-page.js?v=28"></script>
+</body>
+</html>

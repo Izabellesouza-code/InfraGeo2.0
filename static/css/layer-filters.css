@@ -2,7 +2,7 @@
 
 .layer-filters {
   position: fixed;
-  top: calc(var(--header-h) + 10px);
+  top: calc(var(--header-h) + 14px);
   left: 50%;
   transform: translateX(-50%);
   width: min(740px, calc(100vw - 40px));

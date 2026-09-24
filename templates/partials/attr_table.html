@@ -5,23 +5,60 @@
   aria-hidden="true"
   aria-labelledby="attr-panel-title"
 >
-  <div class="attr-panel__header">
-    <div class="attr-panel__titles">
-      <h2 id="attr-panel-title">Tabela de atributos</h2>
-      <p id="attr-panel-subtitle" class="attr-panel__subtitle">—</p>
-    </div>
-    <div class="attr-panel__tools">
-      <input
-        type="search"
-        id="attr-table-filter"
-        class="attr-panel__search"
-        placeholder="Filtrar registros…"
-        autocomplete="off"
-      />
-      <span id="attr-table-count" class="attr-panel__count">0</span>
-      <button type="button" class="icon-btn" id="btn-fechar-attr" aria-label="Fechar tabela">×</button>
+  <div class="attr-dash">
+    <header class="attr-dash__bar">
+      <span class="attr-dash__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.8">
+          <rect x="4" y="5" width="16" height="14" rx="2"/>
+          <path d="M8 9h8M8 12h8M8 15h5"/>
+        </svg>
+      </span>
+      <div class="attr-dash__titles">
+        <div class="attr-dash__title-row">
+          <h2 id="attr-panel-title">Tabela de atributos</h2>
+          <span class="attr-dash__live"><i></i> Atualizado agora</span>
+        </div>
+        <p id="attr-panel-subtitle" class="attr-panel__subtitle">—</p>
+        <span id="attr-brand-name" hidden>Atlas</span>
+        <nav id="attr-breadcrumb" hidden>Camadas</nav>
+      </div>
+      <button type="button" class="attr-btn-map" id="btn-attr-map">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M4 7.5 9.5 5l5 2.5L20 5v11.5L14.5 19l-5-2.5L4 19z"/>
+          <path d="M9.5 5v11.5M14.5 7.5V19"/>
+        </svg>
+        Ver no mapa
+      </button>
+      <button type="button" class="attr-icon-btn" id="btn-attr-help" title="Ajuda" aria-label="Ajuda da tabela">?</button>
+      <button type="button" class="attr-icon-btn attr-icon-btn--close" id="btn-fechar-attr" aria-label="Fechar tabela">×</button>
+    </header>
+
+    <div class="attr-toolbar">
+      <div class="attr-toolbar__left">
+        <span id="attr-table-count" class="attr-panel__count">0</span>
+        <span class="attr-toolbar__label">registros</span>
+        <button type="button" class="attr-chip-btn" id="btn-attr-filters">Filtros</button>
+      </div>
+      <div class="attr-toolbar__right">
+        <label class="attr-search">
+          <span class="visually-hidden">Filtrar registros</span>
+          <input
+            type="search"
+            id="attr-table-filter"
+            class="attr-panel__search"
+            placeholder="Filtrar registros…"
+            autocomplete="off"
+          />
+        </label>
+        <button type="button" class="attr-icon-btn" id="btn-attr-refresh" title="Atualizar" aria-label="Atualizar registros">↻</button>
+        <button type="button" class="attr-icon-btn" id="btn-attr-more" title="Mais opções" aria-label="Mais opções" hidden>⋯</button>
+      </div>
+      <div id="attr-help-pop" class="attr-pop attr-pop--help" hidden>
+        Clique numa linha para localizar no mapa. Use o filtro para buscar texto em qualquer coluna.
+      </div>
     </div>
   </div>
+
   <div class="attr-panel__body">
     <div class="attr-panel__scroll">
       <table id="attr-table" class="attr-table">

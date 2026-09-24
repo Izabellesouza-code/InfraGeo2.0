@@ -1,0 +1,88 @@
+<nav class="nav-rail" id="nav-rail" aria-label="Navegação principal">
+  <button type="button" class="nav-rail__btn is-active" data-chrome="mapa" title="Mapa">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 4l-5 2v14l5-2 6 2 5-2V4l-5 2-6-2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+    </span>
+    <span>Mapa</span>
+  </button>
+  <button type="button" class="nav-rail__btn" data-chrome="camadas" id="btn-nav-camadas" title="Camadas">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 16l9 5 9-5"/></svg>
+    </span>
+    <span>Camadas</span>
+  </button>
+  <button type="button" class="nav-rail__btn" data-chrome="legenda" id="btn-legendas" title="Legenda">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14"/><path d="M5 12h14"/><path d="M5 17h10"/></svg>
+    </span>
+    <span>Legenda</span>
+  </button>
+  <button type="button" class="nav-rail__btn" id="btn-ligar-camadas" data-action="layers-on" title="Ligar todas as camadas">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M12 3v10" />
+        <path d="M8.5 7.5a5 5 0 1 0 7 0" />
+      </svg>
+    </span>
+    <span>Ligar</span>
+  </button>
+  <button type="button" class="nav-rail__btn" id="btn-desligar-camadas" data-action="layers-off" title="Desligar todas as camadas">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="7" />
+        <path d="M8 8l8 8" />
+      </svg>
+    </span>
+    <span>Desligar</span>
+  </button>
+  <button type="button" class="nav-rail__btn" id="btn-fit-am" data-action="fit-amazonas" title="Enquadrar Amazonas">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M4 9V4h5" />
+        <path d="M20 9V4h-5" />
+        <path d="M4 15v5h5" />
+        <path d="M20 15v5h-5" />
+        <rect x="8" y="8" width="8" height="8" rx="1" />
+      </svg>
+    </span>
+    <span>Enquadrar AM</span>
+  </button>
+  <input
+    type="file"
+    id="input-upload-shp"
+    accept=".zip,.shp,.shx,.dbf,.prj,.cpg,.geojson,.json"
+    multiple
+    hidden
+  />
+  <button type="button" class="nav-rail__btn" data-chrome="favoritos" title="Favoritos">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.8 7.2 18.9l.9-5.4L4.2 9.7l5.4-.8L12 4z"/></svg>
+    </span>
+    <span>Favoritos</span>
+  </button>
+  <button type="button" class="nav-rail__btn" id="btn-exportar-mapa" data-chrome="exportar" title="Exportar">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v10"/><path d="M8.5 11.5 12 15l3.5-3.5"/><path d="M5 19h14"/></svg>
+    </span>
+    <span>Exportar</span>
+  </button>
+  <button type="button" class="nav-rail__btn" data-chrome="ajuda" title="Ajuda">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 1 1 3.8 2.3c-.8.5-1.3 1-1.3 2"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>
+    </span>
+    <span>Ajuda</span>
+  </button>
+  <button type="button" class="nav-rail__btn" id="btn-nav-agente" title="Agente InfraGeo">
+    <span class="nav-rail__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M12 4a4 4 0 0 1 4 4v1.2c1.7.6 3 2.2 3 4.1V16l1.2 1.8H3.8L5 16v-2.7c0-1.9 1.3-3.5 3-4.1V8a4 4 0 0 1 4-4Z"/>
+        <circle cx="9.2" cy="12.2" r=".9" fill="currentColor" stroke="none"/>
+        <circle cx="14.8" cy="12.2" r=".9" fill="currentColor" stroke="none"/>
+      </svg>
+    </span>
+    <span>Agente</span>
+  </button>
+  <button type="button" class="nav-rail__collapse" id="btn-collapse-rail" aria-label="Recolher menu">
+    «
+  </button>
+</nav>

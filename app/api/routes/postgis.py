@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from app.api.deps import require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
-from app.models.user import User
+from app.services.auth_service import AuthPrincipal
 from app.services.postgis_service import PostGISService
 from app.utils.file_utils import ensure_directories, unique_filename
 
@@ -37,7 +37,7 @@ def list_layers() -> dict[str, Any]:
 
 
 @router.get("/upload-options")
-def upload_options(_user: User = Depends(require_upload_user)) -> dict[str, Any]:
+def upload_options(_user: AuthPrincipal = Depends(require_upload_user)) -> dict[str, Any]:
     """Grupos da sidebar + camadas existentes para o modal de upload."""
     catalog = service.catalog()
     layers: list[dict[str, Any]] = []
@@ -64,7 +64,7 @@ def upload_options(_user: User = Depends(require_upload_user)) -> dict[str, Any]
 @router.post("/groups")
 def create_group(
     name: str = Form(...),
-    _user: User = Depends(require_upload_user),
+    _user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """Cria um grupo customizado na sidebar (sem redeploy)."""
     return service.create_custom_group(name)
@@ -76,7 +76,7 @@ def update_layer_meta(
     layer_table: str = Form(...),
     display_name: Optional[str] = Form(None),
     group_id: Optional[str] = Form(None),
-    _user: User = Depends(require_upload_user),
+    _user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """Renomeia (nome de exibição) e/ou move a camada de grupo."""
     return service.update_layer_meta(
@@ -111,7 +111,7 @@ async def upload_shapefile(
     target_table: Optional[str] = Form(None),
     group_id: Optional[str] = Form(None),
     new_group_name: Optional[str] = Form(None),
-    _user: User = Depends(require_upload_user),
+    _user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
     Recebe shapefile/GeoJSON e grava no PostGIS.

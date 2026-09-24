@@ -3,8 +3,10 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    agent,
     auth,
     features,
+    feedback,
     geocoding,
     layers,
     map_view,
@@ -27,3 +29,7 @@ api_router.include_router(postgis.router, prefix="/postgis", tags=["PostGIS"])
 api_router.include_router(
     schema_sync.router, prefix="/admin", tags=["Admin · Sync Schemas"]
 )
+api_router.include_router(
+    feedback.router, prefix="/feedback", tags=["Sugestões e reclamações"]
+)
+api_router.include_router(agent.router, prefix="/agent", tags=["Agente InfraGeo"])

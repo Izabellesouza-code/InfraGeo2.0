@@ -170,6 +170,30 @@ _BR_PALETTE: list[tuple[str, str]] = [
     ("#4f46e5", "#a5b4fc"),  # indigo
 ]
 
+# Paleta geral (cores já usadas no mapa) — sorteio estável por camada
+_LAYER_PALETTE: list[tuple[str, str]] = [
+    ("#14b8a6", "#0f766e"),
+    ("#0d9488", "#115e59"),
+    ("#f59e0b", "#b45309"),
+    ("#d97706", "#92400e"),
+    ("#ea580c", "#c2410c"),
+    ("#f97316", "#9a3412"),
+    ("#64748b", "#334155"),
+    ("#a16207", "#713f12"),
+    ("#0A2E2C", "#042f2e"),
+    ("#3b82f6", "#1d4ed8"),
+    ("#34d399", "#065f46"),
+    ("#38bdf8", "#0284c7"),
+    ("#eab308", "#a16207"),
+    ("#e11d48", "#9f1239"),
+    ("#7c3aed", "#5b21b6"),
+    ("#0891b2", "#155e75"),
+    ("#c026d3", "#86198f"),
+    ("#2563eb", "#1e3a8a"),
+    ("#22c55e", "#15803d"),
+    ("#ef4444", "#b91c1c"),
+]
+
 
 def _extract_br_num(schema: str, table: str = "") -> str | None:
     """Extrai o número da BR do schema/tabela (BR_319, BUEIROS_319, …)."""
@@ -193,6 +217,36 @@ def _br_colors(br_num: str) -> tuple[str, str]:
         _BR_PALETTE
     )
     return _BR_PALETTE[idx]
+
+
+def _layer_colors(key: str) -> tuple[str, str]:
+    """Cor estável e distinta por camada, usando a paleta já do sistema."""
+    idx = int(hashlib.md5(f"infrageo-lyr-{key}".encode()).hexdigest(), 16) % len(
+        _LAYER_PALETTE
+    )
+    return _LAYER_PALETTE[idx]
+
+
+def _style_from_palette(schema: str, table: str, geom_type: str) -> dict[str, Any]:
+    fill, stroke = _layer_colors(f"{schema}__{table}")
+    gt = (geom_type or "").upper()
+    if "LINE" in gt:
+        return {"color": stroke, "weight": 3, "opacity": 0.9}
+    if "POINT" in gt:
+        return {
+            "fillColor": fill,
+            "color": stroke,
+            "radius": 6,
+            "fillOpacity": 0.85,
+            "weight": 2,
+        }
+    return {
+        "fillColor": fill,
+        "color": stroke,
+        "weight": 1.5,
+        "fillOpacity": 0.28,
+        "opacity": 0.9,
+    }
 
 
 def _qi(name: str) -> str:
@@ -556,22 +610,10 @@ def _style_for(
                 "fillOpacity": 0.85,
                 "weight": 2,
             }
-        return {
-            "fillColor": "#14b8a6",
-            "color": "#0f766e",
-            "radius": 6,
-            "fillOpacity": 0.85,
-            "weight": 2,
-        }
+        return _style_from_palette(schema, table, geom_type)
 
     if s.startswith("IP4"):
-        return {
-            "fillColor": "#14b8a6",
-            "color": "#0f766e",
-            "radius": 6,
-            "fillOpacity": 0.85,
-            "weight": 2,
-        }
+        return _style_from_palette(schema, table, geom_type)
 
     if s.startswith("BALSA"):
         return {
@@ -582,7 +624,7 @@ def _style_for(
             "weight": 2,
         }
 
-    return dict(STYLE_BY_TYPE.get(geom_type.upper(), STYLE_BY_TYPE["POLYGON"]))
+    return _style_from_palette(schema, table, geom_type)
 
 
 def _leaflet_type(geom_type: str) -> str:

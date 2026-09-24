@@ -8,13 +8,100 @@
     aria-label="Mapa geográfico do Amazonas"
   ></div>
 
-  <footer class="map-footer" role="contentinfo">
-    <span class="map-footer__copy">
-      © {{ year }} InfraGeo AM
-    </span>
-    <span class="map-footer__sep" aria-hidden="true">·</span>
-    <button type="button" class="map-footer__link" id="btn-sobre-footer">
-      Sobre
+  <div class="map-overlay map-overlay--tr">
+    <div class="basemap-tab">
+      <button type="button" class="map-tool map-tool--layers" id="btn-basemap-tab" title="Camadas de mapa" aria-expanded="false" aria-controls="painel-basemap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 16l9 5 9-5"/></svg>
+      </button>
+      <div class="basemap-tab__panel" id="painel-basemap" hidden>
+        <div class="basemap-tab__head">
+          <strong>Camadas de mapa</strong>
+          <button type="button" class="basemap-tab__close" id="btn-fechar-basemap" aria-label="Fechar">×</button>
+        </div>
+        <p class="basemap-tab__hint">Escolha o fundo do mapa</p>
+        <div class="basemap-tab__list" id="lista-basemap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-restore-stack panel-restore-stack--left" aria-label="Reabrir menus">
+    <button type="button" class="panel-restore" data-restore="rail" hidden title="Abrir menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.2"/><path d="M9.2 5v14"/></svg>
     </button>
+    <button type="button" class="panel-restore" data-restore="sidebar" hidden title="Abrir camadas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.2"/><path d="M9.2 5v14"/></svg>
+    </button>
+    <button type="button" class="panel-restore" data-restore="filtros" hidden title="Abrir filtros">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.2"/><path d="M9.2 5v14"/></svg>
+    </button>
+  </div>
+  <div class="panel-restore-stack panel-restore-stack--right" aria-label="Reabrir painéis">
+    <button type="button" class="panel-restore" data-restore="legendas" hidden title="Abrir legendas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.2"/><path d="M9.2 5v14"/></svg>
+    </button>
+    <button type="button" class="panel-restore" data-restore="attr" hidden title="Abrir tabela">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="14" rx="2.2"/><path d="M9.2 5v14"/></svg>
+    </button>
+  </div>
+
+  <div class="map-overlay map-overlay--ml" role="toolbar" aria-label="Controles do mapa">
+    <button type="button" class="map-tool" id="btn-zoom-in" title="Aproximar">+</button>
+    <button type="button" class="map-tool" id="btn-zoom-out" title="Afastar">−</button>
+    <button type="button" class="map-tool" id="btn-locate" title="Minha localização">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/><circle cx="12" cy="12" r="8"/></svg>
+    </button>
+    <button type="button" class="map-tool" id="btn-fullscreen" title="Tela cheia">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+  </div>
+
+  <div class="ig-agent" id="ig-agent">
+    <button type="button" class="ig-agent__fab" id="btn-ig-agent" aria-expanded="false" aria-controls="ig-agent-panel" title="Agente InfraGeo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M12 4a4 4 0 0 1 4 4v1.2c1.7.6 3 2.2 3 4.1V16l1.2 1.8H3.8L5 16v-2.7c0-1.9 1.3-3.5 3-4.1V8a4 4 0 0 1 4-4Z"/>
+        <circle cx="9.2" cy="12.2" r=".9" fill="currentColor" stroke="none"/>
+        <circle cx="14.8" cy="12.2" r=".9" fill="currentColor" stroke="none"/>
+      </svg>
+      <span>Agente</span>
+    </button>
+    <section class="ig-agent__panel" id="ig-agent-panel" hidden>
+      <header class="ig-agent__head">
+        <div>
+          <p>Agente InfraGeo</p>
+        </div>
+        <button type="button" class="ig-agent__close" id="btn-ig-agent-close" aria-label="Fechar">×</button>
+      </header>
+      <div class="ig-agent__log" id="ig-agent-log" role="log" aria-live="polite"></div>
+      <p class="ig-agent__pick" id="ig-agent-pick" hidden>Mira ativa: clique no ponto exato do mapa</p>
+      <div class="ig-agent__tour" id="ig-agent-tour" hidden>
+        <div class="ig-agent__tour-tabs" id="ig-agent-tour-tabs"></div>
+        <article class="ig-agent__tour-card" id="ig-agent-tour-card"></article>
+      </div>
+      <div class="ig-agent__chips" id="ig-agent-chips">
+        <button type="button" data-guide="home">Como navegar</button>
+        <button type="button" data-ticket="sugestao">Enviar sugestão</button>
+        <button type="button" data-ticket="reclamacao">Registrar reclamação</button>
+      </div>
+      <form class="ig-agent__form" id="form-ig-agent">
+        <label class="ig-agent__photo" title="Anexar foto">
+          <input id="ig-agent-photo" type="file" accept="image/*" hidden />
+          Foto
+        </label>
+        <div class="ig-agent__composer" id="ig-agent-composer">
+          <div class="ig-agent__pending" id="ig-agent-pending" hidden>
+            <img id="ig-agent-pending-img" alt="Imagem a anexar" />
+            <button type="button" class="ig-agent__pending-clear" id="ig-agent-pending-clear" aria-label="Remover imagem">×</button>
+          </div>
+          <textarea id="ig-agent-input" rows="2" maxlength="2000" placeholder="Como navegar, ou descreva um erro no mapa…" autocomplete="off"></textarea>
+        </div>
+        <button type="submit" class="ig-agent__send" aria-label="Enviar">Enviar</button>
+      </form>
+    </section>
+  </div>
+
+  <footer class="map-footer" role="contentinfo">
+    <span class="map-footer__copy">© {{ year }} InfraGeo AM</span>
+    <span class="map-footer__sep" aria-hidden="true">·</span>
+    <button type="button" class="map-footer__link" id="btn-sobre-footer">Sobre</button>
   </footer>
 </main>

@@ -14,7 +14,8 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.database import SessionLocal, init_db
-from app.models.user import User
+from app.models.usuario import Usuario
+from app.services.auth_service import ensure_auth_ready
 from app.schemas.feature import FeatureCreate
 from app.schemas.layer import LayerCreate
 from app.services.feature_service import FeatureService
@@ -73,35 +74,8 @@ def seed() -> None:
         else:
             print("→ Camada 'capitais' já existe — pulando.")
 
-        from app.config import get_settings
-
-        settings = get_settings()
-        admin = db.scalars(select(User).where(User.username == "admin")).first()
-        if not admin:
-            bootstrap_pwd = (settings.auth_bootstrap_password or "").strip()
-            if not bootstrap_pwd:
-                print(
-                    "→ AUTH_BOOTSTRAP_PASSWORD não definido — "
-                    "usuário admin não foi criado."
-                )
-            else:
-                print(
-                    f"→ Criando usuário {settings.auth_bootstrap_username} "
-                    "(senha via AUTH_BOOTSTRAP_PASSWORD)..."
-                )
-                db.add(
-                    User(
-                        username=settings.auth_bootstrap_username or "admin",
-                        email=settings.auth_bootstrap_email
-                        or "admin@infrageo.local",
-                        hashed_password=hash_password(bootstrap_pwd),
-                        full_name="Administrador",
-                        is_admin=True,
-                    )
-                )
-                db.commit()
-        else:
-            print("→ Usuário admin já existe — pulando.")
+        ensure_auth_ready(db)
+        print("→ Tabela public.usuarios pronta.")
 
         print("✓ Banco inicializado com sucesso.")
     finally:

@@ -56,6 +56,7 @@ window.InfraGeoFilters = (function () {
     }
 
     fillCamadas(grupoSel.value, currentCamada);
+    window.InfraGeoSelectCombo?.enhance?.(grupoSel);
   }
 
   function fillCamadas(groupId, keepValue) {
@@ -72,6 +73,7 @@ window.InfraGeoFilters = (function () {
     if (keepValue && [...camadaSel.options].some((o) => o.value === keepValue)) {
       camadaSel.value = keepValue;
     }
+    window.InfraGeoSelectCombo?.enhance?.(camadaSel);
   }
 
   function matchLayers(grupo, camada, busca) {
@@ -132,6 +134,13 @@ window.InfraGeoFilters = (function () {
     open(false);
   }
 
+  async function applyQuery(q) {
+    const busca = document.getElementById("filtro-busca");
+    if (busca) busca.value = q || "";
+    window.InfraGeoSidebar?.setOpen?.(true);
+    await applyFilters();
+  }
+
   function init() {
     const openBtn = document.getElementById("btn-filtros");
     const closeBtn = document.getElementById("btn-fechar-filtros");
@@ -167,5 +176,5 @@ window.InfraGeoFilters = (function () {
     populateSelects();
   }
 
-  return { init, open, toggle, populateSelects };
+  return { init, open, toggle, populateSelects, applyQuery };
 })();

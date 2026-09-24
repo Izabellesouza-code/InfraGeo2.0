@@ -3,14 +3,16 @@
 {% block title %}InfraGeo AM — Sistema de Informações Geográficas{% endblock %}
 
 {% block sidebar %}
-  {% include "partials/sidebar.html" %}
+  {% include "partials/nav_rail.html" %}
 {% endblock %}
 
 {% block content %}
   {% include "partials/map_area.html" %}
+  {% include "partials/bottom_bar.html" %}
 {% endblock %}
 
 {% block panels %}
+  {% include "partials/sidebar.html" %}
   {% include "partials/panels.html" %}
   {% include "partials/attr_table.html" %}
 {% endblock %}

@@ -10,7 +10,49 @@ window.InfraGeoHoverPopup = (function () {
   const SKIP_KEYS = new Set([
     "geometry",
     "geom",
+    "fid",
+    "gid",
+    "ogc_fid",
+    "objectid",
+    "objectid_1",
+    "shape_leng",
+    "shape_length",
+    "shape_area",
+    "globalid",
   ]);
+
+  const LABEL_MAP = {
+    nome: "Nome",
+    name: "Nome",
+    nm_municipio: "Município",
+    nm_mun: "Município",
+    mun_dash: "Município",
+    municipio: "Município",
+    km: "Quilômetro (km)",
+    lat: "Latitude",
+    latitude: "Latitude",
+    long: "Longitude",
+    lon: "Longitude",
+    lng: "Longitude",
+    longitude: "Longitude",
+    lat_final: "Latitude final",
+    lon_final: "Longitude final",
+    snv: "Código SNV",
+    tipo: "Tipo",
+    lote: "Lote",
+    pista: "Pista",
+    condi_e: "Condição",
+    condicao: "Condição",
+    largura: "Largura",
+    extens_o: "Extensão",
+    extensao: "Extensão",
+    contrato: "Contrato",
+    zona: "Zona",
+    br_uf: "Rodovia / UF",
+    codigo: "Código",
+    vl_codigo: "Código",
+    terrai_nom: "Terra indígena",
+  };
 
   const PRIMARY_KEYS = [
     "name",
@@ -224,27 +266,12 @@ window.InfraGeoHoverPopup = (function () {
     return hits;
   }
 
-  function updateStackNav() {
-    const box = ensureEl();
-    const nav = box.querySelector(".feature-hover-popup__stack");
-    const label = box.querySelector(".feature-hover-popup__stack-label");
-    if (!nav || !label) return;
-    const n = hitStack.length;
-    if (n <= 1) {
-      nav.hidden = true;
-      return;
-    }
-    nav.hidden = false;
-    label.textContent = `${hitIndex + 1} / ${n}`;
-  }
-
   function showCurrentHit(e, opts) {
-    const hit = hitStack[hitIndex];
+    const hit = hitStack[0];
     if (!hit) return;
     unhighlight();
     highlight(hit.layer);
     show(hit.feature, hit.layer, hit.meta, e, opts);
-    updateStackNav();
     lastSelection = {
       feature: hit.feature,
       meta: hit.meta,
@@ -255,24 +282,17 @@ window.InfraGeoHoverPopup = (function () {
 
   function openStack(hits, index, e, opts) {
     if (!hits?.length) return;
-    // Não sobrescreve enquanto o usuário usa o popup (exceto clique forçado)
     if (!opts?.force && (popupFrozen || el?.matches?.(":hover"))) return;
 
-    const key = hitsKey(hits);
+    const key = hitsKey(hits.slice(0, 1));
     const visible = !!el?.classList.contains("is-visible");
     if (!opts?.force && key === hitStackKey && visible) return;
 
-    hitStack = hits;
-    hitIndex = Math.max(0, Math.min(index || 0, hits.length - 1));
+    hitStack = hits.slice(0, 1);
+    hitIndex = 0;
     hitStackKey = key;
     pinned = true;
     showCurrentHit(e, opts);
-  }
-
-  function cycleStack(delta, e) {
-    if (hitStack.length <= 1) return;
-    hitIndex = (hitIndex + delta + hitStack.length) % hitStack.length;
-    showCurrentHit(e || null, { zoom: false });
   }
 
   function normKey(k) {
@@ -281,9 +301,34 @@ window.InfraGeoHoverPopup = (function () {
       .replace(/[^a-z0-9]+/g, "");
   }
 
+  function prettyText(v) {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    if (s === s.toUpperCase() && /[A-ZÁÉÍÓÚÃÕÇ]/.test(s) && s.length > 3) {
+      return s
+        .toLowerCase()
+        .replace(/(^|[\s\-_/])([\p{L}])/gu, (_, a, b) => a + b.toUpperCase());
+    }
+    return s;
+  }
+
   function formatValue(v) {
     if (v === null || v === undefined) return "";
-    return String(v);
+    if (typeof v === "number" && Number.isFinite(v)) {
+      if (Math.abs(v) < 1e-9) return "";
+      return String(v).replace(".", ",");
+    }
+    const s = String(v).trim();
+    if (!s || s === "0" || s === "0.0" || s.toLowerCase() === "null" || s === "-") return "";
+    return prettyText(s);
+  }
+
+  function friendlyLabel(key) {
+    const nk = normKey(key);
+    if (LABEL_MAP[nk]) return LABEL_MAP[nk];
+    const raw = String(key || "").replace(/[_]+/g, " ").trim();
+    if (!raw) return "Dado";
+    return prettyText(raw) || raw;
   }
 
   function titleFromMeta(meta) {
@@ -294,25 +339,26 @@ window.InfraGeoHoverPopup = (function () {
     const brLabel = br ? `BR-${br[1]}` : "";
 
     let kind = "";
-    if (/BUEIRO/.test(schema) || /BUEIRO/.test(name)) kind = "BUEIROS";
-    else if (/PONTE/.test(schema) || /PONTE/.test(name)) kind = "PONTES";
-    else if (/JAZIDA/.test(schema) || /JAZIDA/.test(name)) kind = "JAZIDAS";
-    else if (/PCA_PRAD_CMM|PCA\/PRAD CMM/.test(schema + name)) kind = "PCA — PRADS CMM";
-    else if (/PCA_PRAD|PCA\/PRAD/.test(schema + name)) kind = "PCA — PRADS";
-    else if (/PRAD/.test(schema) || /PRAD/.test(name)) kind = "PRADS";
+    if (/BUEIRO/.test(schema) || /BUEIRO/.test(name)) kind = "Bueiro";
+    else if (/PONTE/.test(schema) || /PONTE/.test(name)) kind = "Ponte";
+    else if (/JAZIDA/.test(schema) || /JAZIDA/.test(name)) kind = "Jazida";
+    else if (/PCA_PRAD_CMM|PCA\/PRAD CMM/.test(schema + name)) kind = "PCA / PRAD CMM";
+    else if (/PCA_PRAD|PCA\/PRAD/.test(schema + name)) kind = "PCA / PRAD";
+    else if (/PRAD/.test(schema) || /PRAD/.test(name)) kind = "PRAD";
     else if (/^IP4/.test(schema) || /\bIP4\b/.test(name)) kind = "IP4";
-    else if (/UC_ESTADUAL/.test(schema)) kind = "UC ESTADUAL";
-    else if (/UC_MUNICIPAL/.test(schema)) kind = "UC MUNICIPAL";
-    else if (/UC_FEDERAL/.test(schema)) kind = "UC FEDERAL";
-    else if (/^TI_/.test(schema) || /TERRAS IND/.test(name)) kind = "TI AM";
-    else if (/LIMITE_MUNICIPAL/.test(schema) || /MUNICIPAL/.test(name)) kind = "MUNICÍPIOS";
-    else if (/LIMITE_ESTADUAL/.test(schema)) kind = "LIMITE ESTADUAL";
-    else if (/^BR_/.test(schema)) kind = brLabel || "BR-AM";
-    else if (/BALSA/.test(schema) || /BALSA/.test(name)) kind = "BALSA";
-    else kind = (meta?.name || "CAMADA").toUpperCase();
+    else if (/UC_ESTADUAL/.test(schema)) kind = "Unidade de conservação estadual";
+    else if (/UC_MUNICIPAL/.test(schema)) kind = "Unidade de conservação municipal";
+    else if (/UC_FEDERAL/.test(schema)) kind = "Unidade de conservação federal";
+    else if (/^TI_/.test(schema) || /TERRAS IND/.test(name)) kind = "Terra indígena";
+    else if (/LIMITE_MUNICIPAL/.test(schema) || /MUNICIPAL/.test(name)) kind = "Município";
+    else if (/LIMITE_ESTADUAL/.test(schema)) kind = "Limite estadual";
+    else if (/BALSA/.test(schema) || /BALSA/.test(name)) kind = "Balsa";
+    else if (/USINA/.test(schema) || /USINA/.test(name)) kind = "Usina";
+    else if (/CANTEIRO/.test(schema) || /CANTEIRO/.test(name)) kind = "Canteiro";
+    else kind = prettyText(meta?.name || "Camada") || "Camada";
 
-    if (brLabel && kind !== brLabel && !kind.includes(brLabel)) {
-      return `${kind} — ${brLabel}`;
+    if (brLabel && !kind.includes(brLabel)) {
+      return `${kind} na ${brLabel}`;
     }
     return kind;
   }
@@ -342,19 +388,21 @@ window.InfraGeoHoverPopup = (function () {
 
     const push = (key, value) => {
       if (used.has(normKey(key))) return;
+      const formatted = formatValue(value);
+      if (!formatted) return;
       used.add(normKey(key));
-      picked.push({ label: String(key), value: formatValue(value) });
+      picked.push({ label: friendlyLabel(key), value: formatted });
     };
 
-    // Lat/lng só se não existirem nas propriedades
     const latlng = getLatLng(feature, layer);
     const hasLat = byNorm.has("latitude") || byNorm.has("lat");
     const hasLon =
       byNorm.has("longitude") || byNorm.has("lng") || byNorm.has("lon") || byNorm.has("long");
-    if (latlng && !hasLat) push("LATITUDE", String(latlng.lat));
-    if (latlng && !hasLon) push("LONGITUDE", String(latlng.lng));
+    if (latlng && !hasLat) push("latitude", latlng.lat.toFixed(5));
+    if (latlng && !hasLon) push("longitude", latlng.lng.toFixed(5));
 
     for (const [k, v] of entries) {
+      if (SKIP_KEYS.has(normKey(k))) continue;
       push(k, v);
     }
     return picked;
@@ -383,19 +431,15 @@ window.InfraGeoHoverPopup = (function () {
     el.innerHTML = `
       <button type="button" class="feature-hover-popup__close" aria-label="Fechar">×</button>
       <div class="feature-hover-popup__head">
+        <span class="feature-hover-popup__dot" aria-hidden="true"></span>
         <div class="feature-hover-popup__title"></div>
-        <div class="feature-hover-popup__subtitle"></div>
-        <div class="feature-hover-popup__stack" hidden>
-          <button type="button" class="feature-hover-popup__stack-btn" data-stack="-1" aria-label="Feição anterior">‹</button>
-          <span class="feature-hover-popup__stack-label">1 / 1</span>
-          <button type="button" class="feature-hover-popup__stack-btn" data-stack="1" aria-label="Próxima feição">›</button>
-        </div>
       </div>
+      <p class="feature-hover-popup__hint">Dados principais deste ponto</p>
       <div class="feature-hover-popup__body"></div>
       <div class="feature-hover-popup__foot">
-        <span class="feature-hover-popup__brand">InfraGeo AM</span>
         <button type="button" class="feature-hover-popup__table-btn" data-action="attr-table">
-          Tabela
+          Ver todos os dados
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
       </div>
     `;
@@ -419,15 +463,6 @@ window.InfraGeoHoverPopup = (function () {
       } catch (err) {
         console.warn("abrir tabela", err);
       }
-    });
-    el.querySelectorAll(".feature-hover-popup__stack-btn").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        popupFrozen = true;
-        const delta = Number(btn.dataset.stack) || 0;
-        cycleStack(delta, null);
-      });
     });
     el.addEventListener("mouseenter", () => {
       popupFrozen = true;
@@ -459,13 +494,43 @@ window.InfraGeoHoverPopup = (function () {
     cancelHide();
   }
 
+  function layerAccent(meta, layer) {
+    return (
+      layer?.options?.fillColor ||
+      layer?.options?.color ||
+      meta?.style?.fillColor ||
+      meta?.style?.color ||
+      "#f59e0b"
+    );
+  }
+
+  function placeNearEvent(box, e) {
+    const src = e?.originalEvent;
+    let x = src?.clientX;
+    let y = src?.clientY;
+    if ((x == null || y == null) && e?.containerPoint) {
+      const map = window.InfraGeoMap?.getMap?.();
+      const rect = map?.getContainer?.()?.getBoundingClientRect?.();
+      if (rect) {
+        x = rect.left + e.containerPoint.x;
+        y = rect.top + e.containerPoint.y;
+      }
+    }
+    if (x == null || y == null) return;
+    const w = box.offsetWidth || 260;
+    const h = box.offsetHeight || 150;
+    let left = x - w / 2;
+    let top = y - h - 18;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    if (top < 8) top = y + 18;
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    box.style.right = "auto";
+    box.style.bottom = "auto";
+  }
+
   function dockPanel() {
-    const box = ensureEl();
-    // Posição vem do CSS (canto inferior direito / full-width no mobile)
-    box.style.left = "";
-    box.style.top = "";
-    box.style.right = "";
-    box.style.bottom = "";
+    /* posição definida em placeNearEvent */
   }
 
   function highlight(layer) {
@@ -478,8 +543,12 @@ window.InfraGeoHoverPopup = (function () {
           opacity: layer.options.opacity,
           fillOpacity: layer.options.fillOpacity,
           radius: layer.options.radius,
+          color: layer.options.color,
+          fillColor: layer.options.fillColor,
         };
         const next = {
+          color: "#0A2E2C",
+          fillColor: "#0A2E2C",
           weight: (layer.options.weight || 2) + 1.5,
           opacity: 1,
           fillOpacity: Math.min(1, (layer.options.fillOpacity ?? 0.5) + 0.25),
@@ -515,34 +584,44 @@ window.InfraGeoHoverPopup = (function () {
     cancelHide();
     const box = ensureEl();
     const props = feature?.properties || {};
-    const title = titleFromMeta(meta);
-    const subtitle = primaryName(props);
+    const layerTitle = titleFromMeta(meta);
+    const featureName = prettyText(primaryName(props));
     let rows = pickRows(props, feature, layer);
 
-    if (subtitle) {
-      const sn = normKey(subtitle);
-      rows = rows.filter((r) => normKey(r.value) !== sn);
+    if (featureName) {
+      const sn = normKey(featureName);
+      rows = rows.filter((r) => normKey(r.value) !== sn && normKey(r.label) !== "nome");
     }
 
     box.dataset.layerId = meta?.id || "";
     popupContext = { feature, meta, layer };
-    box.querySelector(".feature-hover-popup__title").textContent = title;
-    const subEl = box.querySelector(".feature-hover-popup__subtitle");
-    subEl.textContent = subtitle;
-    subEl.hidden = !subtitle;
+    box.querySelector(".feature-hover-popup__title").textContent =
+      featureName || layerTitle || "Ponto no mapa";
+    const hint = box.querySelector(".feature-hover-popup__hint");
+    if (hint) {
+      hint.textContent = featureName && layerTitle
+        ? layerTitle
+        : "Dados principais deste ponto";
+    }
+    const dot = box.querySelector(".feature-hover-popup__dot");
+    if (dot) dot.style.background = layerAccent(meta, layer);
 
-    box.querySelector(".feature-hover-popup__body").innerHTML = rows
-      .map(
-        (r) => `<div class="feature-hover-popup__row">
+    const merged = rows.slice(0, 5);
+    const body = box.querySelector(".feature-hover-popup__body");
+    body.innerHTML = merged.length
+      ? merged
+          .map(
+            (r) => `<div class="feature-hover-popup__row">
           <div class="feature-hover-popup__row-label">${esc(r.label)}</div>
           <div class="feature-hover-popup__row-value">${esc(r.value)}</div>
         </div>`
-      )
-      .join("");
+          )
+          .join("")
+      : `<p class="feature-hover-popup__empty">Não há detalhes extras neste ponto. Abra a tabela para ver a camada completa.</p>`;
 
     box.classList.add("is-visible");
     box.setAttribute("aria-hidden", "false");
-    dockPanel();
+    placeNearEvent(box, e);
   }
 
   function hide(force) {
@@ -666,7 +745,6 @@ window.InfraGeoHoverPopup = (function () {
         unhighlight();
         highlight(layer);
         show(feature, layer, meta, e);
-        updateStackNav();
       }
       const node = layer.getElement?.() || layer._path;
       if (node?.style) node.style.cursor = "pointer";
@@ -694,7 +772,6 @@ window.InfraGeoHoverPopup = (function () {
           layerId: meta?.id || null,
         };
         zoomToFeature(feature, layer);
-        updateStackNav();
         popupFrozen = true;
       }
     });
@@ -702,26 +779,14 @@ window.InfraGeoHoverPopup = (function () {
 
   function init() {
     ensureEl();
-    dockPanel();
     window.addEventListener("resize", () => {
-      if (el?.classList.contains("is-visible")) dockPanel();
+      /* popup permanece onde o cursor abriu */
     });
 
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") {
         pinned = false;
         hide(true);
-        return;
-      }
-      if (!el?.classList.contains("is-visible")) return;
-      if (ev.key === "ArrowLeft") {
-        ev.preventDefault();
-        popupFrozen = true;
-        cycleStack(-1, null);
-      } else if (ev.key === "ArrowRight") {
-        ev.preventDefault();
-        popupFrozen = true;
-        cycleStack(1, null);
       }
     });
 

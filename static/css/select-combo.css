@@ -1,0 +1,75 @@
+.ig-combo {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.ig-combo select {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.ig-combo__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 1px solid #d7e0ea;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+  color: #16324f;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ig-combo__btn::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.6px solid #5b6f86;
+  border-bottom: 1.6px solid #5b6f86;
+  transform: rotate(45deg);
+  margin-top: -0.25rem;
+  flex-shrink: 0;
+}
+
+.ig-combo__btn:focus,
+.ig-combo__btn[aria-expanded="true"] {
+  outline: none;
+  border-color: #0A2E2C;
+  box-shadow: 0 0 0 3px rgba(14, 91, 77, 0.16);
+}
+
+.ig-combo__list {
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d7e0ea;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(8, 45, 45, 0.14);
+  padding: 0.25rem;
+}
+
+.ig-combo__opt {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: #16324f;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ig-combo__opt:hover,
+.ig-combo__opt.is-active {
+  background: #0A2E2C;
+  color: #fff;
+}

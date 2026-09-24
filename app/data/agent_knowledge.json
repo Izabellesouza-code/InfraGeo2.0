@@ -1,0 +1,67 @@
+{
+  "intents": [
+    {
+      "id": "filtrar",
+      "priority": 8,
+      "keywords": ["filtro", "filtros", "filtrar", "filtr", "recortar", "consultar dados"],
+      "answer": "Abra Filtrar dados no topo. Escolha o grupo, a subcamada e o atributo. O mapa e a tabela passam a mostrar só o recorte."
+    },
+    {
+      "id": "exportar",
+      "priority": 8,
+      "keywords": ["export", "exporto", "exportar", "pdf", "imprim", "impressao"],
+      "answer": "No menu esquerdo, toque em Exportar. O PDF usa o recorte visível, com título e escala."
+    },
+    {
+      "id": "camadas",
+      "priority": 3,
+      "keywords": ["camada", "camadas", "ligar", "desligar", "catálogo", "catalogo", "grupo"],
+      "answer": "Abra Camadas na barra esquerda. Ligue o grupo e a subcamada. Ligar/Desligar acende ou apaga o conjunto de uma vez."
+    },
+    {
+      "id": "legenda",
+      "keywords": ["legenda", "cor", "simbolo", "símbolo", "estilo"],
+      "answer": "Abra Legenda na barra esquerda. Ela descreve cores e símbolos das camadas que estão ligadas no mapa."
+    },
+    {
+      "id": "busca",
+      "keywords": ["busca", "buscar", "pesquis", "municíp", "municip", "rodovia", "br-"],
+      "answer": "Use a busca do topo para município, rodovia ou camada. Escolha o resultado para enquadrar o mapa nesse local."
+    },
+    {
+      "id": "enquadrar",
+      "keywords": ["enquadrar", "amazonas", "voltar", "estado", "extensão", "extensao", "zoom estadual"],
+      "answer": "Toque em Enquadrar AM na barra esquerda para voltar à extensão do Amazonas."
+    },
+    {
+      "id": "tabela",
+      "keywords": ["tabela", "atributo", "planilha", "registros", "feição", "feicao"],
+      "answer": "Clique numa feição no mapa para ver atributos. A tabela inferior lista os registros da camada ativa."
+    },
+    {
+      "id": "basemap",
+      "keywords": ["fundo", "basemap", "satélite", "satelite", "mapa base", "esri", "google"],
+      "answer": "No canto superior direito, abra Camadas de mapa e escolha o fundo (cinza, topográfico, satélite)."
+    },
+    {
+      "id": "favoritos",
+      "keywords": ["favorito", "estrela", "marcar camada"],
+      "answer": "Nas Camadas, use a estrela para favoritar. Depois filtre só os favoritos para achar rápido o que você usa."
+    },
+    {
+      "id": "upload",
+      "keywords": ["upload", "enviar shapefile", "geojson", "importar", "shp"],
+      "answer": "Envio de shapefile ou GeoJSON é no painel admin, em Importações, para quem tem permissão de editor."
+    },
+    {
+      "id": "conta",
+      "keywords": ["login", "senha", "perfil", "conta", "sair", "usuário", "usuario"],
+      "answer": "O ícone de perfil no topo mostra seu nome e permissão. Administradores acessam o console em /admin."
+    },
+    {
+      "id": "sugestao",
+      "keywords": ["sugest", "melhorar", "incluir", "adicionar", "poderia", "seria bom"],
+      "answer": "Descreva a melhoria com um pouco de detalhe. Eu registro a sugestão com a equipe."
+    }
+  ]
+}

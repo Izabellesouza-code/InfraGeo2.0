@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     auth_bootstrap_password: str = ""
     auth_bootstrap_email: str = "admin@infrageo.local"
 
+    # URL pública para links de redefinição de senha (ex.: http://127.0.0.1:8000)
+    app_public_url: str = ""
+
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+
     # Sync de schemas: origem local → Neon (nuvem). Se vazio, usa só DATABASE_URL.
     source_database_url: str = ""
     neon_database_url: str = ""

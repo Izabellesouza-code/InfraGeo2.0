@@ -18,12 +18,19 @@ window.InfraGeoAttrTable = (function () {
       panel: document.getElementById("attr-table-panel"),
       title: document.getElementById("attr-panel-title"),
       subtitle: document.getElementById("attr-panel-subtitle"),
+      brand: document.getElementById("attr-brand-name"),
+      crumbs: document.getElementById("attr-breadcrumb"),
       filter: document.getElementById("attr-table-filter"),
       count: document.getElementById("attr-table-count"),
       table: document.getElementById("attr-table"),
       thead: document.querySelector("#attr-table thead"),
       tbody: document.querySelector("#attr-table tbody"),
       closeBtn: document.getElementById("btn-fechar-attr"),
+      mapBtn: document.getElementById("btn-attr-map"),
+      refreshBtn: document.getElementById("btn-attr-refresh"),
+      filtersBtn: document.getElementById("btn-attr-filters"),
+      helpBtn: document.getElementById("btn-attr-help"),
+      helpPop: document.getElementById("attr-help-pop"),
     };
   }
 
@@ -34,6 +41,11 @@ window.InfraGeoAttrTable = (function () {
     document.querySelectorAll(".layer-kebab.is-open").forEach((b) => {
       b.classList.remove("is-open");
     });
+  }
+
+  function hidePops() {
+    const ui = els();
+    if (ui.helpPop) ui.helpPop.hidden = true;
   }
 
   function buildMenuHtml(layerId) {
@@ -49,18 +61,6 @@ window.InfraGeoAttrTable = (function () {
         <span class="layer-kebab-item__copy">
           <span class="layer-kebab-item__title">Tabela de atributos</span>
           <span class="layer-kebab-item__hint">Abrir registros, filtrar e localizar no mapa</span>
-        </span>
-      </button>
-      <button type="button" class="layer-kebab-item" role="menuitem" data-layer-action="rename" data-layer-id="${layerId}">
-        <span class="layer-kebab-item__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
-            <path d="M4 17.5V20h2.5L17 9.5 14.5 7 4 17.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-            <path d="M13.2 8.3l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="layer-kebab-item__copy">
-          <span class="layer-kebab-item__title">Renomear subcamada</span>
-          <span class="layer-kebab-item__hint">Alterar nome e camada (grupo)</span>
         </span>
       </button>
     `;
@@ -126,17 +126,6 @@ window.InfraGeoAttrTable = (function () {
       closeMenus();
       if (action === "table") {
         await openForLayer(layer.id);
-        return;
-      }
-      if (action === "rename") {
-        const ok = window.InfraGeoAuth?.canUpload?.();
-        if (!ok) {
-          window.InfraGeoAuth?.requireLogin?.(() =>
-            window.InfraGeoSidebar?.openRenameModal?.(true, layer)
-          );
-          return;
-        }
-        window.InfraGeoSidebar?.openRenameModal?.(true, layer);
       }
     });
 
@@ -147,7 +136,6 @@ window.InfraGeoAttrTable = (function () {
     if (!window.InfraGeoMap.overlayRegistry[meta.id]) {
       await window.InfraGeoMap.loadGeoJSONLayer(meta);
     }
-    // Liga no mapa para localizar funcionar visualmente
     if (!window.InfraGeoLayers.getState().checked[meta.id]) {
       await window.InfraGeoLayers.setLayerVisible(meta.id, true);
       window.InfraGeoLayers.renderGroups();
@@ -177,18 +165,55 @@ window.InfraGeoAttrTable = (function () {
     return Array.from(keys);
   }
 
+  function norm(s) {
+    return String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function rowBlob(f) {
+    return norm(state.columns.map((c) => String(f.props[c] ?? "")).join(" "));
+  }
+
   function filteredRows() {
-    const q = state.filter.trim().toLowerCase();
+    const q = norm(state.filter);
     if (!q) return state.features.map((f, i) => ({ f, i }));
+    const tokens = q.split(" ").filter((t) => t.length > 1);
     return state.features
       .map((f, i) => ({ f, i }))
-      .filter(({ f }) =>
-        state.columns.some((c) =>
-          String(f.props[c] ?? "")
-            .toLowerCase()
-            .includes(q)
-        )
-      );
+      .filter(({ f }) => {
+        const blob = rowBlob(f);
+        if (blob.includes(q)) return true;
+        return tokens.length ? tokens.every((t) => blob.includes(t)) : false;
+      });
+  }
+
+  function bestMatchIndex(q) {
+    const nq = norm(q);
+    if (!nq) return -1;
+    const tokens = nq.split(" ").filter((t) => t.length > 1);
+    let best = -1;
+    let score = 0;
+    state.features.forEach((f, i) => {
+      const blob = rowBlob(f);
+      let s = 0;
+      if (blob.includes(nq)) s += 100 + nq.length;
+      tokens.forEach((t) => {
+        if (blob.includes(t)) s += t.length;
+      });
+      if (s > score) {
+        score = s;
+        best = i;
+      }
+    });
+    return score > 0 ? best : -1;
+  }
+
+  function visibleColumns() {
+    return state.columns;
   }
 
   function clearHighlight() {
@@ -219,9 +244,9 @@ window.InfraGeoAttrTable = (function () {
       if (lyr.getBounds && lyr.getBounds().isValid()) {
         map.fitBounds(lyr.getBounds().pad(0.35));
         state.highlight = L.rectangle(lyr.getBounds(), {
-          color: "#38bdf8",
+          color: "#0A2E2C",
           weight: 2,
-          fillOpacity: 0.08,
+          fillOpacity: 0.12,
           interactive: false,
         }).addTo(map);
       } else if (lyr.getLatLng) {
@@ -229,9 +254,9 @@ window.InfraGeoAttrTable = (function () {
         map.setView(ll, Math.max(map.getZoom(), 14));
         state.highlight = L.circleMarker(ll, {
           radius: 10,
-          color: "#38bdf8",
+          color: "#0A2E2C",
           weight: 2,
-          fillColor: "#38bdf8",
+          fillColor: "#0A2E2C",
           fillOpacity: 0.35,
           interactive: false,
         }).addTo(map);
@@ -249,14 +274,34 @@ window.InfraGeoAttrTable = (function () {
     }
   }
 
+  function fitLayerOnMap() {
+    if (state.selectedIndex != null) {
+      zoomToFeature(state.features[state.selectedIndex]);
+      renderTable();
+      return;
+    }
+    const group = window.InfraGeoMap?.overlayRegistry?.[state.layerId]?.leaflet;
+    const map = window.InfraGeoMap?.getMap?.();
+    if (!group || !map || !group.getBounds) return;
+    try {
+      const b = group.getBounds();
+      if (b && b.isValid()) map.fitBounds(b.pad(0.2));
+    } catch {
+      /* ignore */
+    }
+  }
+
   function renderTable() {
     const { thead, tbody, count } = els();
     if (!thead || !tbody) return;
 
     const rows = filteredRows();
-    if (count) count.textContent = `${rows.length}/${state.features.length}`;
+    const cols = visibleColumns();
+    if (count) count.textContent = String(rows.length);
+    const label = document.querySelector(".attr-toolbar__label");
+    if (label) label.textContent = `de ${state.features.length} registros`;
 
-    if (!state.columns.length) {
+    if (!cols.length) {
       thead.innerHTML = "";
       tbody.innerHTML =
         '<tr><td class="attr-table__empty" colspan="1">Esta camada não possui atributos.</td></tr>';
@@ -265,18 +310,20 @@ window.InfraGeoAttrTable = (function () {
 
     thead.innerHTML =
       "<tr>" +
-      state.columns.map((c) => `<th title="${c}">${c}</th>`).join("") +
+      cols
+        .map((c) => `<th title="${String(c).replace(/"/g, "&quot;")}">${c}</th>`)
+        .join("") +
       "</tr>";
 
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td class="attr-table__empty" colspan="${state.columns.length}">Nenhum registro encontrado.</td></tr>`;
+      tbody.innerHTML = `<tr><td class="attr-table__empty" colspan="${cols.length}">Nenhum registro encontrado.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = rows
       .map(({ f, i }) => {
         const selected = i === state.selectedIndex ? " is-selected" : "";
-        const cells = state.columns
+        const cells = cols
           .map((c) => {
             const v = f.props[c];
             const text = v == null ? "" : String(v);
@@ -317,11 +364,45 @@ window.InfraGeoAttrTable = (function () {
       if (idx >= 0) state.selectedIndex = idx;
     }
 
-    if (ui.subtitle) ui.subtitle.textContent = meta.name || layerId;
-    if (ui.filter) ui.filter.value = "";
+    if (ui.brand) ui.brand.textContent = meta.groupName || meta.name || "Atlas";
+    if (ui.crumbs) {
+      ui.crumbs.textContent = `Camadas › ${meta.groupName || "Grupo"} › ${meta.name || layerId}`;
+    }
+    if (ui.subtitle) {
+      ui.subtitle.textContent = `${meta.name || layerId} — inventário da camada no mapa`;
+    }
+    const q = String(opts?.filter || "").trim();
+    state.filter = q;
+    if (ui.filter) ui.filter.value = q;
     if (ui.panel) {
       ui.panel.hidden = false;
       ui.panel.setAttribute("aria-hidden", "false");
+    }
+
+    if (q && !filteredRows().length) {
+      const tokens = norm(q)
+        .split(" ")
+        .filter((t) => t.length > 2)
+        .sort((a, b) => b.length - a.length);
+      for (const t of tokens) {
+        state.filter = t;
+        if (filteredRows().length) {
+          if (ui.filter) ui.filter.value = t;
+          break;
+        }
+      }
+      if (!filteredRows().length) {
+        state.filter = "";
+        if (ui.filter) ui.filter.value = "";
+      }
+    }
+
+    if (state.selectedIndex == null && q) {
+      const idx = bestMatchIndex(q);
+      if (idx >= 0) {
+        state.selectedIndex = idx;
+        zoomToFeature(state.features[idx]);
+      }
     }
 
     renderTable();
@@ -337,17 +418,43 @@ window.InfraGeoAttrTable = (function () {
   function close() {
     const ui = els();
     clearHighlight();
+    hidePops();
     if (ui.panel) {
       ui.panel.hidden = true;
       ui.panel.setAttribute("aria-hidden", "true");
     }
-    state.layerId = null;
-    state.features = [];
+  }
+
+  function reopen() {
+    const ui = els();
+    if (!state.layerId || !ui.panel) return false;
+    ui.panel.hidden = false;
+    ui.panel.setAttribute("aria-hidden", "false");
+    return true;
   }
 
   function init() {
     const ui = els();
     if (ui.closeBtn) ui.closeBtn.addEventListener("click", close);
+    if (ui.mapBtn) ui.mapBtn.addEventListener("click", fitLayerOnMap);
+    if (ui.refreshBtn) {
+      ui.refreshBtn.addEventListener("click", async () => {
+        if (!state.layerId) return;
+        await openForLayer(state.layerId, { filter: state.filter });
+      });
+    }
+    if (ui.filtersBtn && ui.filter) {
+      ui.filtersBtn.addEventListener("click", () => {
+        hidePops();
+        ui.filter.focus();
+      });
+    }
+    if (ui.helpBtn && ui.helpPop) {
+      ui.helpBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        ui.helpPop.hidden = !ui.helpPop.hidden;
+      });
+    }
     if (ui.filter) {
       ui.filter.addEventListener("input", () => {
         state.filter = ui.filter.value;
@@ -369,6 +476,9 @@ window.InfraGeoAttrTable = (function () {
     document.addEventListener("click", (ev) => {
       if (ev.target.closest(".layer-kebab, .layer-kebab-menu")) return;
       closeMenus();
+      if (!ev.target.closest("#attr-help-pop, #btn-attr-help")) {
+        hidePops();
+      }
     });
 
     window.addEventListener("resize", closeMenus);
@@ -379,6 +489,7 @@ window.InfraGeoAttrTable = (function () {
     attachKebab,
     openForLayer,
     close,
+    reopen,
     closeMenus,
   };
 })();

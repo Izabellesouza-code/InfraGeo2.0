@@ -10,9 +10,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.api.deps import extract_access_token
 from app.api.routes import api_router
 from app.config import get_settings
 from app.core.exceptions import WebGISException
+from app.core.security import decode_access_token
 from app.utils.file_utils import ensure_directories
 
 settings = get_settings()
@@ -62,6 +64,9 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+_upload_dir = BASE_DIR / settings.upload_dir
+_upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_upload_dir)), name="uploads")
 app.include_router(api_router)
 
 
@@ -73,12 +78,94 @@ async def webgis_exception_handler(_request: Request, exc: WebGISException) -> J
     )
 
 
+def _current_principal(request: Request):
+    token = extract_access_token(request)
+    if not token:
+        return None
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        return None
+    try:
+        from app.database import SessionLocal
+        from app.services.auth_service import principal_from_token
+
+        db = SessionLocal()
+        try:
+            user = principal_from_token(payload, db)
+            if user and user.is_active:
+                return user
+            return None
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _is_logged_in(request: Request) -> bool:
+    return _current_principal(request) is not None
+
+
+def _is_admin(request: Request) -> bool:
+    user = _current_principal(request)
+    return bool(user and user.is_admin)
+
+
+def _auth_page(request: Request, template: str):
+    return templates.TemplateResponse(
+        request,
+        template,
+        {
+            "app_name": settings.app_name,
+            "app_version": settings.app_version,
+            "year": datetime.now().year,
+        },
+    )
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Tela de login (antes do splash / mapa)."""
+    nxt = (request.query_params.get("next") or "").strip()
+    if _is_logged_in(request):
+        if nxt == "/admin":
+            if _is_admin(request):
+                return RedirectResponse(url="/admin", status_code=302)
+            return _auth_page(request, "pages/login.html")
+        return RedirectResponse(url="/", status_code=302)
+    return _auth_page(request, "pages/login.html")
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request):
+    """Painel de administrador."""
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/login?next=/admin", status_code=302)
+    if not _is_admin(request):
+        return RedirectResponse(url="/login?next=/admin", status_code=302)
+    return _auth_page(request, "pages/admin.html")
+
+
+@app.get("/esqueci-senha", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    """Pedido de token de redefinição de senha."""
+    return _auth_page(request, "pages/forgot-password.html")
+
+
+@app.get("/redefinir-senha", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    """Formulário para gravar a nova senha com o token do e-mail."""
+    return _auth_page(request, "pages/reset-password.html")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """UI local em DEBUG; em produção redireciona para a Vercel (FRONTEND_URL)."""
     frontend = (settings.frontend_url or "").strip().rstrip("/")
     if frontend and not settings.debug:
         return RedirectResponse(url=frontend, status_code=302)
+
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/login", status_code=302)
 
     return templates.TemplateResponse(
         request,

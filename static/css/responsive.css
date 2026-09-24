@@ -62,32 +62,20 @@ canvas {
   color: var(--accent);
 }
 
-.app-header__titles strong,
-.app-header__titles span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
+.app-header__logo {
+  object-fit: contain;
 }
 
 /* —— Desktop intermediário —— */
 @media (min-width: 981px) and (max-width: 1280px) {
   :root {
     --sidebar-w: 268px;
-    --header-h: 58px;
+    --header-h: 64px;
   }
 
   .app-header {
     padding: 0 0.75rem;
     gap: 0.5rem;
-  }
-
-  .app-header__titles strong {
-    font-size: 0.98rem;
-  }
-
-  .app-header__titles span {
-    font-size: 0.7rem;
   }
 
   .menu-btn {
@@ -146,29 +134,23 @@ canvas {
     min-width: 0;
   }
 
-  .app-header__titles {
-    display: none;
-  }
-
   .app-header__logos {
-    gap: 0.3rem;
-    padding: 0.12rem 0.28rem;
     max-width: 100%;
   }
 
-  .app-header__logo,
-  .app-header__logo--spu,
-  .app-header__logo--dnit {
-    height: 22px;
+  .app-header__logo {
+    height: 28px;
+    max-height: 28px;
+    max-width: 80px;
   }
 
-  .app-header__logo--spu {
-    max-width: min(92px, 28vw);
+  .app-header__logo + .app-header__logo {
+    margin-left: 0.45rem;
+    padding-left: 0.45rem;
   }
 
-  .app-header__logo--dnit {
-    max-width: min(100px, 30vw);
-    padding-left: 0.3rem;
+  .app-header__logo--infra {
+    max-width: 120px;
   }
 
   .app-header__actions {
@@ -202,33 +184,34 @@ canvas {
   .map-area {
     position: absolute;
     inset: 0;
+    bottom: var(--bottom-h);
     width: 100%;
-    height: 100%;
+    height: auto;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .sidebar {
     position: fixed;
     top: calc(var(--header-h) + var(--safe-top));
     left: var(--safe-left);
-    bottom: var(--safe-bottom);
+    bottom: auto;
+    height: auto;
+    max-height: calc(100dvh - var(--header-h) - var(--bottom-h) - var(--safe-top) - var(--safe-bottom) - 16px);
     width: min(92vw, 360px);
     max-width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
     z-index: 1300;
-    transform: translateX(calc(-100% - 12px));
-    transition: transform 0.22s ease;
-    box-shadow: 12px 0 36px rgba(2, 8, 23, 0.45);
-    border-right: 1px solid var(--border);
+    transform: none;
+    display: none;
+    box-shadow: 12px 0 36px rgba(2, 8, 23, 0.18);
+    border: 1px solid var(--border);
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding: 0.65rem;
     gap: 0.5rem;
     overflow-x: hidden;
     overflow-y: auto;
-    height: auto;
-  }
-
-  body.sidebar-open .sidebar {
-    transform: translateX(0);
   }
 
   .sidebar-backdrop {
@@ -345,7 +328,7 @@ canvas {
     left: 0 !important;
     right: 0;
     width: 100% !important;
-    height: min(46dvh, 400px);
+    height: min(40dvh, 320px);
     max-height: calc(100dvh - var(--header-h) - var(--safe-top) - 8px);
     padding-bottom: var(--safe-bottom);
     z-index: 1400;
@@ -528,23 +511,20 @@ canvas {
 /* —— Celular —— */
 @media (max-width: 560px) {
   :root {
-    --header-h: 96px;
+    --header-h: 56px;
   }
 
   .app-header {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
+    display: flex;
+    flex-wrap: nowrap;
     align-items: center;
-    height: auto;
-    min-height: 0;
-    padding: 0.35rem 0.4rem;
-    gap: 0.3rem 0.35rem;
+    height: var(--header-h);
+    min-height: var(--header-h);
+    padding: 0 0.45rem 0 0.35rem;
+    gap: 0.35rem;
   }
 
   .app-header__menu {
-    grid-column: 1;
-    grid-row: 1;
     width: 38px;
     height: 38px;
     min-width: 38px;
@@ -552,48 +532,41 @@ canvas {
   }
 
   .app-header__brand {
-    grid-column: 2;
-    grid-row: 1;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .app-header__actions {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    width: 100%;
-    justify-content: stretch;
+    flex: 0 0 auto;
+    width: auto;
+    justify-content: flex-end;
     gap: 0.35rem;
   }
 
   .app-header__actions .btn-link {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     font-size: 0.74rem;
-    font-weight: 600;
     padding: 0.4rem 0.5rem;
-    min-height: 40px;
-    text-align: center;
-    background: #121a2b;
-    border: 1px solid #243049;
+    min-height: 36px;
+    background: transparent;
+    border: 0;
     border-radius: 10px;
   }
 
   .app-header__actions .btn-link:hover,
   .app-header__actions .btn-link[aria-expanded="true"] {
     border-color: rgba(61, 214, 198, 0.45);
-    color: #3dd6c6;
+    color: #0A2E2C;
   }
 
-  .app-header__logo,
-  .app-header__logo--spu,
-  .app-header__logo--dnit {
-    height: 20px;
+  .app-header__logo {
+    height: 22px;
+    max-height: 22px;
+    max-width: 64px;
   }
 
-  .app-header__logo--spu {
-    max-width: min(86px, 34vw);
-  }
-
-  .app-header__logo--dnit {
-    max-width: min(94px, 36vw);
+  .app-header__logo--infra {
+    max-width: 112px;
   }
 
   .sidebar {
@@ -622,7 +595,7 @@ canvas {
   }
 
   .attr-panel {
-    height: min(52dvh, 440px);
+    height: min(38dvh, 300px);
   }
 
   .attr-panel__subtitle {
@@ -686,15 +659,17 @@ canvas {
 /* —— Telas muito estreitas —— */
 @media (max-width: 380px) {
   :root {
-    --header-h: 94px;
+    --header-h: 52px;
   }
 
-  .app-header__logo--spu {
-    max-width: min(72px, 32vw);
+  .app-header__logo {
+    height: 20px;
+    max-height: 20px;
+    max-width: 56px;
   }
 
-  .app-header__logo--dnit {
-    max-width: min(80px, 34vw);
+  .app-header__logo--infra {
+    max-width: 96px;
   }
 
   .app-header__actions .btn-link {
@@ -753,8 +728,9 @@ canvas {
     border: none;
   }
 
-  .app-header__titles {
-    display: none;
+  .app-header__logo {
+    height: 20px;
+    max-height: 20px;
   }
 
   .sidebar {
@@ -835,5 +811,43 @@ canvas {
   .feature-hover-popup,
   .app-header__menu {
     transition: none !important;
+  }
+}
+
+/* —— Toques e overflow: mapa, tabela, legendas —— */
+@media (max-width: 980px) {
+  .map-tool,
+  .nav-rail__btn,
+  .layer-kebab,
+  .attr-toolbar button {
+    min-height: 44px;
+    min-width: 40px;
+  }
+
+  .legend-panel {
+    max-height: min(70dvh, 520px);
+  }
+}
+
+@media (max-width: 560px) {
+  .map-overlay--ml {
+    left: max(8px, env(safe-area-inset-left, 0px));
+  }
+
+  .map-footer {
+    font-size: 0.68rem;
+    padding-right: 4.5rem;
+  }
+
+  .attr-panel {
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    height: min(42dvh, 280px);
+  }
+
+  .attr-table th,
+  .attr-table td {
+    font-size: 0.72rem;
   }
 }

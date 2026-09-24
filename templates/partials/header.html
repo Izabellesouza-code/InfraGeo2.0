@@ -11,55 +11,94 @@
   </button>
 
   <div class="app-header__brand">
-    <div class="app-header__logos" aria-label="Parceiros">
+    <div class="app-header__logos" aria-label="Marcas">
       <img
-        class="app-header__logo app-header__logo--spu"
+        class="app-header__logo"
         src="/static/img/logo-consorcio-spu.png?v=5"
         alt="Consórcio SPU — Assessoramento AM"
-        width="160"
-        height="64"
+        width="110"
+        height="36"
         decoding="async"
       />
       <img
-        class="app-header__logo app-header__logo--dnit"
+        class="app-header__logo"
         src="/static/img/logo-dnit.png?v=5"
         alt="DNIT — Departamento Nacional de Infraestrutura de Transportes"
-        width="180"
-        height="56"
+        width="110"
+        height="36"
         decoding="async"
       />
-    </div>
-    <div class="app-header__titles">
-      <strong>InfraGeo AM</strong>
-      <span>Sistema de Informações Geográficas</span>
+      <img
+        class="app-header__logo app-header__logo--infra"
+        src="/static/img/logo-infrageo.png?v=1"
+        alt="InfraGEO — Produto 05 Meio Ambiente"
+        width="168"
+        height="36"
+        decoding="async"
+      />
     </div>
   </div>
 
+  <form class="app-header__search" id="form-busca-header" role="search">
+    <span class="app-header__search-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.2-3.2" />
+      </svg>
+    </span>
+    <input
+      type="search"
+      id="busca-header"
+      name="q"
+      placeholder="Buscar município, rodovia ou camada"
+      autocomplete="off"
+    />
+  </form>
+
   <div class="app-header__actions">
-    <button
-      type="button"
-      class="btn-link"
-      id="btn-sobre"
-      aria-haspopup="dialog"
-      aria-controls="modal-sobre"
-    >
-      Sobre
+    <button type="button" class="btn-explore" id="btn-filtros" aria-expanded="false" aria-controls="painel-filtros">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M4 19V5" />
+        <path d="M10 19V9" />
+        <path d="M16 19V12" />
+        <path d="M22 19V7" />
+      </svg>
+      <span class="btn-explore__label">Filtrar dados</span>
     </button>
-    <button
-      type="button"
-      class="btn-link"
-      id="btn-exportar-mapa"
-    >
-      Exportar
-    </button>
-    <button
-      type="button"
-      class="btn-link"
-      id="btn-filtros"
-      aria-expanded="false"
-      aria-controls="painel-filtros"
-    >
-      Filtros
-    </button>
+
+    <button type="button" class="btn-link" id="btn-sobre" aria-haspopup="dialog" aria-controls="modal-sobre">Sobre</button>
+
+    <div class="app-header__account">
+      <button type="button" class="app-header__user" id="btn-user-menu" aria-label="Perfil" aria-expanded="false" aria-controls="painel-perfil" title="Perfil">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5 19c1.6-3 4-4.5 7-4.5S17.4 16 19 19" />
+        </svg>
+      </button>
+      <div class="user-popover" id="painel-perfil" aria-hidden="true">
+        <div class="user-popover__hero">
+          <span class="user-popover__avatar" id="perfil-avatar" aria-hidden="true">—</span>
+          <div class="user-popover__who">
+            <p class="user-popover__kicker">Conta</p>
+            <p class="user-popover__name" id="perfil-nome">—</p>
+            <span class="user-popover__pill" id="perfil-permissao">—</span>
+          </div>
+        </div>
+        <ul class="user-popover__meta">
+          <li>
+            <span>Usuário</span>
+            <strong id="perfil-usuario">—</strong>
+          </li>
+          <li>
+            <span>E-mail</span>
+            <strong id="perfil-email">—</strong>
+          </li>
+        </ul>
+        <div class="user-popover__actions">
+          <a class="user-popover__admin" id="link-painel-admin" href="/admin" hidden>Painel de administrador</a>
+          <button type="button" class="user-popover__out" id="btn-logout">Sair</button>
+        </div>
+      </div>
+    </div>
   </div>
 </header>

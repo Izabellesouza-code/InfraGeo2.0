@@ -1,4 +1,4 @@
-"""Cria ou atualiza um usuário com permissão de upload em public.users.
+"""Cria ou atualiza um usuário em public.usuarios.
 
 Uso:
   set PYTHONPATH=.
@@ -20,7 +20,7 @@ load_dotenv(".env", override=True)
 from app.config import get_settings
 from app.core.security import hash_password
 from app.database import SessionLocal
-from app.models.user import User
+from app.models.usuario import Usuario
 from app.services.auth_service import ensure_auth_ready
 
 
@@ -43,21 +43,25 @@ def main() -> int:
     db = SessionLocal()
     try:
         ensure_auth_ready(db)
-        user = db.query(User).filter(User.username == username).first()
+        user = (
+            db.query(Usuario)
+            .filter((Usuario.email == email) | (Usuario.nome == username))
+            .first()
+        )
         if user:
-            user.hashed_password = hash_password(password)
+            user.senha_hash = hash_password(password)
             user.email = email
+            user.nome = username
             user.is_active = True
             user.can_upload = True
             if args.admin:
                 user.is_admin = True
             action = "atualizado"
         else:
-            user = User(
-                username=username,
+            user = Usuario(
+                nome=username,
                 email=email,
-                hashed_password=hash_password(password),
-                full_name=username,
+                senha_hash=hash_password(password),
                 is_active=True,
                 is_admin=bool(args.admin),
                 can_upload=True,
@@ -66,7 +70,7 @@ def main() -> int:
             action = "criado"
         db.commit()
         print(
-            f"OK: usuário {username!r} {action} "
+            f"OK: usuário {email!r} {action} "
             f"(can_upload=True, is_admin={bool(user.is_admin)})"
         )
         return 0

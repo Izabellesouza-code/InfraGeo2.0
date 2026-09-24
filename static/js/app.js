@@ -51,19 +51,44 @@
     }
   }
 
+  async function applyFeedbackLink() {
+    const p = new URLSearchParams(window.location.search);
+    const layer = p.get("layer") || "";
+    const q = (p.get("q") || p.get("keyword") || "").trim();
+    if (!layer && !q) return false;
+    if (layer) {
+      try {
+        await window.InfraGeoLayers.setLayerVisible(layer, true);
+      } catch {
+        /* ignore */
+      }
+    }
+    const header = document.getElementById("busca-header");
+    if (header && q) header.value = q;
+    if (layer) {
+      try {
+        await window.InfraGeoAttrTable?.openForLayer?.(layer, q ? { filter: q } : {});
+      } catch {
+        /* ignore */
+      }
+    }
+    return true;
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
-    setBootMessage("Aguarde, estamos carregando as informações…");
+    try {
+      setBootMessage("Aguarde, estamos carregando as informações…");
 
-    window.InfraGeoMap.createMap("map");
-    window.InfraGeoHoverPopup.init();
-    window.InfraGeoAuth.init();
-    window.InfraGeoAbout?.init?.();
-    window.InfraGeoLegend.init();
-    window.InfraGeoFilters.init();
-    window.InfraGeoPrintMap.init();
-    window.InfraGeoLayoutMode?.init?.();
+      window.InfraGeoMap.createMap("map");
+      window.InfraGeoHoverPopup.init();
+      window.InfraGeoAuth.init();
+      window.InfraGeoAbout?.init?.();
+      window.InfraGeoLegend?.init?.();
+      window.InfraGeoFilters.init();
+      window.InfraGeoPrintMap.init();
+      window.InfraGeoLayoutMode?.init?.();
 
-    window.InfraGeoSidebar.init({
+      window.InfraGeoSidebar.init({
       onToggleLayers: async (allOn) => {
         await window.InfraGeoLayers.setAll(allOn);
       },
@@ -109,6 +134,7 @@
     });
 
     window.InfraGeoAttrTable.init();
+    window.InfraGeoChrome?.init?.();
 
     try {
       setBootMessage("Aguarde, estamos carregando as informações…");
@@ -124,11 +150,17 @@
 
       await window.InfraGeoLayers.applyDefaults();
       window.InfraGeoPrintMap?.restoreMainMapLayout?.();
-      window.InfraGeoMap.fitAmazonas();
-      window.setTimeout(() => window.InfraGeoMap.fitAmazonas(), 500);
+      const linked = await applyFeedbackLink();
+      if (!linked) {
+        window.InfraGeoMap.fitAmazonas();
+        window.setTimeout(() => window.InfraGeoMap.fitAmazonas(), 500);
+      }
     } catch (err) {
       console.error("Erro ao iniciar camadas:", err);
       setBootMessage("Falha ao carregar. Abrindo o mapa…");
+    }
+    } catch (err) {
+      console.error("Erro ao iniciar o mapa:", err);
     } finally {
       hideBootSplash();
     }

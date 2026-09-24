@@ -5,6 +5,8 @@
   overflow: hidden;
   background: #d7dde5;
   z-index: 1;
+  grid-column: 2;
+  grid-row: 1;
 }
 
 /* Trava o mapa DENTRO da coluna do grid — sobrescreve leftovers de export (fixed/left). */
@@ -30,16 +32,16 @@
 /* Controles Leaflet no tema do app */
 .leaflet-control-zoom a,
 .leaflet-bar a {
-  background: #101828 !important;
-  color: #e8eef8 !important;
-  border-bottom-color: #243049 !important;
+  background: #fff !important;
+  color: #16324f !important;
+  border-bottom-color: #d7e0ea !important;
 }
 
 /* Controle de camadas: só satélites (compacto) */
 .leaflet-control-layers {
-  background: #101828 !important;
-  color: #e8eef8 !important;
-  border: 1px solid #243049 !important;
+  background: #fff !important;
+  color: #16324f !important;
+  border: 1px solid #d7e0ea !important;
   border-radius: 10px !important;
   max-height: none !important;
 }
@@ -59,7 +61,7 @@
   padding: 0.25rem 0.35rem;
   font-size: 0.82rem !important;
   white-space: nowrap;
-  color: #e8eef8 !important;
+  color: #16324f !important;
 }
 
 .leaflet-control-layers-separator,
@@ -73,14 +75,14 @@
 }
 
 .leaflet-popup-content-wrapper {
-  background: #121a2b;
+  background: #fff;
   color: var(--text);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
 }
 
 .leaflet-popup-tip {
-  background: #121a2b;
+  background: #fff;
 }
 
 .popup-table {

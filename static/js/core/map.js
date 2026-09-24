@@ -8,6 +8,7 @@ window.InfraGeoMap = (function () {
   let layerControl = null;
   let amazonaMaskLayer = null;
   const overlayRegistry = {};
+  let basemapControls = {};
 
   const MASK_FILL = "#e8eef5";
 
@@ -149,7 +150,7 @@ window.InfraGeoMap = (function () {
       });
     }
 
-    const basemapControls = {};
+    const basemapControlsLocal = {};
     basemapDefs.forEach((bm) => {
       const opts = {
         attribution: bm.attribution,
@@ -167,9 +168,10 @@ window.InfraGeoMap = (function () {
       } else {
         return;
       }
-      basemapControls[bm.name] = tile;
+      basemapControlsLocal[bm.name] = tile;
       if (bm.default) tile.addTo(map);
     });
+    basemapControls = basemapControlsLocal;
 
     layerControl = L.control
       .layers(basemapControls, null, { position: "topright", collapsed: true })
@@ -541,6 +543,70 @@ window.InfraGeoMap = (function () {
     return true;
   }
 
+  function getBasemapNames() {
+    return Object.keys(basemapControls || {});
+  }
+
+  function getActiveBasemapName() {
+    if (!map || !basemapControls) return null;
+    return (
+      Object.keys(basemapControls).find((n) => {
+        try {
+          return map.hasLayer(basemapControls[n]);
+        } catch {
+          return false;
+        }
+      }) || null
+    );
+  }
+
+  function setBasemapByName(name) {
+    if (!map || !basemapControls) return;
+    const layer = basemapControls[name];
+    if (!layer) return;
+    Object.values(basemapControls).forEach((t) => {
+      try {
+        if (map.hasLayer(t)) map.removeLayer(t);
+      } catch {
+        /* ignore */
+      }
+    });
+    layer.addTo(map);
+  }
+
+  function setBasemapPreset(preset) {
+    if (!map || !basemapControls) return;
+    const names = {
+      map: ["Esri Light Gray", "OpenStreetMap"],
+      satellite: ["Satélite (Esri)", "Google Earth"],
+      terrain: ["Esri Topográfico", "OpenTopoMap"],
+    };
+    const wanted = names[preset] || names.map;
+    let layer = null;
+    wanted.forEach((n) => {
+      if (!layer && basemapControls[n]) layer = basemapControls[n];
+    });
+    if (!layer) layer = Object.values(basemapControls)[0];
+    Object.values(basemapControls).forEach((t) => {
+      try {
+        if (map.hasLayer(t)) map.removeLayer(t);
+      } catch {
+        /* ignore */
+      }
+    });
+    if (layer) layer.addTo(map);
+  }
+
+  function zoomBy(delta) {
+    if (!map) return;
+    map.setZoom(map.getZoom() + delta);
+  }
+
+  function locateUser() {
+    if (!map) return;
+    map.locate({ setView: true, maxZoom: 12 });
+  }
+
   function setAllLayersVisible(on) {
     Object.keys(overlayRegistry).forEach((id) => toggleLayer(id, on));
   }
@@ -565,5 +631,12 @@ window.InfraGeoMap = (function () {
     clearAllOverlays,
     styleFor,
     overlayRegistry,
+    setBasemapPreset,
+    setBasemapByName,
+    getBasemapNames,
+    getActiveBasemapName,
+    zoomBy,
+    locateUser,
+    getLayerControl: () => layerControl,
   };
 })();

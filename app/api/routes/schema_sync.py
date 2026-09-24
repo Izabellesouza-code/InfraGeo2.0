@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import require_admin_user
-from app.models.user import User
+from app.services.auth_service import AuthPrincipal
 from app.services.schema_sync_service import SchemaSyncService
 
 router = APIRouter()
@@ -42,13 +42,13 @@ def _svc() -> SchemaSyncService:
 
 
 @router.get("/schemas/diff")
-def schemas_diff(_admin: User = Depends(require_admin_user)) -> dict[str, Any]:
+def schemas_diff(_admin: AuthPrincipal = Depends(require_admin_user)) -> dict[str, Any]:
     """Compara schemas da origem (local) com o Neon."""
     return {"ok": True, **_svc().diff()}
 
 
 @router.post("/schemas/install-triggers")
-def install_triggers(_admin: User = Depends(require_admin_user)) -> dict[str, Any]:
+def install_triggers(_admin: AuthPrincipal = Depends(require_admin_user)) -> dict[str, Any]:
     """Instala event triggers NOTIFY na origem para CREATE/DROP SCHEMA."""
     return _svc().ensure_event_triggers_on_source()
 
@@ -56,7 +56,7 @@ def install_triggers(_admin: User = Depends(require_admin_user)) -> dict[str, An
 @router.post("/schemas/sync-missing")
 def sync_missing(
     auto_git: Optional[bool] = None,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Cria no Neon todos os schemas que existem só na origem."""
     return _svc().sync_missing_from_source(
@@ -66,7 +66,7 @@ def sync_missing(
 
 @router.post("/schemas/sync-missing-from-neon")
 def sync_missing_from_neon(
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Espelha no Postgres local os schemas que existem só no Neon (ex.: uploads)."""
     return _svc().sync_missing_from_neon(actor=admin.username)
@@ -75,7 +75,7 @@ def sync_missing_from_neon(
 @router.post("/schemas/{schema_name}/mirror-to-local")
 def mirror_schema_to_local(
     schema_name: str,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Espelha um schema específico Neon → Postgres local."""
     return _svc().mirror_schema_to_source(schema_name, actor=admin.username)
@@ -84,7 +84,7 @@ def mirror_schema_to_local(
 @router.post("/schemas")
 def create_schema(
     body: SchemaCreateBody,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Cria/espelha um schema no Neon (e opcionalmente publica no git)."""
     return _svc().create_schema_on_neon(
@@ -99,7 +99,7 @@ def create_schema(
 def request_delete(
     schema_name: str,
     body: DeleteRequestBody,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """
     Etapa 1 da exclusão segura: NÃO apaga no Neon.
@@ -114,7 +114,7 @@ def request_delete(
 def confirm_delete(
     schema_name: str,
     body: DeleteConfirmBody,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """
     Etapa 2: apaga schema no Neon somente com frase + token corretos.
@@ -132,7 +132,7 @@ def confirm_delete(
 @router.post("/schemas/{schema_name}/delete-cancel")
 def cancel_delete(
     schema_name: str,
-    _admin: User = Depends(require_admin_user),
+    _admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Cancela uma exclusão pendente."""
     return _svc().cancel_delete(schema_name)
@@ -141,7 +141,7 @@ def cancel_delete(
 @router.post("/schemas/source-event")
 def source_event(
     body: SourceEventBody,
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Recebe evento DDL da origem (usado pelo watcher)."""
     return _svc().handle_source_event(body.payload, actor=admin.username)
@@ -149,7 +149,7 @@ def source_event(
 
 @router.post("/schemas/snapshot")
 def write_snapshot(
-    admin: User = Depends(require_admin_user),
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict[str, Any]:
     """Atualiza data/catalog_snapshot.json a partir do Neon."""
     snap = _svc().write_catalog_snapshot(actor=admin.username, reason="manual")

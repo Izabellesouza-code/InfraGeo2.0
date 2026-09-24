@@ -29,7 +29,7 @@ window.InfraGeoSidebar = (function () {
   }
 
   function setOpen(open) {
-    const next = !!open && isMobileLayout();
+    const next = !!open;
     document.body.classList.toggle("sidebar-open", next);
     const btn = document.getElementById("btn-toggle-sidebar");
     if (btn) {
@@ -59,9 +59,9 @@ window.InfraGeoSidebar = (function () {
     if (btn) {
       btn.disabled = !!busy;
       btn.classList.toggle("is-busy", !!busy);
-      const label = btn.querySelector(".menu-btn__label");
+      const label = btn.querySelector(".menu-btn__label, span:last-child");
       if (label) {
-        label.innerHTML = busy ? "Enviando…" : "Upload<br />SHP/GeoJSON";
+        label.textContent = busy ? "Enviando…" : "Upload SHP/GeoJSON";
       }
     }
     if (confirmBtn) confirmBtn.disabled = !!busy;
@@ -318,18 +318,94 @@ window.InfraGeoSidebar = (function () {
   }
 
   function init(handlers) {
-    const root = document.querySelector(".sidebar");
+    const root = document.getElementById("sidebar-principal");
     const fileInput = document.getElementById("input-upload-shp");
     if (!root) return;
 
     ensureBackdrop();
     const menuBtn = document.getElementById("btn-toggle-sidebar");
+    document.getElementById("sidebar-more-select")?.addEventListener("change", (ev) => {
+      const v = ev.target.value;
+      if (v === "camadas") {
+        window.InfraGeoLayers?.showFavorites?.(false);
+        return;
+      }
+      if (v === "favoritos") {
+        window.InfraGeoLayers?.showFavorites?.(true);
+        return;
+      }
+      if (v === "legenda") {
+        setOpen(false);
+        window.InfraGeoLegend?.open?.(true);
+      } else if (v === "filtros") {
+        setOpen(false);
+        document.getElementById("btn-filtros")?.click();
+      } else if (v === "exportar") {
+        setOpen(false);
+        window.InfraGeoLayoutMode?.open?.(true);
+      } else if (v === "agente") {
+        setOpen(false);
+        const fab = document.getElementById("btn-ig-agent");
+        if (fab && document.getElementById("ig-agent-panel")?.hidden !== false) fab.click();
+        else fab?.click();
+      } else if (v === "ligar") {
+        handlers.onToggleLayers?.(true);
+      } else if (v === "desligar") {
+        handlers.onToggleLayers?.(false);
+      } else if (v === "enquadrar") {
+        handlers.onFitAmazonas?.();
+      } else if (v === "ajuda") {
+        setOpen(false);
+        document.getElementById("btn-sobre")?.click();
+      }
+      if (v !== "favoritos") ev.target.value = "camadas";
+    });
     if (menuBtn) {
       menuBtn.addEventListener("click", (ev) => {
         ev.preventDefault();
         toggle();
       });
     }
+
+    const bindActions = (el) => {
+      if (!el) return;
+      el.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-action]");
+        if (!btn) return;
+        const action = btn.dataset.action;
+
+        if (action === "layers-on" && handlers.onToggleLayers) {
+          handlers.onToggleLayers(true);
+        }
+        if (action === "layers-off" && handlers.onToggleLayers) {
+          handlers.onToggleLayers(false);
+        }
+        if (action === "toggle-layers" && handlers.onToggleLayers) {
+          const on = !btn.classList.contains("is-active");
+          btn.classList.toggle("is-active", on);
+          handlers.onToggleLayers(on);
+        }
+        if (action === "fit-amazonas" && handlers.onFitAmazonas) {
+          handlers.onFitAmazonas();
+        }
+        if (action === "upload-shp") {
+          const openPicker = () => {
+            if (fileInput) fileInput.click();
+          };
+          if (window.InfraGeoAuth) {
+            window.InfraGeoAuth.requireLogin(openPicker);
+          } else {
+            openPicker();
+          }
+        }
+        if (action === "toggle-legend" && handlers.onToggleLegend) {
+          btn.classList.toggle("is-active");
+          handlers.onToggleLegend(btn.classList.contains("is-active"));
+        }
+      });
+    };
+    bindActions(root);
+    bindActions(document.getElementById("nav-rail"));
 
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape" && document.body.classList.contains("sidebar-open")) {
@@ -359,34 +435,6 @@ window.InfraGeoSidebar = (function () {
     };
     window.addEventListener("resize", onViewportChange);
     window.addEventListener("orientationchange", onViewportChange);
-
-    root.addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-action]");
-      if (!btn) return;
-      const action = btn.dataset.action;
-
-      if (action === "toggle-layers" && handlers.onToggleLayers) {
-        btn.classList.toggle("is-active");
-        handlers.onToggleLayers(btn.classList.contains("is-active"));
-      }
-      if (action === "fit-amazonas" && handlers.onFitAmazonas) {
-        handlers.onFitAmazonas();
-      }
-      if (action === "upload-shp") {
-        const openPicker = () => {
-          if (fileInput) fileInput.click();
-        };
-        if (window.InfraGeoAuth) {
-          window.InfraGeoAuth.requireLogin(openPicker);
-        } else {
-          openPicker();
-        }
-      }
-      if (action === "toggle-legend" && handlers.onToggleLegend) {
-        btn.classList.toggle("is-active");
-        handlers.onToggleLegend(btn.classList.contains("is-active"));
-      }
-    });
 
     if (fileInput) {
       fileInput.addEventListener("change", () => {
