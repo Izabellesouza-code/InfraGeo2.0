@@ -81,6 +81,26 @@ def create_group(
     return result
 
 
+@router.patch("/groups/{group_id}")
+def update_group(
+    group_id: str,
+    request: Request,
+    name: str = Form(...),
+    user: AuthPrincipal = Depends(require_upload_user),
+) -> dict[str, Any]:
+    """Renomeia um grupo da sidebar sem novo upload."""
+    result = service.update_group_name(group_id, name)
+    audit_service.record(
+        category="alteracao",
+        action="grupo_renomear",
+        summary=f"Renomeou o grupo para {result.get('name') or name}",
+        actor=user,
+        target=group_id,
+        request=request,
+    )
+    return result
+
+
 @router.patch("/layers/meta")
 def update_layer_meta(
     request: Request,

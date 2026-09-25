@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/select-combo.css?v=2" />
-  <link rel="stylesheet" href="/static/css/admin-page.css?v=39" />
+  <link rel="stylesheet" href="/static/css/admin-page.css?v=45" />
 </head>
 <body class="admin-shell">
   <aside class="admin-nav" aria-label="Console administrativo">
@@ -228,24 +228,20 @@
         <div class="admin-card__head">
           <div>
             <p class="admin-card__kicker">Gestão de dados</p>
-            <h2>Camadas do catálogo</h2>
+            <h2>Nomes no mapa</h2>
           </div>
-          <a class="admin-btn admin-btn--ghost" href="#imports" data-view="imports">+ Nova camada</a>
+          <a class="admin-btn admin-btn--ghost" href="#imports" data-view="imports">+ Enviar arquivo</a>
         </div>
-        <div class="admin-table-wrap">
-          <table class="admin-table admin-table--layers">
-            <thead>
-              <tr>
-                <th>Camada</th>
-                <th>Tipo</th>
-                <th>Atualização</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="all-layers"></tbody>
-          </table>
-        </div>
+        <p class="admin-help">Mude só o nome que aparece no mapa. Os dados no banco ficam iguais.</p>
+        <form id="form-admin-new-group" class="admin-new-group">
+          <div>
+            <span>Novo grupo</span>
+            <input id="admin-new-group-name" type="text" maxlength="80" placeholder="Ex.: Drenagem" />
+          </div>
+          <button type="submit" class="admin-btn" id="btn-admin-new-group">Criar grupo</button>
+          <p id="admin-new-group-erro" class="admin-flash" hidden></p>
+        </form>
+        <div id="catalog-editor" class="admin-catalog"></div>
       </article>
     </section>
 
@@ -295,7 +291,7 @@
           <div class="admin-card__head">
             <div>
               <p class="admin-card__kicker">Catálogo</p>
-              <h2>Renomear subcamada</h2>
+              <h2>Renomear sem upload</h2>
             </div>
           </div>
           <form id="form-admin-rename" class="admin-form">
@@ -443,11 +439,12 @@
             <h2>Logins, acessos e alterações</h2>
           </div>
         </div>
-        <p class="admin-help">Cada linha mostra quem fez, o que mudou e a data/hora (horário de Manaus).</p>
+        <p class="admin-help">Histórico de quem entrou, quem abriu o mapa ou o painel e quem alterou dados — com data e hora (Manaus).</p>
         <div class="admin-seg" id="activity-filter" role="radiogroup" aria-label="Filtrar atividade">
           <label class="admin-seg__item"><input type="radio" name="activity_filter" value="" checked /> Tudo</label>
           <label class="admin-seg__item"><input type="radio" name="activity_filter" value="login" /> Logins</label>
-          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="acesso" /> Acessos</label>
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="mapa" /> Mapa</label>
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="painel" /> Painel</label>
           <label class="admin-seg__item"><input type="radio" name="activity_filter" value="alteracao" /> Alterações</label>
         </div>
         <div class="admin-table-wrap">
@@ -504,6 +501,6 @@
   <script src="/static/js/config/runtime.js?v=2"></script>
   <script src="/static/js/config/api.js?v=3"></script>
   <script src="/static/js/modules/select-combo.js?v=1"></script>
-  <script src="/static/js/modules/admin-page.js?v=38"></script>
+  <script src="/static/js/modules/admin-page.js?v=43"></script>
 </body>
 </html>

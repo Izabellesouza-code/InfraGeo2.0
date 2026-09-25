@@ -86,6 +86,9 @@
         window.location.replace("/login");
         return;
       }
+      if (window.InfraGeoAuth.isLoggedIn()) {
+        window.InfraGeoAuth.pingAccess?.("mapa");
+      }
       if (window.InfraGeoAuth.getUser?.()?.must_change_password) {
         window.location.replace("/definir-senha");
         return;

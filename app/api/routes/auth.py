@@ -14,6 +14,7 @@ from app.core.exceptions import WebGISException
 from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_access_token
 from app.database import get_db
 from app.schemas.auth import (
+    AuditAccessIn,
     ChangePasswordRequest,
     CreateUserRequest,
     CreatedUserResponse,
@@ -68,15 +69,20 @@ def login(
                 action="login_falha",
                 summary=f"Login recusado para {payload.username}",
                 actor_email=payload.username,
+                target="login",
                 request=request,
+                db=db,
             )
         raise
+    quem = result.user.email or result.user.username
     audit_service.record(
         category="login",
         action="login",
-        summary="Entrou no sistema",
+        summary=f"Entrou no sistema ({quem})",
         actor=result.user,
+        target="login",
         request=request,
+        db=db,
     )
     _set_session_cookie(response, result.access_token)
     return result
@@ -166,9 +172,11 @@ def logout(
         audit_service.record(
             category="login",
             action="logout",
-            summary="Saiu do sistema",
+            summary=f"Saiu do sistema ({actor.email or actor.username})",
             actor=actor,
+            target="logout",
             request=request,
+            db=db,
         )
     kw = _cookie_kwargs()
     response.delete_cookie(
@@ -300,9 +308,13 @@ def list_audit(
 @router.post("/audit/acesso")
 def audit_acesso(
     request: Request,
+    payload: AuditAccessIn,
     user: auth_service.AuthPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict[str, bool]:
-    audit_service.record_access_once(actor=user, pagina="painel", request=request)
+    audit_service.record_access_once(
+        actor=user, pagina=payload.pagina, request=request, db=db
+    )
     return {"ok": True}
 
 

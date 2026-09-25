@@ -318,6 +318,17 @@ def _ensure_meta_table(eng: Engine) -> None:
                 """
             )
         )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.infrageo_group_labels (
+                  group_id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
 
 
 def _set_layer_placement(eng: Engine, schema_name: str, group_id: str) -> None:
@@ -435,6 +446,18 @@ def _custom_groups(eng: Engine) -> list[dict[str, Any]]:
         return []
 
 
+def _group_labels(eng: Engine) -> dict[str, str]:
+    try:
+        _ensure_meta_table(eng)
+        with eng.connect() as conn:
+            rows = conn.execute(
+                text("SELECT group_id, name FROM public.infrageo_group_labels")
+            ).fetchall()
+        return {str(r[0]): str(r[1]) for r in rows if str(r[1] or "").strip()}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _all_group_defs(eng: Engine | None = None) -> list[dict[str, Any]]:
     base = [dict(g) for g in GROUP_DEFS]
     if eng is None:
@@ -445,6 +468,11 @@ def _all_group_defs(eng: Engine | None = None) -> list[dict[str, Any]]:
         if g["id"] not in known:
             base.append(g)
             known.add(g["id"])
+    labels = _group_labels(eng)
+    for g in base:
+        overlay = labels.get(g["id"])
+        if overlay:
+            g["name"] = overlay
     return base
 
 
@@ -709,7 +737,7 @@ class PostGISService:
         }
         other = {
             "id": "outros",
-            "name": "Outros",
+            "name": _group_labels(self.engine).get("outros") or "Outros",
             "icon": "📦",
             "iconClass": "layer-group__icon--grid",
             "layers": [],
@@ -764,7 +792,7 @@ class PostGISService:
         result_groups = [
             groups[g["id"]]
             for g in group_defs
-            if groups[g["id"]]["layers"] or g.get("show_empty")
+            if groups[g["id"]]["layers"] or g.get("show_empty") or g.get("custom")
         ]
         if other["layers"]:
             result_groups.append(other)
@@ -779,10 +807,19 @@ class PostGISService:
 
     def list_sidebar_groups(self) -> list[dict[str, Any]]:
         """Grupos disponíveis para upload (fixos + customizados)."""
-        return [
+        labels = _group_labels(self.engine)
+        rows = [
             {"id": g["id"], "name": g["name"], "custom": bool(g.get("custom"))}
             for g in _all_group_defs(self.engine)
         ]
+        rows.append(
+            {
+                "id": "outros",
+                "name": labels.get("outros") or "Outros",
+                "custom": False,
+            }
+        )
+        return rows
 
     def create_custom_group(self, name: str) -> dict[str, Any]:
         label = (name or "").strip()
@@ -816,6 +853,42 @@ class PostGISService:
                 {"id": gid, "name": label},
             )
         return {"ok": True, "id": gid, "name": label, "custom": True}
+
+    def update_group_name(self, group_id: str, name: str) -> dict[str, Any]:
+        """Troca o nome de exibição do grupo na sidebar, sem upload."""
+        gid = (group_id or "").strip()
+        label = (name or "").strip()
+        if len(label) < 2:
+            raise WebGISException("Informe um nome de grupo (mín. 2 caracteres)", status_code=400)
+        if not gid:
+            raise WebGISException("Grupo inválido", status_code=400)
+        valid = {g["id"] for g in _all_group_defs(self.engine)} | {"outros"}
+        if gid not in valid:
+            raise WebGISException(f"Grupo não encontrado: {gid}", status_code=404)
+        _ensure_meta_table(self.engine)
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO public.infrageo_group_labels (group_id, name)
+                    VALUES (:id, :name)
+                    ON CONFLICT (group_id) DO UPDATE
+                      SET name = EXCLUDED.name, updated_at = now()
+                    """
+                ),
+                {"id": gid, "name": label},
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE public.infrageo_custom_groups
+                    SET name = :name, updated_at = now()
+                    WHERE id = :id
+                    """
+                ),
+                {"id": gid, "name": label},
+            )
+        return {"ok": True, "id": gid, "name": label}
 
     def update_layer_meta(
         self,

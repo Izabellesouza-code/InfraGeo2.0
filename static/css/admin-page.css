@@ -525,6 +525,216 @@ body.is-admin-users #btn-nova-camada {
   font-size: 1.05rem;
 }
 
+.admin-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: end;
+  margin: 0 0 1rem;
+}
+
+.admin-inline-form label {
+  margin: 0;
+  flex: 1 1 220px;
+}
+
+.admin-new-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: end;
+  margin: 0 0 1.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed #c5d6ce;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f7fbf9, #eef5f1);
+}
+
+.admin-new-group > div {
+  display: grid;
+  gap: 0.28rem;
+  flex: 1 1 240px;
+}
+
+.admin-new-group span {
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6f867c;
+}
+
+.admin-new-group input {
+  width: 100%;
+  border: 1px solid #cfe0d8;
+  border-radius: 12px;
+  padding: 0.58rem 0.8rem;
+  font: inherit;
+  color: #12263a;
+  background: #fff;
+}
+
+.admin-new-group .admin-btn {
+  padding: 0.58rem 1.1rem;
+}
+
+.admin-catalog {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-cat-group {
+  overflow: hidden;
+  border: 1px solid #dce8e3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(10, 46, 44, 0.05);
+}
+
+.admin-cat-group header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  background: #0A2E2C;
+  color: #e8f3ee;
+  cursor: pointer;
+}
+
+.admin-cat-chevron {
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: auto;
+  border-right: 2px solid #c5ddd6;
+  border-bottom: 2px solid #c5ddd6;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.admin-cat-group.is-open .admin-cat-chevron {
+  transform: rotate(-135deg);
+}
+
+.admin-cat-layers {
+  display: none;
+}
+
+.admin-cat-group.is-open .admin-cat-layers {
+  display: grid;
+  gap: 0;
+}
+
+.admin-cat-mark {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.admin-cat-group__title {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.admin-cat-group__title span {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9cb8b0;
+  font-weight: 750;
+}
+
+.admin-cat-group header em {
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #c5ddd6;
+  white-space: nowrap;
+}
+
+.admin-cat-group header .admin-btn {
+  background: #fff;
+  color: #0A2E2C;
+  padding: 0.48rem 0.95rem;
+}
+
+.admin-cat-input {
+  width: 100%;
+  border: 1px solid #d5e3ea;
+  border-radius: 12px;
+  padding: 0.52rem 0.75rem;
+  font: inherit;
+  color: #12263a;
+  background: #fff;
+}
+
+.admin-cat-input--group {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 750;
+  font-size: 1.02rem;
+}
+
+.admin-cat-input--group:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.admin-cat-input--group:disabled {
+  opacity: 0.7;
+}
+
+.admin-cat-layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(10rem, 0.8fr) auto;
+  gap: 0.85rem;
+  align-items: end;
+  padding: 0.9rem 1rem;
+  border-top: 1px solid #edf3f0;
+}
+
+.admin-cat-layer:nth-child(even) {
+  background: #f7fbf9;
+}
+
+.admin-cat-layer__name,
+.admin-cat-layer__group {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7b8fa3;
+}
+
+.admin-cat-layer small,
+.admin-cat-empty {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #8aa0b3;
+  font-size: 0.72rem;
+}
+
+.admin-cat-empty {
+  margin: 0;
+  padding: 1rem;
+}
+
+.admin-cat-layer .ig-combo {
+  width: 100%;
+}
+
 .admin-card__head .ig-combo {
   width: auto;
   min-width: 11.2rem;
@@ -661,9 +871,9 @@ body.is-admin-users #btn-nova-camada {
   color: #1d4e89;
 }
 
-.admin-pill--acesso {
-  background: #eaf7f1;
-  color: #0A2E2C;
+.admin-pill--mapa {
+  background: #ecfeff;
+  color: #0e7490;
 }
 
 .admin-pill--alteracao {
@@ -1496,6 +1706,114 @@ body.is-admin-users #btn-nova-camada {
   .admin-head__actions .admin-btn {
     width: 100%;
   }
+
+  .admin-cat-layer {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-cat-layer .admin-btn {
+    width: 100%;
+  }
+}
+
+.admin-new-group {
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 0.65rem;
+  max-width: none;
+  width: 100%;
+  padding: 0.4rem 0.5rem 0.4rem 0.65rem;
+  border-radius: 12px;
+  background: #f4f8f6;
+}
+
+.admin-new-group > div {
+  gap: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-new-group span {
+  display: none;
+}
+
+.admin-new-group input {
+  padding: 0.36rem 0.6rem;
+  font-size: 0.84rem;
+  border-radius: 10px;
+}
+
+.admin-new-group .admin-btn {
+  padding: 0.36rem 0.8rem;
+  font-size: 0.78rem;
+}
+
+.admin-catalog {
+  gap: 0.35rem;
+  max-width: none;
+  width: 100%;
+}
+
+.admin-cat-group {
+  border-radius: 11px;
+  box-shadow: none;
+}
+
+.admin-cat-group header {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  padding: 0.28rem 0.45rem 0.28rem 0.4rem;
+  min-height: 2.35rem;
+}
+
+.admin-cat-mark {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 7px;
+  font-size: 0.7rem;
+}
+
+.admin-cat-group__title {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-cat-group__title span {
+  display: none;
+}
+
+.admin-cat-group header em {
+  font-size: 0.66rem;
+}
+
+.admin-cat-group header .admin-btn {
+  padding: 0.22rem 0.62rem;
+  font-size: 0.72rem;
+}
+
+.admin-cat-input--group {
+  font-size: 0.84rem;
+  padding: 0.22rem 0.45rem;
+}
+
+.admin-cat-chevron {
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: 0.1rem;
+}
+
+.admin-cat-layer {
+  grid-template-columns: minmax(0, 1.4fr) minmax(8rem, 0.7fr) auto;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.admin-cat-layer .admin-btn {
+  padding: 0.32rem 0.75rem;
+  font-size: 0.75rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

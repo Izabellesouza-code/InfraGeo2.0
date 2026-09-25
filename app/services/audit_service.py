@@ -39,6 +39,13 @@ def _actor_fields(actor: Any) -> tuple[int | None, str, str]:
         aid = int(aid) if aid is not None else None
     except (TypeError, ValueError):
         aid = None
+    if hasattr(actor, "model_dump"):
+        try:
+            dumped = actor.model_dump()
+            if isinstance(dumped, dict):
+                return _actor_fields(dumped)
+        except Exception:  # noqa: BLE001
+            pass
     nome = str(
         getattr(actor, "full_name", None)
         or getattr(actor, "nome", None)
@@ -59,6 +66,7 @@ def record(
     target: str = "",
     ip: str = "",
     request: Request | None = None,
+    db: Session | None = None,
 ) -> None:
     """Registra um evento. Falha silenciosa para não quebrar a ação principal."""
     from app.database import SessionLocal
@@ -68,7 +76,9 @@ def record(
         email = actor_email[:200]
         if not nome:
             nome = actor_email[:200]
-    db = SessionLocal()
+    own = db is None
+    if own:
+        db = SessionLocal()
     try:
         db.add(
             AuditLog(
@@ -87,7 +97,8 @@ def record(
         db.rollback()
         print(f"[audit] {exc}")
     finally:
-        db.close()
+        if own:
+            db.close()
 
 
 def record_access_once(
@@ -95,20 +106,28 @@ def record_access_once(
     actor: Any,
     pagina: str,
     request: Request | None = None,
-    minutes: int = 15,
+    minutes: int = 10,
+    db: Session | None = None,
 ) -> None:
-    """Evita encher o log com o mesmo acesso ao painel em poucos minutos."""
+    """Evita encher o log com o mesmo acesso no intervalo."""
     from app.database import SessionLocal
 
     actor_id, nome, email = _actor_fields(actor)
-    pagina_l = (pagina or "painel")[:80]
-    db = SessionLocal()
+    key = (pagina or "mapa").strip().lower()[:80]
+    if key not in {"mapa", "painel"}:
+        key = "mapa"
+    labels = {
+        "mapa": "Abriu o mapa",
+        "painel": "Abriu o painel de administrador",
+    }
+    own = db is None
+    if own:
+        db = SessionLocal()
     try:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
         q = db.query(AuditLog).filter(
             AuditLog.category == "acesso",
-            AuditLog.action == "acesso",
-            AuditLog.target == pagina_l,
+            AuditLog.target == key,
             AuditLog.created_at >= cutoff,
         )
         if actor_id is not None:
@@ -121,11 +140,11 @@ def record_access_once(
             AuditLog(
                 category="acesso",
                 action="acesso",
-                summary=f"Acessou o {pagina_l}",
+                summary=labels[key],
                 actor_id=actor_id,
                 actor_nome=nome,
                 actor_email=email,
-                target=pagina_l,
+                target=key,
                 ip=client_ip(request),
             )
         )
@@ -134,20 +153,29 @@ def record_access_once(
         db.rollback()
         print(f"[audit] {exc}")
     finally:
-        db.close()
+        if own:
+            db.close()
 
 
 def list_logs(
     db: Session,
     *,
     category: str | None = None,
-    limit: int = 250,
+    limit: int = 400,
 ) -> list[AuditLog]:
     q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
     key = (category or "").strip().lower()
-    if key in {"login", "acesso", "alteracao"}:
-        q = q.filter(AuditLog.category == key)
-    cap = max(1, min(int(limit or 250), 500))
+    if key == "login":
+        q = q.filter(AuditLog.category == "login")
+    elif key == "mapa":
+        q = q.filter(AuditLog.category == "acesso", AuditLog.target == "mapa")
+    elif key == "painel":
+        q = q.filter(AuditLog.category == "acesso", AuditLog.target == "painel")
+    elif key == "acesso":
+        q = q.filter(AuditLog.category == "acesso")
+    elif key == "alteracao":
+        q = q.filter(AuditLog.category == "alteracao")
+    cap = max(1, min(int(limit or 400), 800))
     return q.limit(cap).all()
 
 

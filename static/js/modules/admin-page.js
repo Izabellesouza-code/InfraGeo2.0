@@ -39,7 +39,7 @@
 
   const titles = {
     overview: ["Visão geral", "Gerencie os dados e a publicação do WebGIS InfraGeo AM."],
-    layers: ["Camadas", "Gerencie os dados e a publicação do WebGIS InfraGeo AM."],
+    layers: ["Camadas", "Renomeie grupos e subcamadas do mapa sem enviar arquivo novo."],
     imports: ["Importações", "Envie shapefiles e renomeie subcamadas do catálogo."],
     users: ["Usuários", "Cadastre contas e veja o perfil de quem acessa o WebGIS."],
     activity: ["Atividade", "Veja quem entrou, quem acessou o painel e quem alterou dados, com data e hora."],
@@ -115,10 +115,21 @@
     }).format(d);
   }
 
-  function auditTypeLabel(category) {
-    if (category === "login") return "Login";
-    if (category === "acesso") return "Acesso";
+  function auditTypeLabel(row) {
+    if (row.category === "login") {
+      return row.action === "logout" ? "Saída" : "Login";
+    }
+    if (row.category === "acesso") {
+      return row.target === "painel" ? "Painel" : "Mapa";
+    }
     return "Alteração";
+  }
+
+  function auditPillClass(row) {
+    if (row.category === "login") return "login";
+    if (row.target === "painel") return "acesso";
+    if (row.target === "mapa") return "mapa";
+    return "alteracao";
   }
 
   function renderAudit(items) {
@@ -133,7 +144,7 @@
               const mail = row.actor_email && row.actor_email !== who ? row.actor_email : "";
               return `<tr>
                 <td>${escapeHtml(formatAuditWhen(row.created_at))}</td>
-                <td><span class="admin-pill admin-pill--${escapeHtml(row.category || "alteracao")}">${escapeHtml(auditTypeLabel(row.category))}</span></td>
+                <td><span class="admin-pill admin-pill--${escapeHtml(auditPillClass(row))}">${escapeHtml(auditTypeLabel(row))}</span></td>
                 <td><span class="admin-user"><b>${escapeHtml(who)}</b>${mail ? `<small>${escapeHtml(mail)}</small>` : ""}</span></td>
                 <td>${escapeHtml(row.summary || "")}</td>
               </tr>`;
@@ -207,6 +218,7 @@
 
   let catalogLayers = [];
   let catalogGroups = [];
+  let catalogOpenGroups = new Set();
   let adminUsers = [];
   let userLevelFilter = "todas";
 
@@ -251,6 +263,69 @@
     fillSelect(document.getElementById("admin-rename-group"), groupItems, "Selecione a camada…");
   }
 
+  function groupOptionsHtml(selected) {
+    return catalogGroups
+      .map((g) => {
+        const sel = g.id === selected ? " selected" : "";
+        return `<option value="${escapeHtml(g.id)}"${sel}>${escapeHtml(g.name || g.id)}</option>`;
+      })
+      .join("");
+  }
+
+  function renderCatalogEditor() {
+    const box = document.getElementById("catalog-editor");
+    if (!box) return;
+    if (!catalogGroups.length) {
+      box.innerHTML = '<p class="admin-empty">Nenhum grupo no catálogo.</p>';
+      return;
+    }
+    box.innerHTML = catalogGroups
+      .map((g) => {
+        const layers = g.layers || [];
+        const n = layers.length;
+        const rows = layers.length
+          ? layers
+              .map((layer) => {
+                const key = layerKey(layer);
+                const gid = layer.groupId || layer.group_id || g.id;
+                const type = geomLabel(layer.type || layer.geom_type);
+                return `<article class="admin-cat-layer">
+                  <div class="admin-cat-layer__name">
+                    <label>Nome no mapa
+                      <input class="admin-cat-input" data-layer-name="${escapeHtml(key)}" value="${escapeHtml(layer.name || "")}" maxlength="80" />
+                    </label>
+                    <small>${escapeHtml(type)} · ${escapeHtml(layer.schema || "")}.${escapeHtml(layer.table || "")}</small>
+                  </div>
+                  <label class="admin-cat-layer__group">Grupo
+                    <select data-native-select="1" data-layer-group="${escapeHtml(key)}">${groupOptionsHtml(gid)}</select>
+                  </label>
+                  <button type="button" class="admin-btn" data-save-layer="${escapeHtml(key)}">Salvar</button>
+                </article>`;
+              })
+              .join("")
+          : `<p class="admin-cat-empty">Nenhuma subcamada neste grupo.</p>`;
+        const opened = catalogOpenGroups.has(g.id);
+        return `<section class="admin-cat-group${opened ? " is-open" : ""}" data-group="${escapeHtml(g.id)}">
+          <header data-toggle-group="${escapeHtml(g.id)}">
+            <span class="admin-cat-mark" aria-hidden="true">${escapeHtml((g.name || "G").charAt(0))}</span>
+            <div class="admin-cat-group__title">
+              <span>Grupo da sidebar</span>
+              <input class="admin-cat-input admin-cat-input--group" data-group-name="${escapeHtml(g.id)}" value="${escapeHtml(g.name || "")}" maxlength="80" />
+            </div>
+            <em>${n} ${n === 1 ? "subcamada" : "subcamadas"}</em>
+            <button type="button" class="admin-btn" data-save-group="${escapeHtml(g.id)}">Salvar grupo</button>
+            <span class="admin-cat-chevron" aria-hidden="true"></span>
+          </header>
+          <div class="admin-cat-layers">${rows}</div>
+        </section>`;
+      })
+      .join("");
+    box.querySelectorAll("select").forEach((sel) => {
+      sel.dataset.nativeSelect = "1";
+      window.InfraGeoSelectCombo?.enhance?.(sel);
+    });
+  }
+
   function syncUploadDest() {
     const dest = document.querySelector('input[name="admin_upload_dest"]:checked')?.value || "existing";
     const existing = document.getElementById("admin-upload-existing-wrap");
@@ -260,15 +335,16 @@
   }
 
   function goRename(layer) {
-    setView("imports");
-    fillImportSelects();
-    const sel = document.getElementById("admin-rename-layer");
-    const name = document.getElementById("admin-rename-name");
-    const group = document.getElementById("admin-rename-group");
-    if (sel && layer?.schema && layer?.table) sel.value = layerKey(layer);
-    if (name) name.value = layer?.name || "";
-    if (group) group.value = layer?.groupId || layer?.group_id || "";
-    document.getElementById("form-admin-rename")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setView("layers");
+    const gid = layer?.groupId || layer?.group_id;
+    if (gid) catalogOpenGroups.add(gid);
+    window.setTimeout(() => {
+      renderCatalogEditor();
+      const key = layer?.schema && layer?.table ? layerKey(layer) : "";
+      const input = key ? document.querySelector(`[data-layer-name="${key.replace(/"/g, "")}"]`) : null;
+      input?.focus();
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
   }
 
   let feedbackItems = [];
@@ -434,7 +510,7 @@
         method: "POST",
         credentials: window.InfraGeoApi?.credentials?.() || "include",
         headers: authHeaders(true),
-        body: "{}",
+        body: JSON.stringify({ pagina: "painel" }),
       }).catch(() => {});
     }
     const auditPayload = auditRes && auditRes.ok ? await auditRes.json().catch(() => ({ items: [] })) : { items: [] };
@@ -496,6 +572,7 @@
         ? catalogLayers.map((layer, i) => layerRow(layer, i, "Hoje")).join("")
         : '<tr><td colspan="5">Nenhuma camada no catálogo.</td></tr>';
     }
+    renderCatalogEditor();
 
     const tbody = document.getElementById("admin-users-body");
     if (tbody) {
@@ -901,7 +978,11 @@
 
   document.getElementById("btn-admin-sair")?.addEventListener("click", async () => {
     try {
-      await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: window.InfraGeoApi?.credentials?.() || "include" });
+      await fetch(apiUrl("/api/auth/logout"), {
+        method: "POST",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
+        headers: authHeaders(),
+      });
     } catch {
       /* ignore */
     }
@@ -943,6 +1024,109 @@
       name: btn.getAttribute("data-name"),
       groupId: btn.getAttribute("data-group"),
     });
+  });
+
+  document.getElementById("form-admin-new-group")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const err = document.getElementById("admin-new-group-erro");
+    const name = (document.getElementById("admin-new-group-name")?.value || "").trim();
+    if (err) { err.hidden = true; err.textContent = ""; }
+    if (name.length < 2) {
+      if (err) { err.textContent = "Informe um nome de grupo."; err.hidden = false; }
+      return;
+    }
+    const body = new FormData();
+    body.append("name", name);
+    try {
+      const res = await fetch(apiUrl("/api/postgis/groups"), {
+        method: "POST",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
+        headers: authHeaders(),
+        body,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(formatApiError(data, res.status));
+      const input = document.getElementById("admin-new-group-name");
+      if (input) input.value = "";
+      await loadAll();
+    } catch (e) {
+      if (err) { err.textContent = e.message || "Não foi possível criar o grupo"; err.hidden = false; }
+    }
+  });
+
+  document.getElementById("catalog-editor")?.addEventListener("click", async (ev) => {
+    const head = ev.target.closest("[data-toggle-group]");
+    if (head && !ev.target.closest("input, button, select, label")) {
+      const id = head.getAttribute("data-toggle-group");
+      const card = head.closest(".admin-cat-group");
+      const willOpen = !card?.classList.contains("is-open");
+      if (willOpen) catalogOpenGroups.add(id);
+      else catalogOpenGroups.delete(id);
+      card?.classList.toggle("is-open", willOpen);
+      return;
+    }
+    const saveGroup = ev.target.closest("[data-save-group]");
+    const saveLayer = ev.target.closest("[data-save-layer]");
+    if (saveGroup) {
+      const id = saveGroup.getAttribute("data-save-group");
+      const name = (document.querySelector(`[data-group-name="${id}"]`)?.value || "").trim();
+      if (!id || name.length < 2) {
+        showError("Informe o nome do grupo.");
+        return;
+      }
+      saveGroup.disabled = true;
+      try {
+        const body = new FormData();
+        body.append("name", name);
+        const res = await fetch(apiUrl(`/api/postgis/groups/${encodeURIComponent(id)}`), {
+          method: "PATCH",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
+          headers: authHeaders(),
+          body,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatApiError(data, res.status));
+        catalogOpenGroups.add(id);
+        await loadAll();
+      } catch (e) {
+        showError(e.message || "Não foi possível salvar o grupo");
+      } finally {
+        saveGroup.disabled = false;
+      }
+      return;
+    }
+    if (saveLayer) {
+      const key = saveLayer.getAttribute("data-save-layer") || "";
+      const [schema, table] = key.split("::");
+      const displayName = (document.querySelector(`[data-layer-name="${key}"]`)?.value || "").trim();
+      const groupId = document.querySelector(`[data-layer-group="${key}"]`)?.value || "";
+      if (!schema || !table || !displayName) {
+        showError("Informe o nome da subcamada.");
+        return;
+      }
+      saveLayer.disabled = true;
+      try {
+        const body = new FormData();
+        body.append("layer_schema", schema);
+        body.append("layer_table", table);
+        body.append("display_name", displayName);
+        if (groupId) body.append("group_id", groupId);
+        const res = await fetch(apiUrl("/api/postgis/layers/meta"), {
+          method: "PATCH",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
+          headers: authHeaders(),
+          body,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatApiError(data, res.status));
+        if (groupId) catalogOpenGroups.add(groupId);
+        await loadAll();
+      } catch (e) {
+        showError(e.message || "Não foi possível salvar a subcamada");
+      } finally {
+        saveLayer.disabled = false;
+      }
+    }
   });
 
   document.getElementById("form-admin-rename")?.addEventListener("submit", async (ev) => {

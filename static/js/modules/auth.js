@@ -103,12 +103,37 @@ window.InfraGeoAuth = (function () {
       await fetch(window.InfraGeoApi.url("/api/auth/logout"), {
         method: "POST",
         credentials: window.InfraGeoApi?.credentials?.() || "include",
+        headers: authHeaders(),
       });
     } catch {
       /* ignore */
     }
     clearSession();
     pendingUpload = null;
+    try {
+      sessionStorage.removeItem("infrageo_audit_mapa");
+      sessionStorage.removeItem("infrageo_audit_painel");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function pingAccess(pagina) {
+    const page = pagina === "painel" ? "painel" : "mapa";
+    const flag = "infrageo_audit_" + page;
+    try {
+      if (sessionStorage.getItem(flag) === "1") return;
+      sessionStorage.setItem(flag, "1");
+    } catch {
+      /* ignore */
+    }
+    if (!getToken() && !document.cookie) return;
+    fetch(window.InfraGeoApi.url("/api/auth/audit/acesso"), {
+      method: "POST",
+      credentials: window.InfraGeoApi?.credentials?.() || "include",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ pagina: page }),
+    }).catch(() => {});
   }
 
   function permissionLabel(user) {
@@ -280,6 +305,7 @@ window.InfraGeoAuth = (function () {
     requireLogin,
     login,
     logout,
+    pingAccess,
     openLogin,
   };
 })();
