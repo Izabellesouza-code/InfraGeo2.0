@@ -269,11 +269,12 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
     db.commit()
 
 
+DEFAULT_TEMPORARY_PASSWORD = "InfraGeo@2026"
+
+
 def generate_temporary_password() -> str:
-    """Senha curta (5) no tema InfraGeo, com @ e dígitos de 1 a 5."""
-    a = secrets.choice("12345")
-    b = secrets.choice("12345")
-    return f"IG@{a}{b}"
+    """Senha provisória padrão até o primeiro acesso."""
+    return DEFAULT_TEMPORARY_PASSWORD
 
 
 def list_usuarios(db: Session) -> list[Usuario]:

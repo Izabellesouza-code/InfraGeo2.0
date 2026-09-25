@@ -25,6 +25,10 @@
     return data?.message || `HTTP ${status}`;
   }
 
+  function generateTemporaryPassword() {
+    return "InfraGeo@2026";
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -486,6 +490,7 @@
     const payload = {
       nome: document.getElementById("admin-nome")?.value?.trim(),
       email: document.getElementById("admin-email")?.value?.trim(),
+      password: generateTemporaryPassword(),
       ...flags,
     };
     if (!payload.nome || !payload.email) {
@@ -510,12 +515,15 @@
       const nivel = document.getElementById("admin-acesso");
       if (nivel) nivel.value = "view";
       if (okEl) {
-        const senha = data.temporary_password || "";
+        const senha = data.temporary_password || payload.password || "";
         const email = data.email || payload.email || "";
         okEl.hidden = false;
         okEl.className = "admin-ok admin-creds";
         okEl.innerHTML = senha
-          ? `<span>E-mail e senha aleatória</span><strong>${escapeHtml(email)}</strong><code>${escapeHtml(senha)}</code>`
+        okEl.innerHTML = senha
+          ? `<span>Acesso provisório</span>
+             <p class="admin-creds__row"><b>E-mail</b> ${escapeHtml(email)}</p>
+             <p class="admin-creds__row"><b>Senha</b> <code>${escapeHtml(senha)}</code></p>`
           : "Usuário cadastrado.";
       }
       try {

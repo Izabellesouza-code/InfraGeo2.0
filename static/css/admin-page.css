@@ -1152,6 +1152,24 @@ body.is-admin-users #btn-nova-camada {
   font-family: inherit;
 }
 
+.admin-creds__row {
+  margin: 0;
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  color: #16324f;
+  font-size: 0.86rem;
+}
+
+.admin-creds__row b {
+  min-width: 3.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8aa0b3;
+}
+
 .admin-flash,
 .admin-empty {
   color: #5b6f86;

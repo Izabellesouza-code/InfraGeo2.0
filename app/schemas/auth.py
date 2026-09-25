@@ -39,7 +39,7 @@ class UserPublic(BaseModel):
 class CreateUserRequest(BaseModel):
     nome: str = Field(..., min_length=2, max_length=200)
     email: str = Field(..., min_length=3, max_length=200)
-    password: Optional[str] = Field(default=None, max_length=200)
+    password: Optional[str] = Field(default="", max_length=200)
     is_admin: bool = False
     can_upload: bool = True
 
