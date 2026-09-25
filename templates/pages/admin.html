@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/select-combo.css?v=2" />
-  <link rel="stylesheet" href="/static/css/admin-page.css?v=38" />
+  <link rel="stylesheet" href="/static/css/admin-page.css?v=39" />
 </head>
 <body class="admin-shell">
   <aside class="admin-nav" aria-label="Console administrativo">
@@ -68,6 +68,13 @@
           <small>Contas e permissões</small>
         </span>
       </button>
+      <button type="button" data-view="activity">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        <span class="admin-nav__item">
+          <b>Atividade</b>
+          <small>Logins, acessos e alterações</small>
+        </span>
+      </button>
       <button type="button" data-view="feedback">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5h14v10H8l-3 3V5z"/></svg>
         <span class="admin-nav__item">
@@ -89,7 +96,8 @@
       <div class="admin-nav__tips">
         <p><b>1</b> Camadas e importações publicam o que aparece no mapa.</p>
         <p><b>2</b> Usuários define quem entra e o nível de acesso.</p>
-        <p><b>3</b> Sugestões é a fila do agente; o número indica envios novos.</p>
+        <p><b>3</b> Atividade registra logins, acessos e quem alterou o quê.</p>
+        <p><b>4</b> Sugestões é a fila do agente; o número indica envios novos.</p>
       </div>
       <p class="admin-nav__ver">{{ app_name }} · v{{ app_version }}</p>
     </div>
@@ -177,6 +185,16 @@
           </div>
           <ul class="admin-status" id="admin-status"></ul>
           <a class="admin-more" href="#settings" id="link-status" data-view="settings">Ver status completo →</a>
+        </article>
+        <article class="admin-card">
+          <div class="admin-card__head">
+            <div>
+              <p class="admin-card__kicker">Controle</p>
+              <h2>Última atividade</h2>
+            </div>
+            <button type="button" class="admin-more" data-view="activity">Ver histórico →</button>
+          </div>
+          <ul class="admin-activity-preview" id="overview-activity"></ul>
         </article>
       </div>
 
@@ -417,6 +435,37 @@
       </div>
     </section>
 
+    <section class="admin-view" data-view-panel="activity">
+      <article class="admin-card">
+        <div class="admin-card__head">
+          <div>
+            <p class="admin-card__kicker">Auditoria</p>
+            <h2>Logins, acessos e alterações</h2>
+          </div>
+        </div>
+        <p class="admin-help">Cada linha mostra quem fez, o que mudou e a data/hora (horário de Manaus).</p>
+        <div class="admin-seg" id="activity-filter" role="radiogroup" aria-label="Filtrar atividade">
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="" checked /> Tudo</label>
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="login" /> Logins</label>
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="acesso" /> Acessos</label>
+          <label class="admin-seg__item"><input type="radio" name="activity_filter" value="alteracao" /> Alterações</label>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table admin-table--audit">
+            <thead>
+              <tr>
+                <th>Data e hora</th>
+                <th>Tipo</th>
+                <th>Usuário</th>
+                <th>O que aconteceu</th>
+              </tr>
+            </thead>
+            <tbody id="admin-audit-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
     <section class="admin-view" data-view-panel="feedback">
       <article class="admin-card">
         <div class="admin-card__head">
@@ -455,6 +504,6 @@
   <script src="/static/js/config/runtime.js?v=2"></script>
   <script src="/static/js/config/api.js?v=3"></script>
   <script src="/static/js/modules/select-combo.js?v=1"></script>
-  <script src="/static/js/modules/admin-page.js?v=37"></script>
+  <script src="/static/js/modules/admin-page.js?v=38"></script>
 </body>
 </html>

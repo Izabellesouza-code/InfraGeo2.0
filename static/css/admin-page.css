@@ -494,7 +494,7 @@ body.is-admin-users #btn-nova-camada {
 
 .admin-mid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0.85rem;
   margin: 0.85rem 0;
 }
@@ -654,6 +654,61 @@ body.is-admin-users #btn-nova-camada {
 .admin-pill--draft {
   background: #fff4e0;
   color: #c2410c;
+}
+
+.admin-pill--login {
+  background: #e8f4ff;
+  color: #1d4e89;
+}
+
+.admin-pill--acesso {
+  background: #eaf7f1;
+  color: #0A2E2C;
+}
+
+.admin-pill--alteracao {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.admin-activity-preview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.admin-activity-preview li {
+  display: grid;
+  gap: 0.12rem;
+  font-size: 0.82rem;
+  color: #3d5568;
+  line-height: 1.35;
+}
+
+.admin-activity-preview b {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #8aa0b3;
+}
+
+.admin-user {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.admin-user small {
+  color: #8aa0b3;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.admin-table--audit td:first-child {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #5b6f86;
+  font-size: 0.8rem;
 }
 
 .admin-eye {

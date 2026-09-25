@@ -42,6 +42,7 @@
     layers: ["Camadas", "Gerencie os dados e a publicação do WebGIS InfraGeo AM."],
     imports: ["Importações", "Envie shapefiles e renomeie subcamadas do catálogo."],
     users: ["Usuários", "Cadastre contas e veja o perfil de quem acessa o WebGIS."],
+    activity: ["Atividade", "Veja quem entrou, quem acessou o painel e quem alterou dados, com data e hora."],
     feedback: ["Sugestões e reclamações", "Filtre a fila, abra o ponto no mapa e mude o status. A planilha atualiza junto."],
     settings: ["Configurações", "Atalhos do console administrativo."],
   };
@@ -69,6 +70,8 @@
     if (sub) sub.textContent = t[1];
     document.body.classList.toggle("is-admin-feedback", name === "feedback");
     document.body.classList.toggle("is-admin-users", name === "users");
+    document.body.classList.toggle("is-admin-activity", name === "activity");
+    if (name === "activity") loadAudit();
     showError("");
     moveNavSlider();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -92,6 +95,74 @@
     if (!errEl) return;
     errEl.textContent = msg || "";
     errEl.hidden = !msg;
+  }
+
+  let auditFilter = "";
+  let auditItems = [];
+
+  function formatAuditWhen(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Manaus",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(d);
+  }
+
+  function auditTypeLabel(category) {
+    if (category === "login") return "Login";
+    if (category === "acesso") return "Acesso";
+    return "Alteração";
+  }
+
+  function renderAudit(items) {
+    auditItems = Array.isArray(items) ? items : [];
+    const tbody = document.getElementById("admin-audit-body");
+    const preview = document.getElementById("overview-activity");
+    if (tbody) {
+      tbody.innerHTML = auditItems.length
+        ? auditItems
+            .map((row) => {
+              const who = row.actor_nome || row.actor_email || "Sistema";
+              const mail = row.actor_email && row.actor_email !== who ? row.actor_email : "";
+              return `<tr>
+                <td>${escapeHtml(formatAuditWhen(row.created_at))}</td>
+                <td><span class="admin-pill admin-pill--${escapeHtml(row.category || "alteracao")}">${escapeHtml(auditTypeLabel(row.category))}</span></td>
+                <td><span class="admin-user"><b>${escapeHtml(who)}</b>${mail ? `<small>${escapeHtml(mail)}</small>` : ""}</span></td>
+                <td>${escapeHtml(row.summary || "")}</td>
+              </tr>`;
+            })
+            .join("")
+        : `<tr><td colspan="4" class="admin-empty">Nenhum evento registrado ainda.</td></tr>`;
+    }
+    if (preview) {
+      const top = auditItems.slice(0, 6);
+      preview.innerHTML = top.length
+        ? top
+            .map(
+              (row) =>
+                `<li><b>${escapeHtml(formatAuditWhen(row.created_at))}</b><span>${escapeHtml(row.actor_nome || row.actor_email || "Sistema")} — ${escapeHtml(row.summary || "")}</span></li>`
+            )
+            .join("")
+        : "<li>Nenhuma atividade recente.</li>";
+    }
+  }
+
+  async function loadAudit() {
+    const qs = auditFilter ? `?category=${encodeURIComponent(auditFilter)}` : "";
+    const res = await fetch(apiUrl(`/api/auth/audit${qs}`), {
+      credentials: window.InfraGeoApi?.credentials?.() || "include",
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
+    renderAudit(data.items || []);
   }
 
   function geomLabel(type) {
@@ -327,7 +398,7 @@
 
   async function loadAll() {
     showError("");
-    const [catalogRes, layersRes, usersRes, healthRes, pgHealthRes, infoRes, feedbackRes, meRes] = await Promise.all([
+    const [catalogRes, layersRes, usersRes, healthRes, pgHealthRes, infoRes, feedbackRes, meRes, auditRes] = await Promise.all([
       fetch(apiUrl("/api/postgis/catalog"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
       fetch(apiUrl("/api/postgis/layers"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
       fetch(apiUrl("/api/auth/users"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
@@ -336,6 +407,7 @@
       fetch(apiUrl("/api/info"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
       fetch(apiUrl("/api/feedback"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
       fetch(apiUrl("/api/auth/me"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
+      fetch(apiUrl("/api/auth/audit"), { credentials: window.InfraGeoApi?.credentials?.() || "include", headers: authHeaders() }),
     ]);
 
     if (usersRes.status === 401 || usersRes.status === 403) {
@@ -358,7 +430,15 @@
         window.location.href = "/definir-senha";
         return;
       }
+      fetch(apiUrl("/api/auth/audit/acesso"), {
+        method: "POST",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
+        headers: authHeaders(true),
+        body: "{}",
+      }).catch(() => {});
     }
+    const auditPayload = auditRes && auditRes.ok ? await auditRes.json().catch(() => ({ items: [] })) : { items: [] };
+    renderAudit(auditPayload.items || []);
     renderFeedback(feedbackPayload);
 
     const groups = catalog.groups || [];
@@ -811,6 +891,12 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  });
+
+  document.getElementById("activity-filter")?.addEventListener("change", () => {
+    const checked = document.querySelector('#activity-filter input[name="activity_filter"]:checked');
+    auditFilter = checked?.value || "";
+    loadAudit().catch((err) => showError(err.message || "Não foi possível carregar a atividade"));
   });
 
   document.getElementById("btn-admin-sair")?.addEventListener("click", async () => {

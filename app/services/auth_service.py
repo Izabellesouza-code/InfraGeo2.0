@@ -439,6 +439,7 @@ def delete_usuario(db: Session, user_id: int, *, actor_id: int | None = None) ->
 def ensure_auth_ready(db: Session) -> None:
     """Garante schema usuarios, migra dados fora de public e hashes bcrypt."""
     from app.database import engine
+    from app.models.audit_log import AuditLog as AuditModel
     from app.models.password_reset import PasswordResetToken as ResetModel
     from app.models.usuario import AUTH_SCHEMA
 
@@ -447,6 +448,7 @@ def ensure_auth_ready(db: Session) -> None:
 
     Usuario.__table__.create(bind=engine, checkfirst=True)
     ResetModel.__table__.create(bind=engine, checkfirst=True)
+    AuditModel.__table__.create(bind=engine, checkfirst=True)
 
     dest = f"{AUTH_SCHEMA}.usuarios"
     dest_tokens = f"{AUTH_SCHEMA}.password_reset_tokens"

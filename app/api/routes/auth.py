@@ -25,7 +25,7 @@ from app.schemas.auth import (
     UpdateUserRequest,
     UserPublic,
 )
-from app.services import auth_service
+from app.services import audit_service, auth_service
 
 router = APIRouter()
 bearer = HTTPBearer(auto_error=False)
@@ -55,10 +55,29 @@ def _set_session_cookie(response: Response, token: str) -> None:
 def login(
     payload: LoginRequest,
     response: Response,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     """Autentica contra a tabela usuarios.usuarios no Neon."""
-    result = auth_service.login(db, payload.username, payload.password)
+    try:
+        result = auth_service.login(db, payload.username, payload.password)
+    except WebGISException as exc:
+        if exc.status_code in {401, 403}:
+            audit_service.record(
+                category="login",
+                action="login_falha",
+                summary=f"Login recusado para {payload.username}",
+                actor_email=payload.username,
+                request=request,
+            )
+        raise
+    audit_service.record(
+        category="login",
+        action="login",
+        summary="Entrou no sistema",
+        actor=result.user,
+        request=request,
+    )
     _set_session_cookie(response, result.access_token)
     return result
 
@@ -67,6 +86,7 @@ def login(
 def change_password(
     payload: ChangePasswordRequest,
     response: Response,
+    request: Request,
     principal: auth_service.AuthPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TokenResponse:
@@ -77,6 +97,13 @@ def change_password(
     result = auth_service.change_own_password(
         db, user, payload.current_password, payload.new_password
     )
+    audit_service.record(
+        category="alteracao",
+        action="senha",
+        summary="Alterou a própria senha",
+        actor=principal,
+        request=request,
+    )
     _set_session_cookie(response, result.access_token)
     return result
 
@@ -84,10 +111,19 @@ def change_password(
 @router.post("/recover-password")
 def recover_password(
     payload: RecoverPasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     """Redefine senha com e-mail e nome cadastrados no Neon."""
     auth_service.recover_password(db, payload.email, payload.nome, payload.new_password)
+    audit_service.record(
+        category="alteracao",
+        action="senha_recuperada",
+        summary="Redefiniu a senha pelo fluxo de recuperação",
+        actor_email=payload.email,
+        target=payload.email,
+        request=request,
+    )
     return {"message": "Senha atualizada. Faça login com a nova senha."}
 
 
@@ -114,7 +150,26 @@ def reset_password(
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, bool]:
+def logout(
+    request: Request,
+    response: Response,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    token = extract_access_token(request, credentials)
+    actor = None
+    if token:
+        payload = decode_access_token(token)
+        if payload:
+            actor = auth_service.principal_from_token(payload, db)
+    if actor:
+        audit_service.record(
+            category="login",
+            action="logout",
+            summary="Saiu do sistema",
+            actor=actor,
+            request=request,
+        )
     kw = _cookie_kwargs()
     response.delete_cookie(
         SESSION_COOKIE,
@@ -142,7 +197,8 @@ def list_users(
 @router.post("/users", response_model=CreatedUserResponse)
 def create_user(
     payload: CreateUserRequest,
-    _admin: auth_service.AuthPrincipal = Depends(require_admin_user),
+    request: Request,
+    admin: auth_service.AuthPrincipal = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> CreatedUserResponse:
     user, temporary_password = auth_service.create_usuario(
@@ -152,6 +208,14 @@ def create_user(
         password=payload.password,
         is_admin=payload.is_admin,
         can_upload=payload.can_upload,
+    )
+    audit_service.record(
+        category="alteracao",
+        action="usuario_criar",
+        summary=f"Convidou o usuário {user.email}",
+        actor=admin,
+        target=user.email,
+        request=request,
     )
     public = auth_service.user_to_public(user)
     return CreatedUserResponse(
@@ -164,6 +228,7 @@ def create_user(
 def update_user(
     user_id: int,
     payload: UpdateUserRequest,
+    request: Request,
     admin: auth_service.AuthPrincipal = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> UserPublic:
@@ -178,16 +243,66 @@ def update_user(
         can_upload=payload.can_upload,
         is_active=payload.is_active,
     )
+    bits = []
+    if payload.nome is not None:
+        bits.append("nome")
+    if payload.email is not None:
+        bits.append("e-mail")
+    if payload.password:
+        bits.append("senha")
+    if payload.is_admin is not None or payload.can_upload is not None:
+        bits.append("nível de acesso")
+    if payload.is_active is not None:
+        bits.append("status")
+    what = ", ".join(bits) or "dados"
+    audit_service.record(
+        category="alteracao",
+        action="usuario_editar",
+        summary=f"Alterou {what} de {user.email}",
+        actor=admin,
+        target=user.email,
+        request=request,
+    )
     return auth_service.user_to_public(user)
 
 
 @router.delete("/users/{user_id}")
 def delete_user(
     user_id: int,
+    request: Request,
     admin: auth_service.AuthPrincipal = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> dict[str, bool]:
+    alvo = auth_service.get_user_by_id(db, user_id)
+    email = alvo.email if alvo else str(user_id)
     auth_service.delete_usuario(db, user_id, actor_id=int(admin.id or 0))
+    audit_service.record(
+        category="alteracao",
+        action="usuario_excluir",
+        summary=f"Excluiu o usuário {email}",
+        actor=admin,
+        target=email,
+        request=request,
+    )
+    return {"ok": True}
+
+
+@router.get("/audit")
+def list_audit(
+    category: Optional[str] = None,
+    _admin: auth_service.AuthPrincipal = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    rows = audit_service.list_logs(db, category=category)
+    return {"count": len(rows), "items": [audit_service.to_public(r) for r in rows]}
+
+
+@router.post("/audit/acesso")
+def audit_acesso(
+    request: Request,
+    user: auth_service.AuthPrincipal = Depends(get_current_user),
+) -> dict[str, bool]:
+    audit_service.record_access_once(actor=user, pagina="painel", request=request)
     return {"ok": True}
 
 

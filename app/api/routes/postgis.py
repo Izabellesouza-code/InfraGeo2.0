@@ -3,11 +3,12 @@
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 
 from app.api.deps import require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
+from app.services import audit_service
 from app.services.auth_service import AuthPrincipal
 from app.services.postgis_service import PostGISService
 from app.utils.file_utils import ensure_directories, unique_filename
@@ -63,28 +64,49 @@ def upload_options(_user: AuthPrincipal = Depends(require_upload_user)) -> dict[
 
 @router.post("/groups")
 def create_group(
+    request: Request,
     name: str = Form(...),
-    _user: AuthPrincipal = Depends(require_upload_user),
+    user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """Cria um grupo customizado na sidebar (sem redeploy)."""
-    return service.create_custom_group(name)
+    result = service.create_custom_group(name)
+    audit_service.record(
+        category="alteracao",
+        action="grupo_criar",
+        summary=f"Criou o grupo de camadas {name}",
+        actor=user,
+        target=name,
+        request=request,
+    )
+    return result
 
 
 @router.patch("/layers/meta")
 def update_layer_meta(
+    request: Request,
     layer_schema: str = Form(...),
     layer_table: str = Form(...),
     display_name: Optional[str] = Form(None),
     group_id: Optional[str] = Form(None),
-    _user: AuthPrincipal = Depends(require_upload_user),
+    user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """Renomeia (nome de exibição) e/ou move a camada de grupo."""
-    return service.update_layer_meta(
+    result = service.update_layer_meta(
         layer_schema,
         layer_table,
         display_name=display_name,
         group_id=group_id,
     )
+    label = display_name or f"{layer_schema}.{layer_table}"
+    audit_service.record(
+        category="alteracao",
+        action="camada_renomear",
+        summary=f"Alterou a camada {label}",
+        actor=user,
+        target=label,
+        request=request,
+    )
+    return result
 
 
 @router.get("/geojson")
@@ -103,6 +125,7 @@ def layer_geojson(
 
 @router.post("/upload")
 async def upload_shapefile(
+    request: Request,
     files: list[UploadFile] = File(...),
     name: Optional[str] = Form(None),
     display_name: Optional[str] = Form(None),
@@ -111,7 +134,7 @@ async def upload_shapefile(
     target_table: Optional[str] = Form(None),
     group_id: Optional[str] = Form(None),
     new_group_name: Optional[str] = Form(None),
-    _user: AuthPrincipal = Depends(require_upload_user),
+    user: AuthPrincipal = Depends(require_upload_user),
 ) -> dict[str, Any]:
     """
     Recebe shapefile/GeoJSON e grava no PostGIS.
@@ -174,6 +197,24 @@ async def upload_shapefile(
         import shutil
 
         shutil.rmtree(upload_dir, ignore_errors=True)
+
+        label = (
+            display_name
+            or result.get("display_name")
+            or result.get("name")
+            or target_table
+            or name
+            or "camada"
+        )
+        dest_txt = "Atualizou" if (destination or "new") == "existing" else "Enviou"
+        audit_service.record(
+            category="alteracao",
+            action="camada_upload",
+            summary=f"{dest_txt} dados da camada {label}",
+            actor=user,
+            target=str(label),
+            request=request,
+        )
 
         try:
             from app.services.system_meta_service import touch_data_upload

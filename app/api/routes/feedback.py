@@ -1,12 +1,12 @@
 """API de sugestões e reclamações do agente InfraGeo."""
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user, require_admin_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
-from app.services import feedback_service
+from app.services import audit_service, feedback_service
 from app.services.auth_service import AuthPrincipal
 from app.utils.file_utils import unique_filename
 from pathlib import Path
@@ -60,6 +60,13 @@ def create_feedback(
         )
     except ValueError as exc:
         raise WebGISException(str(exc), status_code=400) from exc
+    audit_service.record(
+        category="alteracao",
+        action="sugestao",
+        summary="Enviou uma sugestão ou reclamação",
+        actor=user,
+        target=item.get("id") or "",
+    )
     return item
 
 
@@ -87,7 +94,8 @@ async def upload_photo(
 def patch_feedback(
     item_id: str,
     body: FeedbackStatusIn,
-    _admin: AuthPrincipal = Depends(require_admin_user),
+    request: Request,
+    admin: AuthPrincipal = Depends(require_admin_user),
 ) -> dict:
     try:
         item = feedback_service.update_status(item_id, body.status)
@@ -95,4 +103,12 @@ def patch_feedback(
         raise WebGISException(str(exc), status_code=400) from exc
     if not item:
         raise WebGISException("Registro não encontrado", status_code=404)
+    audit_service.record(
+        category="alteracao",
+        action="sugestao_status",
+        summary=f"Alterou o status da sugestão para {body.status}",
+        actor=admin,
+        target=item_id,
+        request=request,
+    )
     return item
