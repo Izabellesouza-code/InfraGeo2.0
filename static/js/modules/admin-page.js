@@ -133,6 +133,7 @@
   let catalogLayers = [];
   let catalogGroups = [];
   let adminUsers = [];
+  let userLevelFilter = "todas";
 
   function fillSelect(sel, items, placeholder) {
     if (!sel) return;
@@ -349,6 +350,10 @@
     if (me) {
       localStorage.setItem(USER_KEY, JSON.stringify(me));
       fillNavUser(me);
+      if (me.must_change_password) {
+        window.location.href = "/definir-senha";
+        return;
+      }
     }
     renderFeedback(feedbackPayload);
 
@@ -410,8 +415,24 @@
 
     const tbody = document.getElementById("admin-users-body");
     if (tbody) {
-      tbody.innerHTML = userList.length
-        ? userList
+      const counts = { admin: 0, editor: 0, view: 0 };
+      userList.forEach((u) => {
+        counts[userAcessoValue(u)] += 1;
+      });
+      document.querySelectorAll("[data-level-count]").forEach((el) => {
+        const n = counts[el.getAttribute("data-level-count")] || 0;
+        el.textContent = `${n} ${n === 1 ? "conta" : "contas"}`;
+      });
+      document.querySelectorAll("[data-user-level]").forEach((el) => {
+        const key = el.getAttribute("data-user-level");
+        el.textContent = String(key === "todas" ? userList.length : counts[key] || 0);
+      });
+      const visible =
+        userLevelFilter === "todas"
+          ? userList
+          : userList.filter((u) => userAcessoValue(u) === userLevelFilter);
+      tbody.innerHTML = visible.length
+        ? visible
             .map((u) => {
               const nome = u.full_name || u.username || "Usuário";
               const inicial = String(nome).trim().charAt(0).toUpperCase() || "U";
@@ -432,7 +453,7 @@
                   </span>
                 </td>
                 <td>${escapeHtml(perfil)}</td>
-                <td>${ativo ? '<span class="admin-pill">Ativo</span>' : '<span class="admin-pill admin-pill--draft">Pendente</span>'}</td>
+                <td>${ativo ? (u.must_change_password ? '<span class="admin-pill admin-pill--draft">Trocar senha</span>' : '<span class="admin-pill">Ativo</span>') : '<span class="admin-pill admin-pill--draft">Pendente</span>'}</td>
                 <td>${u.is_admin ? "Total" : u.can_upload ? "Edição GIS" : "Somente leitura"}</td>
                 <td>
                   <button type="button" class="admin-dots-btn" data-user-menu="${u.id}" aria-label="Ações de ${escapeHtml(nome)}" aria-haspopup="menu">⋯</button>
@@ -440,7 +461,7 @@
               </tr>`;
             })
             .join("")
-        : '<tr><td colspan="5">Nenhum usuário cadastrado.</td></tr>';
+        : '<tr><td colspan="5">Nenhum usuário neste nível.</td></tr>';
     }
   }
 
@@ -455,15 +476,20 @@
       formErr.textContent = "";
     }
     showError("");
+    const acesso = document.getElementById("admin-acesso")?.value || "view";
+    const flags =
+      acesso === "admin"
+        ? { is_admin: true, can_upload: true }
+        : acesso === "editor"
+          ? { is_admin: false, can_upload: true }
+          : { is_admin: false, can_upload: false };
     const payload = {
       nome: document.getElementById("admin-nome")?.value?.trim(),
       email: document.getElementById("admin-email")?.value?.trim(),
-      password: document.getElementById("admin-senha")?.value || "",
-      is_admin: !!document.getElementById("admin-is-admin")?.checked,
-      can_upload: !!document.getElementById("admin-can-upload")?.checked,
+      ...flags,
     };
-    if (!payload.nome || !payload.email || payload.password.length < 6) {
-      const msg = "Informe nome, e-mail e senha com pelo menos 6 caracteres.";
+    if (!payload.nome || !payload.email) {
+      const msg = "Informe nome completo e e-mail.";
       if (formErr) {
         formErr.textContent = msg;
         formErr.hidden = false;
@@ -481,11 +507,16 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(formatApiError(data, res.status));
       ev.target.reset();
-      const upload = document.getElementById("admin-can-upload");
-      if (upload) upload.checked = true;
+      const nivel = document.getElementById("admin-acesso");
+      if (nivel) nivel.value = "view";
       if (okEl) {
-        okEl.textContent = "Usuário gravado na tabela usuarios do Neon.";
+        const senha = data.temporary_password || "";
+        const email = data.email || payload.email || "";
         okEl.hidden = false;
+        okEl.className = "admin-ok admin-creds";
+        okEl.innerHTML = senha
+          ? `<span>E-mail e senha aleatória</span><strong>${escapeHtml(email)}</strong><code>${escapeHtml(senha)}</code>`
+          : "Usuário cadastrado.";
       }
       try {
         await loadAll();
@@ -503,6 +534,48 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  });
+
+  document.getElementById("users-level-filter")?.addEventListener("change", () => {
+    const checked = document.querySelector('#users-level-filter input[name="users_level"]:checked');
+    userLevelFilter = checked?.value || "todas";
+    const tbody = document.getElementById("admin-users-body");
+    if (!tbody) return;
+    const visible =
+      userLevelFilter === "todas"
+        ? adminUsers
+        : adminUsers.filter((u) => userAcessoValue(u) === userLevelFilter);
+    tbody.innerHTML = visible.length
+      ? visible
+          .map((u) => {
+            const nome = u.full_name || u.username || "Usuário";
+            const inicial = String(nome).trim().charAt(0).toUpperCase() || "U";
+            const perfil = u.is_admin
+              ? "Administrador"
+              : u.can_upload
+                ? "Editor GIS"
+                : "Visualizador";
+            const ativo = u.is_active !== false;
+            return `<tr>
+                <td>
+                  <span class="admin-person">
+                    <span class="admin-avatar">${escapeHtml(inicial)}</span>
+                    <span>
+                      <strong>${escapeHtml(nome)}</strong>
+                      <small>${escapeHtml(u.email || "")}</small>
+                    </span>
+                  </span>
+                </td>
+                <td>${escapeHtml(perfil)}</td>
+                <td>${ativo ? (u.must_change_password ? '<span class="admin-pill admin-pill--draft">Trocar senha</span>' : '<span class="admin-pill">Ativo</span>') : '<span class="admin-pill admin-pill--draft">Pendente</span>'}</td>
+                <td>${u.is_admin ? "Total" : u.can_upload ? "Edição GIS" : "Somente leitura"}</td>
+                <td>
+                  <button type="button" class="admin-dots-btn" data-user-menu="${u.id}" aria-label="Ações de ${escapeHtml(nome)}" aria-haspopup="menu">⋯</button>
+                </td>
+              </tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="5">Nenhum usuário neste nível.</td></tr>';
   });
 
   document.getElementById("btn-convidar")?.addEventListener("click", () => {
@@ -612,10 +685,32 @@
     userMenu.style.left = `${left}px`;
   });
 
-  userMenu?.addEventListener("click", (ev) => {
+  userMenu?.addEventListener("click", async (ev) => {
     const action = ev.target.closest("[data-user-action]")?.getAttribute("data-user-action");
     if (!action || userMenuId == null) return;
     const user = adminUsers.find((u) => Number(u.id) === Number(userMenuId));
+    if (action === "delete") {
+      closeUserMenu();
+      if (!user) return;
+      const nome = user.full_name || user.email || "este usuário";
+      const ok = window.confirm(
+        `Excluir ${nome}? A conta será apagada e não poderá entrar no sistema.`
+      );
+      if (!ok) return;
+      try {
+        const res = await fetch(apiUrl(`/api/auth/users/${user.id}`), {
+          method: "DELETE",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
+          headers: authHeaders(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatApiError(data, res.status));
+        await loadAll();
+      } catch (err) {
+        window.alert(err.message || "Não foi possível excluir o usuário.");
+      }
+      return;
+    }
     openEditUser(user, action);
   });
 

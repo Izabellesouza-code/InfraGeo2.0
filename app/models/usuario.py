@@ -1,4 +1,4 @@
-"""Modelo da tabela public.usuarios (Neon)."""
+"""Modelo da tabela usuarios.usuarios (Neon)."""
 
 from datetime import datetime
 from typing import Optional
@@ -8,11 +8,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
+AUTH_SCHEMA = "usuarios"
+
 
 class Usuario(Base):
-    """Usuário autenticável na tabela usuarios."""
+    """Usuário autenticável na tabela usuarios.usuarios."""
 
     __tablename__ = "usuarios"
+    __table_args__ = {"schema": AUTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     nome: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -21,6 +24,7 @@ class Usuario(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     can_upload: Mapped[bool] = mapped_column(Boolean, default=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=True
     )

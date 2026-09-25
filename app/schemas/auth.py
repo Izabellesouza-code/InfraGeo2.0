@@ -33,14 +33,24 @@ class UserPublic(BaseModel):
     is_admin: bool = False
     can_upload: bool = False
     is_active: bool = True
+    must_change_password: bool = False
 
 
 class CreateUserRequest(BaseModel):
     nome: str = Field(..., min_length=2, max_length=200)
     email: str = Field(..., min_length=3, max_length=200)
-    password: str = Field(..., min_length=6, max_length=200)
+    password: Optional[str] = Field(default=None, max_length=200)
     is_admin: bool = False
     can_upload: bool = True
+
+
+class CreatedUserResponse(UserPublic):
+    temporary_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=200)
+    new_password: str = Field(..., min_length=6, max_length=200)
 
 
 class UpdateUserRequest(BaseModel):

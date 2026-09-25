@@ -86,6 +86,10 @@
         window.location.replace("/login");
         return;
       }
+      if (window.InfraGeoAuth.getUser?.()?.must_change_password) {
+        window.location.replace("/definir-senha");
+        return;
+      }
       window.InfraGeoAbout?.init?.();
       window.InfraGeoLegend?.init?.();
       window.InfraGeoFilters.init();

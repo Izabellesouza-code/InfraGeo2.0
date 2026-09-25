@@ -75,7 +75,7 @@ def seed() -> None:
             print("→ Camada 'capitais' já existe — pulando.")
 
         ensure_auth_ready(db)
-        print("→ Tabela public.usuarios pronta.")
+        print("→ Schema usuarios.usuarios pronto.")
 
         print("✓ Banco inicializado com sucesso.")
     finally:

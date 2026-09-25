@@ -27,6 +27,8 @@ window.InfraGeoAttrTable = (function () {
       tbody: document.querySelector("#attr-table tbody"),
       closeBtn: document.getElementById("btn-fechar-attr"),
       mapBtn: document.getElementById("btn-attr-map"),
+      exportBtn: document.getElementById("btn-attr-export"),
+      exportPop: document.getElementById("attr-export-pop"),
       refreshBtn: document.getElementById("btn-attr-refresh"),
       filtersBtn: document.getElementById("btn-attr-filters"),
       helpBtn: document.getElementById("btn-attr-help"),
@@ -46,6 +48,8 @@ window.InfraGeoAttrTable = (function () {
   function hidePops() {
     const ui = els();
     if (ui.helpPop) ui.helpPop.hidden = true;
+    if (ui.exportPop) ui.exportPop.hidden = true;
+    if (ui.exportBtn) ui.exportBtn.setAttribute("aria-expanded", "false");
   }
 
   function buildMenuHtml(layerId) {
@@ -61,6 +65,19 @@ window.InfraGeoAttrTable = (function () {
         <span class="layer-kebab-item__copy">
           <span class="layer-kebab-item__title">Tabela de atributos</span>
           <span class="layer-kebab-item__hint">Abrir registros, filtrar e localizar no mapa</span>
+        </span>
+      </button>
+      <button type="button" class="layer-kebab-item" role="menuitem" data-layer-action="export" data-layer-id="${layerId}">
+        <span class="layer-kebab-item__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" focusable="false">
+            <path d="M12 4v10"/>
+            <path d="m8 10 4 4 4-4"/>
+            <path d="M5 18h14"/>
+          </svg>
+        </span>
+        <span class="layer-kebab-item__copy">
+          <span class="layer-kebab-item__title">Exportar tabela</span>
+          <span class="layer-kebab-item__hint">Baixar atributos em CSV, Excel ou GeoJSON</span>
         </span>
       </button>
     `;
@@ -126,6 +143,13 @@ window.InfraGeoAttrTable = (function () {
       closeMenus();
       if (action === "table") {
         await openForLayer(layer.id);
+      } else if (action === "export") {
+        await openForLayer(layer.id);
+        const ui = els();
+        if (ui.exportPop) {
+          ui.exportPop.hidden = false;
+          if (ui.exportBtn) ui.exportBtn.setAttribute("aria-expanded", "true");
+        }
       }
     });
 
@@ -210,6 +234,138 @@ window.InfraGeoAttrTable = (function () {
       }
     });
     return score > 0 ? best : -1;
+  }
+
+  function cellText(v) {
+    if (v == null) return "";
+    if (typeof v === "object") {
+      try {
+        return JSON.stringify(v);
+      } catch {
+        return String(v);
+      }
+    }
+    return String(v);
+  }
+
+  function layerFileStem() {
+    const meta = window.InfraGeoLayers?.allLayerMetas?.().find((l) => l.id === state.layerId);
+    const raw = String(meta?.name || state.layerId || "tabela")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w\-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+    return raw || "tabela_atributos";
+  }
+
+  function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function csvEscape(v) {
+    const s = cellText(v);
+    if (/[",\n\r;]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  function xmlEscape(v) {
+    return cellText(v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function exportRows() {
+    const cols = visibleColumns();
+    const rows = filteredRows();
+    return { cols, rows };
+  }
+
+  function exportCsv() {
+    const { cols, rows } = exportRows();
+    if (!rows.length) {
+      window.alert("Não há registros visíveis para exportar.");
+      return;
+    }
+    const header = cols.map(csvEscape).join(";");
+    const body = rows
+      .map(({ f }) => cols.map((c) => csvEscape(f.props[c])).join(";"))
+      .join("\r\n");
+    const csv = `\uFEFF${header}\r\n${body}`;
+    downloadBlob(
+      `${layerFileStem()}_atributos.csv`,
+      new Blob([csv], { type: "text/csv;charset=utf-8" })
+    );
+  }
+
+  function exportXls() {
+    const { cols, rows } = exportRows();
+    if (!rows.length) {
+      window.alert("Não há registros visíveis para exportar.");
+      return;
+    }
+    const header = `<Row>${cols
+      .map((c) => `<Cell><Data ss:Type="String">${xmlEscape(c)}</Data></Cell>`)
+      .join("")}</Row>`;
+    const body = rows
+      .map(({ f }) => {
+        const cells = cols
+          .map((c) => `<Cell><Data ss:Type="String">${xmlEscape(f.props[c])}</Data></Cell>`)
+          .join("");
+        return `<Row>${cells}</Row>`;
+      })
+      .join("");
+    const xml =
+      `<?xml version="1.0"?>\r\n` +
+      `<?mso-application progid="Excel.Sheet"?>\r\n` +
+      `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ` +
+      `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+      `<Worksheet ss:Name="Atributos"><Table>${header}${body}</Table></Worksheet>` +
+      `</Workbook>`;
+    downloadBlob(
+      `${layerFileStem()}_atributos.xls`,
+      new Blob([xml], { type: "application/vnd.ms-excel" })
+    );
+  }
+
+  function exportGeojson() {
+    const { rows } = exportRows();
+    if (!rows.length) {
+      window.alert("Não há registros visíveis para exportar.");
+      return;
+    }
+    const collection = {
+      type: "FeatureCollection",
+      features: rows.map(({ f }) => {
+        if (f.feature && f.feature.type === "Feature") return f.feature;
+        return {
+          type: "Feature",
+          properties: f.props || {},
+          geometry: f.feature?.geometry || null,
+        };
+      }),
+    };
+    downloadBlob(
+      `${layerFileStem()}_atributos.geojson`,
+      new Blob([JSON.stringify(collection)], { type: "application/geo+json" })
+    );
+  }
+
+  function runExport(fmt) {
+    if (fmt === "csv") exportCsv();
+    else if (fmt === "xls") exportXls();
+    else if (fmt === "geojson") exportGeojson();
+    hidePops();
   }
 
   function visibleColumns() {
@@ -437,6 +593,21 @@ window.InfraGeoAttrTable = (function () {
     const ui = els();
     if (ui.closeBtn) ui.closeBtn.addEventListener("click", close);
     if (ui.mapBtn) ui.mapBtn.addEventListener("click", fitLayerOnMap);
+    if (ui.exportBtn && ui.exportPop) {
+      ui.exportBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const open = ui.exportPop.hidden;
+        hidePops();
+        ui.exportPop.hidden = !open;
+        ui.exportBtn.setAttribute("aria-expanded", String(open));
+      });
+      ui.exportPop.addEventListener("click", (ev) => {
+        const item = ev.target.closest("[data-attr-export]");
+        if (!item) return;
+        ev.stopPropagation();
+        runExport(item.getAttribute("data-attr-export"));
+      });
+    }
     if (ui.refreshBtn) {
       ui.refreshBtn.addEventListener("click", async () => {
         if (!state.layerId) return;
@@ -476,7 +647,7 @@ window.InfraGeoAttrTable = (function () {
     document.addEventListener("click", (ev) => {
       if (ev.target.closest(".layer-kebab, .layer-kebab-menu")) return;
       closeMenus();
-      if (!ev.target.closest("#attr-help-pop, #btn-attr-help")) {
+      if (!ev.target.closest("#attr-help-pop, #btn-attr-help, #attr-export-pop, #btn-attr-export")) {
         hidePops();
       }
     });

@@ -1,4 +1,4 @@
-"""Serviço de autenticação contra public.usuarios no Neon."""
+"""Serviço de autenticação contra usuarios.usuarios no Neon."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ GENERIC_RESET_MSG = (
 
 
 class AuthPrincipal:
-    """Usuário da sessão (linha em public.usuarios)."""
+    """Usuário da sessão (linha em usuarios.usuarios)."""
 
     def __init__(
         self,
@@ -40,6 +40,7 @@ class AuthPrincipal:
         is_active: bool = True,
         is_admin: bool = False,
         can_upload: bool = False,
+        must_change_password: bool = False,
         source: str = "usuarios",
     ) -> None:
         self.id = id
@@ -49,6 +50,7 @@ class AuthPrincipal:
         self.is_active = is_active
         self.is_admin = is_admin
         self.can_upload = can_upload
+        self.must_change_password = must_change_password
         self.source = source
 
 
@@ -57,12 +59,13 @@ def user_to_public(user: Usuario | AuthPrincipal) -> UserPublic:
     nome = getattr(user, "full_name", None) or getattr(user, "nome", None)
     return UserPublic(
         id=int(user.id or 0),
-        username=email or getattr(user, "username", "") or (nome or ""),
+        username=nome or email or getattr(user, "username", "") or "",
         email=email,
         full_name=nome,
         is_admin=bool(user.is_admin),
         can_upload=bool(user.can_upload or user.is_admin),
         is_active=bool(getattr(user, "is_active", True)),
+        must_change_password=bool(getattr(user, "must_change_password", False)),
     )
 
 
@@ -93,6 +96,7 @@ def _principal_from_usuario(user: Usuario) -> AuthPrincipal:
         is_active=bool(user.is_active),
         is_admin=bool(user.is_admin),
         can_upload=bool(user.can_upload or user.is_admin),
+        must_change_password=bool(getattr(user, "must_change_password", False)),
         source="usuarios",
     )
 
@@ -135,6 +139,7 @@ def login(db: Session, username: str, password: str) -> TokenResponse:
             "username": principal.username,
             "is_admin": bool(principal.is_admin),
             "can_upload": bool(principal.can_upload),
+            "must_change_password": bool(principal.must_change_password),
             "auth_source": principal.source,
         },
     )
@@ -182,6 +187,7 @@ def recover_password(db: Session, email: str, nome: str, new_password: str) -> N
         raise WebGISException("E-mail e nome não conferem com o cadastro.", status_code=400)
 
     user.senha_hash = hash_password(password)
+    user.must_change_password = False
     db.commit()
 
 
@@ -258,8 +264,16 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
         raise WebGISException("Token inválido ou expirado", status_code=400)
 
     user.senha_hash = hash_password(password)
+    user.must_change_password = False
     row.used_at = now
     db.commit()
+
+
+def generate_temporary_password() -> str:
+    """Senha curta (5) no tema InfraGeo, com @ e dígitos de 1 a 5."""
+    a = secrets.choice("12345")
+    b = secrets.choice("12345")
+    return f"IG@{a}{b}"
 
 
 def list_usuarios(db: Session) -> list[Usuario]:
@@ -271,45 +285,57 @@ def create_usuario(
     *,
     nome: str,
     email: str,
-    password: str,
+    password: str | None = None,
     is_admin: bool = False,
     can_upload: bool = True,
-) -> Usuario:
-    """Insere em public.usuarios no Neon (nome, email, senha_hash)."""
+) -> tuple[Usuario, str]:
+    """Insere em usuarios.usuarios no Neon com senha provisória gerada."""
     nome_limpo = (nome or "").strip()[:100]
     email_limpo = (email or "").strip().lower()
-    senha = (password or "").strip()
-    if not nome_limpo or not email_limpo or len(senha) < 6:
+    senha = (password or "").strip() or generate_temporary_password()
+    if not nome_limpo or not email_limpo or len(senha) < 1:
         raise WebGISException(
-            "Informe nome, e-mail e senha com pelo menos 6 caracteres.",
+            "Informe nome e e-mail válidos para cadastrar o usuário.",
             status_code=400,
         )
     existe = db.query(Usuario).filter(func.lower(Usuario.email) == email_limpo).first()
     if existe:
         raise WebGISException("Já existe um usuário com este e-mail.", status_code=409)
 
-    db.execute(
-        text(
-            """
-            INSERT INTO public.usuarios
-                (nome, email, senha_hash, is_active, is_admin, can_upload)
-            VALUES
-                (:nome, :email, :senha_hash, TRUE, :is_admin, :can_upload)
-            """
-        ),
-        {
-            "nome": nome_limpo,
-            "email": email_limpo,
-            "senha_hash": hash_password(senha),
-            "is_admin": bool(is_admin),
-            "can_upload": bool(can_upload or is_admin),
-        },
+    user = Usuario(
+        nome=nome_limpo,
+        email=email_limpo,
+        senha_hash=hash_password(senha),
+        is_active=True,
+        is_admin=bool(is_admin),
+        can_upload=bool(can_upload or is_admin),
+        must_change_password=True,
     )
+    db.add(user)
     db.commit()
-    user = db.query(Usuario).filter(func.lower(Usuario.email) == email_limpo).first()
-    if not user:
-        raise WebGISException("Não foi possível gravar o usuário no Neon.", status_code=500)
-    return user
+    db.refresh(user)
+    return user, senha
+
+
+def change_own_password(
+    db: Session,
+    user: Usuario,
+    current_password: str,
+    new_password: str,
+) -> TokenResponse:
+    current = (current_password or "").strip()
+    nova = (new_password or "").strip()
+    if len(nova) < 6:
+        raise WebGISException("A nova senha deve ter pelo menos 6 caracteres.", status_code=400)
+    if not _verify_stored_password(current, user.senha_hash or ""):
+        raise WebGISException("Senha atual incorreta.", status_code=400)
+    if secrets.compare_digest(current, nova):
+        raise WebGISException("A nova senha precisa ser diferente da provisória.", status_code=400)
+    user.senha_hash = hash_password(nova)
+    user.must_change_password = False
+    db.commit()
+    db.refresh(user)
+    return login(db, user.email, nova)
 
 
 def update_usuario(
@@ -365,6 +391,7 @@ def update_usuario(
         if len(senha) < 6:
             raise WebGISException("A senha deve ter pelo menos 6 caracteres.", status_code=400)
         user.senha_hash = hash_password(senha)
+        user.must_change_password = False
     if is_admin is not None:
         user.is_admin = bool(is_admin)
     if can_upload is not None or is_admin is not None:
@@ -379,36 +406,187 @@ def update_usuario(
     return user
 
 
+def delete_usuario(db: Session, user_id: int, *, actor_id: int | None = None) -> None:
+    """Remove a linha em usuarios.usuarios (e tokens de senha ligados)."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise WebGISException("Usuário não encontrado.", status_code=404)
+    if actor_id is not None and int(actor_id) == int(user.id):
+        raise WebGISException("Você não pode excluir a própria conta.", status_code=400)
+    if user.is_admin:
+        outros = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id != user.id,
+                Usuario.is_admin.is_(True),
+                Usuario.is_active.is_(True),
+            )
+            .count()
+        )
+        if outros < 1:
+            raise WebGISException(
+                "É preciso manter pelo menos um administrador ativo.",
+                status_code=400,
+            )
+    db.query(PasswordResetToken).filter(PasswordResetToken.usuario_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.delete(user)
+    db.commit()
+
+
 def ensure_auth_ready(db: Session) -> None:
-    """Garante tabela usuarios, colunas extras e hashes bcrypt."""
+    """Garante schema usuarios, migra dados fora de public e hashes bcrypt."""
     from app.database import engine
     from app.models.password_reset import PasswordResetToken as ResetModel
+    from app.models.usuario import AUTH_SCHEMA
+
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {AUTH_SCHEMA}"))
 
     Usuario.__table__.create(bind=engine, checkfirst=True)
     ResetModel.__table__.create(bind=engine, checkfirst=True)
 
+    dest = f"{AUTH_SCHEMA}.usuarios"
+    dest_tokens = f"{AUTH_SCHEMA}.password_reset_tokens"
+
     with engine.begin() as conn:
         conn.execute(
             text(
-                """
-                ALTER TABLE public.usuarios
+                f"""
+                ALTER TABLE {dest}
                 ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
                 ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS can_upload BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
                 """
             )
         )
-        conn.execute(
+        public_kind = conn.execute(
             text(
                 """
-                UPDATE public.usuarios
+                SELECT c.relkind
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname = 'usuarios'
+                """
+            )
+        ).scalar()
+        if public_kind == "r":
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE public.usuarios
+                    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+                    ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS can_upload BOOLEAN DEFAULT TRUE,
+                    ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    f"""
+                    INSERT INTO {dest}
+                        (nome, email, senha_hash, is_active, is_admin,
+                         can_upload, must_change_password, created_at)
+                    SELECT
+                        src.nome, src.email, src.senha_hash,
+                        COALESCE(src.is_active, TRUE),
+                        COALESCE(src.is_admin, FALSE),
+                        COALESCE(src.can_upload, TRUE),
+                        COALESCE(src.must_change_password, FALSE),
+                        src.created_at
+                    FROM public.usuarios src
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM {dest} dst
+                        WHERE lower(dst.email) = lower(src.email)
+                    )
+                    """
+                )
+            )
+            leftover = conn.execute(
+                text(
+                    f"""
+                    SELECT COUNT(*) FROM public.usuarios src
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM {dest} dst
+                        WHERE lower(dst.email) = lower(src.email)
+                    )
+                    """
+                )
+            ).scalar()
+            if int(leftover or 0) == 0:
+                conn.execute(
+                    text(
+                        f"""
+                        SELECT setval(
+                            pg_get_serial_sequence('{dest}', 'id'),
+                            COALESCE((SELECT MAX(id) FROM {dest}), 1),
+                            true
+                        )
+                        """
+                    )
+                )
+                conn.execute(text("DROP TABLE IF EXISTS public.usuarios CASCADE"))
+                public_kind = None
+            else:
+                print(f"[auth] {leftover} usuário(s) ainda em public.usuarios")
+        if public_kind != "r":
+            conn.execute(
+                text(
+                    f"CREATE OR REPLACE VIEW public.usuarios AS SELECT * FROM {dest}"
+                )
+            )
+        try:
+            conn.execute(text(f"GRANT USAGE ON SCHEMA {AUTH_SCHEMA} TO PUBLIC"))
+            conn.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON {dest} TO PUBLIC"))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[auth] grant schema usuarios: {exc}")
+        public_tokens = conn.execute(
+            text("SELECT to_regclass('public.password_reset_tokens')")
+        ).scalar()
+        if public_tokens:
+            conn.execute(
+                text(
+                    f"""
+                    INSERT INTO {dest_tokens}
+                        (id, usuario_id, token_hash, expires_at, used_at, created_at)
+                    SELECT id, usuario_id, token_hash, expires_at, used_at, created_at
+                    FROM public.password_reset_tokens src
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM {dest_tokens} dst WHERE dst.token_hash = src.token_hash
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    f"""
+                    SELECT setval(
+                        pg_get_serial_sequence('{dest_tokens}', 'id'),
+                        COALESCE((SELECT MAX(id) FROM {dest_tokens}), 1),
+                        true
+                    )
+                    """
+                )
+            )
+            conn.execute(text("DROP TABLE IF EXISTS public.password_reset_tokens"))
+        conn.execute(text("DROP TABLE IF EXISTS public.users CASCADE"))
+        conn.execute(
+            text(
+                f"""
+                UPDATE {dest}
                 SET is_active = COALESCE(is_active, TRUE),
-                    can_upload = COALESCE(can_upload, TRUE)
+                    can_upload = COALESCE(can_upload, TRUE),
+                    must_change_password = COALESCE(must_change_password, FALSE)
                 """
             )
         )
 
+    db.expire_all()
     for user in db.query(Usuario).all():
         stored = user.senha_hash or ""
         if stored and not _looks_like_bcrypt(stored):

@@ -273,9 +273,12 @@ body.sidebar-open #sidebar-principal {
   font-size: 0.88rem;
   font-weight: 750;
   line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  word-break: normal;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
   color: #16324f;
 }
 
@@ -333,16 +336,19 @@ body.sidebar-open #sidebar-principal {
 .layer-item label {
   cursor: pointer;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
 }
 
 .layer-item label span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: inline;
+  overflow: visible;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+  line-height: 1.3;
+  color: #16324f;
 }
 
 .layer-item__mark {

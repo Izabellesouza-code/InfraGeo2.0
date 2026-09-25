@@ -29,6 +29,14 @@
         </svg>
         Ver no mapa
       </button>
+      <button type="button" class="attr-btn-map" id="btn-attr-export" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 4v10"/>
+          <path d="m8 10 4 4 4-4"/>
+          <path d="M5 18h14"/>
+        </svg>
+        Exportar
+      </button>
       <button type="button" class="attr-icon-btn" id="btn-attr-help" title="Ajuda" aria-label="Ajuda da tabela">?</button>
       <button type="button" class="attr-icon-btn attr-icon-btn--close" id="btn-fechar-attr" aria-label="Fechar tabela">×</button>
     </header>
@@ -54,7 +62,28 @@
         <button type="button" class="attr-icon-btn" id="btn-attr-more" title="Mais opções" aria-label="Mais opções" hidden>⋯</button>
       </div>
       <div id="attr-help-pop" class="attr-pop attr-pop--help" hidden>
-        Clique numa linha para localizar no mapa. Use o filtro para buscar texto em qualquer coluna.
+        Clique numa linha para localizar no mapa. Use o filtro para buscar texto em qualquer coluna. Exportar baixa os registros visíveis (CSV, Excel ou GeoJSON).
+      </div>
+      <div id="attr-export-pop" class="attr-pop attr-pop--export" hidden role="menu" aria-label="Exportar tabela">
+        <p class="attr-pop__head">Exportar registros visíveis</p>
+        <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="csv">
+          <span class="layer-kebab-item__copy">
+            <span class="layer-kebab-item__title">CSV</span>
+            <span class="layer-kebab-item__hint">Planilha para Excel, LibreOffice e Google Sheets</span>
+          </span>
+        </button>
+        <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="xls">
+          <span class="layer-kebab-item__copy">
+            <span class="layer-kebab-item__title">Excel (.xls)</span>
+            <span class="layer-kebab-item__hint">Abre direto no Microsoft Excel</span>
+          </span>
+        </button>
+        <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="geojson">
+          <span class="layer-kebab-item__copy">
+            <span class="layer-kebab-item__title">GeoJSON</span>
+            <span class="layer-kebab-item__hint">Atributos e geometria da camada</span>
+          </span>
+        </button>
       </div>
     </div>
   </div>

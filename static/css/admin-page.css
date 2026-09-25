@@ -803,10 +803,59 @@ body.is-admin-users #btn-nova-camada {
   color: #0A2E2C;
 }
 
-.admin-form-hint {
-  margin: 0;
-  font-size: 0.78rem;
+.admin-row-menu button.is-danger {
+  color: #b91c1c;
+}
+
+.admin-row-menu button.is-danger:hover {
+  background: #fdecec;
+  color: #991b1b;
+}
+
+.admin-levels {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.admin-levels li {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #e4ebf0;
+  border-radius: 12px;
+  background: #f7faf9;
+}
+
+.admin-levels strong {
+  font-size: 0.82rem;
+  color: #0A2E2C;
+}
+
+.admin-levels span {
+  font-size: 0.72rem;
+  line-height: 1.35;
   color: #7b8fa3;
+}
+
+.admin-levels em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #16324f;
+}
+
+#users-level-filter {
+  margin: 0 0 0.85rem;
+}
+
+@media (max-width: 860px) {
+  .admin-levels {
+    grid-template-columns: 1fr;
+  }
 }
 
 .admin-table--users td:last-child {
@@ -1074,6 +1123,33 @@ body.is-admin-users #btn-nova-camada {
 .admin-ok {
   margin: 0;
   color: #0A2E2C;
+}
+
+.admin-creds {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #f4f8f6;
+  color: #5b7388;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.admin-creds span {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #8aa0b3;
+}
+
+.admin-creds strong,
+.admin-creds code {
+  font-weight: 650;
+  font-size: 0.86rem;
+  color: #16324f;
+  font-family: inherit;
 }
 
 .admin-flash,

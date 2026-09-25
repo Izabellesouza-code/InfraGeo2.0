@@ -56,6 +56,10 @@ def main() -> None:
         templates.get_template("pages/reset-password.html").render(**ctx_name),
         encoding="utf-8",
     )
+    (DIST / "definir-senha.html").write_text(
+        templates.get_template("pages/change-password.html").render(**ctx_name),
+        encoding="utf-8",
+    )
 
     static_src = ROOT / "static"
     static_dst = DIST / "static"

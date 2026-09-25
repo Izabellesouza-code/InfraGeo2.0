@@ -110,6 +110,11 @@ def _is_admin(request: Request) -> bool:
     return bool(user and user.is_admin)
 
 
+def _must_change_password(request: Request) -> bool:
+    user = _current_principal(request)
+    return bool(user and getattr(user, "must_change_password", False))
+
+
 def _auth_page(request: Request, template: str):
     return templates.TemplateResponse(
         request,
@@ -127,6 +132,8 @@ async def login_page(request: Request):
     """Tela de login (antes do splash / mapa)."""
     nxt = (request.query_params.get("next") or "").strip()
     if _is_logged_in(request):
+        if _must_change_password(request):
+            return RedirectResponse(url="/definir-senha", status_code=302)
         if nxt == "/admin":
             if _is_admin(request):
                 return RedirectResponse(url="/admin", status_code=302)
@@ -140,9 +147,21 @@ async def admin_page(request: Request):
     """Painel de administrador."""
     if not _is_logged_in(request):
         return RedirectResponse(url="/login?next=/admin", status_code=302)
+    if _must_change_password(request):
+        return RedirectResponse(url="/definir-senha", status_code=302)
     if not _is_admin(request):
         return RedirectResponse(url="/login?next=/admin", status_code=302)
     return _auth_page(request, "pages/admin.html")
+
+
+@app.get("/definir-senha", response_class=HTMLResponse)
+async def first_password_page(request: Request):
+    """Primeiro acesso: o usuário define a senha permanente."""
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/login", status_code=302)
+    if not _must_change_password(request):
+        return RedirectResponse(url="/", status_code=302)
+    return _auth_page(request, "pages/change-password.html")
 
 
 @app.get("/esqueci-senha", response_class=HTMLResponse)
@@ -166,6 +185,8 @@ async def home(request: Request):
 
     if not _is_logged_in(request):
         return RedirectResponse(url="/login", status_code=302)
+    if _must_change_password(request):
+        return RedirectResponse(url="/definir-senha", status_code=302)
 
     return templates.TemplateResponse(
         request,

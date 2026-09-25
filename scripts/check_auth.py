@@ -17,7 +17,7 @@ from app.services.auth_service import ensure_auth_ready
 
 with engine.connect() as c:
     print("db", c.execute(text("select current_database()")).scalar())
-    exists = c.execute(text("select to_regclass('public.usuarios')")).scalar()
+    exists = c.execute(text("select to_regclass('usuarios.usuarios')")).scalar()
     print("usuarios table", exists)
 
 db = SessionLocal()

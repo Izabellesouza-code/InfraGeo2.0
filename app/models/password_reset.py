@@ -7,12 +7,14 @@ from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.usuario import AUTH_SCHEMA
 
 
 class PasswordResetToken(Base):
-    """Token enviado por e-mail para trocar senha em public.usuarios."""
+    """Token para trocar senha em usuarios.usuarios."""
 
     __tablename__ = "password_reset_tokens"
+    __table_args__ = {"schema": AUTH_SCHEMA}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

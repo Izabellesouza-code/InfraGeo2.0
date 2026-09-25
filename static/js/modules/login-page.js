@@ -82,6 +82,10 @@
       if (!res.ok) throw new Error(formatApiError(data, res.status));
       if (data.access_token) localStorage.setItem(TOKEN_KEY, data.access_token);
       if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      if (data.user?.must_change_password) {
+        window.location.href = "/definir-senha";
+        return;
+      }
       if (goAdmin) {
         if (!data.user?.is_admin) {
           throw new Error("Esta conta não é de administrador.");
@@ -92,7 +96,12 @@
       window.location.href = "/";
     } catch (err) {
       setLoading(false);
-      showError(err.message || "Falha no login");
+      const raw = String(err.message || "");
+      const msg =
+        /failed to fetch|networkerror|load failed/i.test(raw)
+          ? "Não foi possível conectar à API. Tente de novo em alguns segundos."
+          : raw || "Falha no login";
+      showError(msg);
     }
   }
 
@@ -244,6 +253,61 @@
         window.setTimeout(() => {
           window.location.href = "/login";
         }, 1200);
+      } catch (err) {
+        showError(err.message || "Não foi possível salvar a senha");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+  }
+
+  const changeForm = document.getElementById("form-change-password");
+  if (changeForm) {
+    changeForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const currentPassword = document.getElementById("change-current")?.value || "";
+      const newPassword = document.getElementById("change-new")?.value || "";
+      const confirmPassword = document.getElementById("change-confirm")?.value || "";
+      const btn = changeForm.querySelector('button[type="submit"]');
+      if (newPassword.length < 6) {
+        showError("A nova senha deve ter pelo menos 6 caracteres.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        showError("A confirmação não confere com a nova senha.");
+        return;
+      }
+      if (currentPassword === newPassword) {
+        showError("A nova senha precisa ser diferente da provisória.");
+        return;
+      }
+      const token = localStorage.getItem(TOKEN_KEY) || "";
+      if (!token) {
+        window.location.href = "/login";
+        return;
+      }
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch(apiUrl("/api/auth/change-password"), {
+          method: "POST",
+          credentials: window.InfraGeoApi?.credentials?.() || "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatApiError(data, res.status));
+        if (data.access_token) localStorage.setItem(TOKEN_KEY, data.access_token);
+        if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        showOk("Senha atualizada. Entrando…");
+        window.setTimeout(() => {
+          window.location.href = data.user?.is_admin ? "/admin" : "/";
+        }, 700);
       } catch (err) {
         showError(err.message || "Não foi possível salvar a senha");
       } finally {

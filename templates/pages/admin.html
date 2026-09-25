@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/select-combo.css?v=2" />
-  <link rel="stylesheet" href="/static/css/admin-page.css?v=34" />
+  <link rel="stylesheet" href="/static/css/admin-page.css?v=37" />
 </head>
 <body class="admin-shell">
   <aside class="admin-nav" aria-label="Console administrativo">
@@ -307,6 +307,29 @@
           </div>
           <button type="button" class="admin-btn" id="btn-convidar">+ Convidar usuário</button>
         </div>
+        <ul class="admin-levels" aria-label="Níveis de usuário">
+          <li>
+            <strong>Administrador</strong>
+            <span>Acesso total ao painel e às permissões</span>
+            <em data-level-count="admin">0</em>
+          </li>
+          <li>
+            <strong>Editor GIS</strong>
+            <span>Pode enviar e atualizar camadas no mapa</span>
+            <em data-level-count="editor">0</em>
+          </li>
+          <li>
+            <strong>Visualizador</strong>
+            <span>Somente leitura — consulta o mapa e as tabelas</span>
+            <em data-level-count="view">0</em>
+          </li>
+        </ul>
+        <div class="admin-seg" id="users-level-filter" role="radiogroup" aria-label="Filtrar por nível">
+          <label class="admin-seg__item"><input type="radio" name="users_level" value="todas" checked /> Todos <span data-user-level="todas">0</span></label>
+          <label class="admin-seg__item"><input type="radio" name="users_level" value="admin" /> Administradores <span data-user-level="admin">0</span></label>
+          <label class="admin-seg__item"><input type="radio" name="users_level" value="editor" /> Editores GIS <span data-user-level="editor">0</span></label>
+          <label class="admin-seg__item"><input type="radio" name="users_level" value="view" /> Visualizadores <span data-user-level="view">0</span></label>
+        </div>
         <div class="admin-table-wrap">
           <table class="admin-table admin-table--users">
             <thead>
@@ -335,12 +358,17 @@
           <form id="form-admin-user" class="admin-form">
             <label>Nome completo <input id="admin-nome" name="nome" type="text" required /></label>
             <label>E-mail <input id="admin-email" name="email" type="email" required /></label>
-            <label>Senha <input id="admin-senha" name="password" type="password" minlength="6" required /></label>
-            <label class="admin-check"><input id="admin-is-admin" type="checkbox" /> Administrador</label>
-            <label class="admin-check"><input id="admin-can-upload" type="checkbox" checked /> Editor GIS (pode enviar camadas)</label>
+            <p class="admin-form-hint">A senha provisória é gerada automaticamente. No primeiro acesso o usuário é obrigado a criar a senha definitiva.</p>
+            <label>Nível de usuário
+              <select id="admin-acesso" data-native-select="1">
+                <option value="view">Visualizador — somente leitura</option>
+                <option value="editor">Editor GIS — pode enviar camadas</option>
+                <option value="admin">Administrador — acesso total</option>
+              </select>
+            </label>
             <p id="admin-form-erro" class="admin-flash" hidden></p>
             <p id="admin-ok" class="admin-ok" hidden></p>
-            <button type="submit" class="admin-btn" id="btn-admin-cadastrar">Cadastrar no Neon</button>
+            <button type="submit" class="admin-btn" id="btn-admin-cadastrar">Cadastrar usuário</button>
           </form>
         </div>
       </div>
@@ -385,6 +413,7 @@
         <button type="button" data-user-action="edit">Editar nome e e-mail</button>
         <button type="button" data-user-action="access">Alterar acesso e permissões</button>
         <button type="button" data-user-action="password">Redefinir senha</button>
+        <button type="button" class="is-danger" data-user-action="delete">Excluir usuário</button>
       </div>
     </section>
 
@@ -426,6 +455,6 @@
   <script src="/static/js/config/runtime.js?v=2"></script>
   <script src="/static/js/config/api.js?v=3"></script>
   <script src="/static/js/modules/select-combo.js?v=1"></script>
-  <script src="/static/js/modules/admin-page.js?v=29"></script>
+  <script src="/static/js/modules/admin-page.js?v=34"></script>
 </body>
 </html>

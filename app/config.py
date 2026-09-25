@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     schema_sync_git_remote: str = "origin"
     schema_sync_git_branch: str = "main"
     schema_sync_protected: str = (
-        "public,topology,tiger,tiger_data,pg_catalog,information_schema,"
+        "public,usuarios,topology,tiger,tiger_data,pg_catalog,information_schema,"
         "LIMITE_ESTADUAL,LIMITE_MUNICIPAL"
     )
     schema_sync_delete_phrase_prefix: str = "EXCLUIR"

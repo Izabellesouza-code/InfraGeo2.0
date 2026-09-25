@@ -1,5 +1,5 @@
 /**
- * Autenticação (JWT) — consulta public.users no PostgreSQL via API.
+ * Autenticação (JWT) — consulta usuarios.usuarios no PostgreSQL via API.
  * Upload só com usuário ativo e permissão (can_upload / admin).
  */
 window.InfraGeoAuth = (function () {
@@ -141,7 +141,7 @@ window.InfraGeoAuth = (function () {
       if (el) el.textContent = val || "—";
     };
     set("perfil-nome", user?.full_name || user?.nome || user?.username);
-    set("perfil-usuario", user?.username);
+    set("perfil-usuario", user?.full_name || user?.nome);
     set("perfil-permissao", permissionLabel(user));
     set("perfil-email", user?.email);
     const adminLink = document.getElementById("link-painel-admin");

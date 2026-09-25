@@ -124,7 +124,7 @@ window.InfraGeoLayers = (function () {
       toggle.innerHTML = `
         <span class="layer-group__dot" style="background:${groupAccent(group)}" aria-hidden="true"></span>
         <span class="layer-group__copy">
-          <span class="layer-group__name" title="${group.name}">${group.name}</span>
+          <span class="layer-group__name" title="${escapeHtml(group.name)}">${wrapLayerTitle(group.name)}</span>
           <small class="layer-group__meta">${onCount ? `${onCount} no mapa · ` : ""}${layers.length} ${layers.length === 1 ? "opção" : "opções"}</small>
         </span>
         <span class="layer-group__chevron" aria-hidden="true"></span>
@@ -186,7 +186,7 @@ window.InfraGeoLayers = (function () {
           </span>
           <input type="checkbox" id="lyr-${layer.id}" ${checked ? "checked" : ""} />
           <label for="lyr-${layer.id}">
-            <span>${layer.name}</span>
+            <span>${wrapLayerTitle(layer.name)}</span>
             ${checked ? '<em class="layer-item__on">No mapa</em>' : ""}
           </label>
           <button type="button" class="layer-item__ligar" data-ligar="${layer.id}" title="Ligar esta e as relacionadas">Ligar</button>
@@ -228,6 +228,26 @@ window.InfraGeoLayers = (function () {
     if (state.favoritesOnly && !container.children.length) {
       container.innerHTML = '<p class="empty-hint">Nada nos favoritos. Toque na estrela da camada ou da subcamada.</p>';
     }
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /** Evita letra/sigla sozinha na linha seguinte (ex.: “o UC”). */
+  function wrapLayerTitle(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    for (let i = parts.length - 1; i >= 1; i--) {
+      if (parts[i].length <= 3) {
+        parts[i - 1] += "\u00A0" + parts[i];
+        parts.splice(i, 1);
+      }
+    }
+    return escapeHtml(parts.join(" "));
   }
 
   function prettyLabel(meta) {

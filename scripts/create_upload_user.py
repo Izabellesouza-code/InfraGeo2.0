@@ -1,4 +1,4 @@
-"""Cria ou atualiza um usuário em public.usuarios.
+"""Cria ou atualiza um usuário em usuarios.usuarios.
 
 Uso:
   set PYTHONPATH=.

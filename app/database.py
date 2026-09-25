@@ -37,9 +37,10 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Cria extensões PostGIS e tabelas do sistema."""
+    """Cria extensões PostGIS, schema de autenticação e tabelas do sistema."""
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS usuarios"))
 
     from app import models  # noqa: F401
 

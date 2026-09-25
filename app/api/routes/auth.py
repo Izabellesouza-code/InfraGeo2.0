@@ -10,10 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import SESSION_COOKIE, extract_access_token, get_current_user, require_admin_user
 from app.config import get_settings
+from app.core.exceptions import WebGISException
 from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_access_token
 from app.database import get_db
 from app.schemas.auth import (
+    ChangePasswordRequest,
     CreateUserRequest,
+    CreatedUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
     RecoverPasswordRequest,
@@ -54,8 +57,26 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    """Autentica contra a tabela public.usuarios no Neon."""
+    """Autentica contra a tabela usuarios.usuarios no Neon."""
     result = auth_service.login(db, payload.username, payload.password)
+    _set_session_cookie(response, result.access_token)
+    return result
+
+
+@router.post("/change-password", response_model=TokenResponse)
+def change_password(
+    payload: ChangePasswordRequest,
+    response: Response,
+    principal: auth_service.AuthPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """Troca a senha provisória (primeiro acesso) ou a senha atual."""
+    user = auth_service.get_user_by_id(db, int(principal.id))
+    if not user:
+        raise WebGISException("Usuário não encontrado.", status_code=404)
+    result = auth_service.change_own_password(
+        db, user, payload.current_password, payload.new_password
+    )
     _set_session_cookie(response, result.access_token)
     return result
 
@@ -87,7 +108,7 @@ def reset_password(
     payload: ResetPasswordRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    """Grava a nova senha em public.usuarios."""
+    """Grava a nova senha em usuarios.usuarios."""
     auth_service.reset_password(db, payload.token, payload.new_password)
     return {"message": "Senha atualizada. Faça login com a nova senha."}
 
@@ -118,13 +139,13 @@ def list_users(
     return [auth_service.user_to_public(u) for u in auth_service.list_usuarios(db)]
 
 
-@router.post("/users", response_model=UserPublic)
+@router.post("/users", response_model=CreatedUserResponse)
 def create_user(
     payload: CreateUserRequest,
     _admin: auth_service.AuthPrincipal = Depends(require_admin_user),
     db: Session = Depends(get_db),
-) -> UserPublic:
-    user = auth_service.create_usuario(
+) -> CreatedUserResponse:
+    user, temporary_password = auth_service.create_usuario(
         db,
         nome=payload.nome,
         email=payload.email,
@@ -132,7 +153,11 @@ def create_user(
         is_admin=payload.is_admin,
         can_upload=payload.can_upload,
     )
-    return auth_service.user_to_public(user)
+    public = auth_service.user_to_public(user)
+    return CreatedUserResponse(
+        **public.model_dump(),
+        temporary_password=temporary_password,
+    )
 
 
 @router.patch("/users/{user_id}", response_model=UserPublic)
@@ -154,6 +179,16 @@ def update_user(
         is_active=payload.is_active,
     )
     return auth_service.user_to_public(user)
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    admin: auth_service.AuthPrincipal = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    auth_service.delete_usuario(db, user_id, actor_id=int(admin.id or 0))
+    return {"ok": True}
 
 
 @router.get("/status")
