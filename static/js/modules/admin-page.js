@@ -100,19 +100,28 @@
   let auditFilter = "";
   let auditItems = [];
 
-  function formatAuditWhen(iso) {
+  function formatAuditWhen(iso, compact) {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return String(iso);
-    return new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Manaus",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(d);
+    const opts = compact
+      ? {
+          timeZone: "America/Manaus",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      : {
+          timeZone: "America/Manaus",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        };
+    return new Intl.DateTimeFormat("pt-BR", opts).format(d);
   }
 
   function auditTypeLabel(row) {
@@ -153,15 +162,22 @@
         : `<tr><td colspan="4" class="admin-empty">Nenhum evento registrado ainda.</td></tr>`;
     }
     if (preview) {
-      const top = auditItems.slice(0, 6);
+      const top = auditItems.slice(0, 5);
       preview.innerHTML = top.length
         ? top
-            .map(
-              (row) =>
-                `<li><b>${escapeHtml(formatAuditWhen(row.created_at))}</b><span>${escapeHtml(row.actor_nome || row.actor_email || "Sistema")} — ${escapeHtml(row.summary || "")}</span></li>`
-            )
+            .map((row) => {
+              const who = row.actor_nome || row.actor_email || "Sistema";
+              return `<li>
+                <time>${escapeHtml(formatAuditWhen(row.created_at, true))}</time>
+                <span class="admin-pill admin-pill--${escapeHtml(auditPillClass(row))}">${escapeHtml(auditTypeLabel(row))}</span>
+                <div>
+                  <strong>${escapeHtml(who)}</strong>
+                  <span>${escapeHtml(row.summary || "")}</span>
+                </div>
+              </li>`;
+            })
             .join("")
-        : "<li>Nenhuma atividade recente.</li>";
+        : "<li class='admin-activity-preview__empty'>Nenhuma atividade recente.</li>";
     }
   }
 

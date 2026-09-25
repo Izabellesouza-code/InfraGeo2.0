@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/select-combo.css?v=2" />
-  <link rel="stylesheet" href="/static/css/admin-page.css?v=45" />
+  <link rel="stylesheet" href="/static/css/admin-page.css?v=47" />
 </head>
 <body class="admin-shell">
   <aside class="admin-nav" aria-label="Console administrativo">
@@ -175,7 +175,7 @@
       </div>
 
       <div class="admin-mid">
-        <article class="admin-card">
+        <article class="admin-card admin-card--mid">
           <div class="admin-card__head">
             <div>
               <p class="admin-card__kicker">Monitoramento</p>
@@ -184,9 +184,9 @@
             <span class="admin-pulse" aria-hidden="true"></span>
           </div>
           <ul class="admin-status" id="admin-status"></ul>
-          <a class="admin-more" href="#settings" id="link-status" data-view="settings">Ver status completo →</a>
+          <a class="admin-more admin-card__foot" href="#settings" id="link-status" data-view="settings">Ver status completo →</a>
         </article>
-        <article class="admin-card">
+        <article class="admin-card admin-card--mid">
           <div class="admin-card__head">
             <div>
               <p class="admin-card__kicker">Controle</p>
@@ -501,6 +501,6 @@
   <script src="/static/js/config/runtime.js?v=2"></script>
   <script src="/static/js/config/api.js?v=3"></script>
   <script src="/static/js/modules/select-combo.js?v=1"></script>
-  <script src="/static/js/modules/admin-page.js?v=43"></script>
+  <script src="/static/js/modules/admin-page.js?v=45"></script>
 </body>
 </html>
