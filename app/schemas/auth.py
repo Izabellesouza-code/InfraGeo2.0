@@ -10,14 +10,12 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=200)
 
 
+class EmailGateRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=200)
+
+
 class AuditAccessIn(BaseModel):
     pagina: str = "mapa"
-
-
-class RecoverPasswordRequest(BaseModel):
-    email: str = Field(..., min_length=3, max_length=200)
-    nome: str = Field(..., min_length=2, max_length=200)
-    new_password: str = Field(..., min_length=6, max_length=200)
 
 
 class ForgotPasswordRequest(BaseModel):

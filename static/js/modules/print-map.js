@@ -1304,14 +1304,24 @@ window.InfraGeoPrintMap = (function () {
 
   function cloneBasemap(exportMap) {
     const src = findActiveBasemapLayer();
-    const url =
+    let url =
       src?._url ||
       "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+    if (/google\.com/i.test(String(url))) {
+      url =
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    }
+    const native = src?.options?.maxNativeZoom || src?.options?.maxZoom || 19;
     const opts = {
       ...(src?.options || {}),
-      crossOrigin: true,
       opacity: 1,
+      detectRetina: false,
+      maxZoom: Math.max(native, 22),
+      maxNativeZoom: native,
+      errorTileUrl:
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
     };
+    delete opts.crossOrigin;
     delete opts.pane;
     delete opts.map;
     delete opts.renderer;

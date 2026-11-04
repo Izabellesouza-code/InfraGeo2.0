@@ -11,10 +11,12 @@ class WebGISException(Exception):
         message: str,
         status_code: int = 400,
         details: Optional[Any] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> None:
         self.message = message
         self.status_code = status_code
         self.details = details
+        self.headers = headers or {}
         super().__init__(message)
 
 

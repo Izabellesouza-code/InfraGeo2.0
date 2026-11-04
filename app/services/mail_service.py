@@ -1,11 +1,8 @@
-"""Envio de e-mail via SMTP (Gmail) ou Outlook no Windows."""
+"""Envio de e-mail via SMTP (Locaweb)."""
 
 from __future__ import annotations
 
-import json
-import os
 import smtplib
-import subprocess
 from email.message import EmailMessage
 
 from app.config import get_settings
@@ -18,28 +15,24 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str | N
     sender = (settings.smtp_from or settings.smtp_user or "").strip()
     password = (settings.smtp_password or "").strip()
 
-    if host and sender and password:
-        _send_smtp(
-            host=host,
-            port=int(settings.smtp_port or 587),
-            user=(settings.smtp_user or "").strip(),
-            password=password,
-            sender=sender,
-            to_address=to_address,
-            subject=subject,
-            body_text=body_text,
-            body_html=body_html,
-            use_tls=bool(settings.smtp_use_tls),
-            use_ssl=bool(settings.smtp_use_ssl),
+    if not (host and sender and password):
+        raise WebGISException(
+            "Para o código chegar no e-mail, configure SMTP_HOST, SMTP_USER e SMTP_PASSWORD da Locaweb no .env.",
+            status_code=500,
         )
-        return
 
-    if _send_outlook(to_address, subject, body_text):
-        return
-
-    raise WebGISException(
-        "Para o código chegar no e-mail, cole a senha de app do Gmail em SMTP_PASSWORD no .env.",
-        status_code=500,
+    _send_smtp(
+        host=host,
+        port=int(settings.smtp_port or 587),
+        user=(settings.smtp_user or "").strip(),
+        password=password,
+        sender=sender,
+        to_address=to_address,
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        use_tls=bool(settings.smtp_use_tls),
+        use_ssl=bool(settings.smtp_use_ssl),
     )
 
 
@@ -81,33 +74,7 @@ def _send_smtp(
             smtp.send_message(msg)
     except Exception as exc:  # noqa: BLE001
         raise WebGISException(
-            "Não foi possível enviar o e-mail. Verifique a senha de app do Gmail no .env.",
+            "Não foi possível enviar o e-mail. Verifique o SMTP da Locaweb no .env.",
             status_code=500,
             details={"error": str(exc)},
         ) from exc
-
-
-def _send_outlook(to_address: str, subject: str, body_text: str) -> bool:
-    payload = json.dumps(
-        {"to": to_address, "subject": subject, "body": body_text},
-        ensure_ascii=True,
-    )
-    script = (
-        "$d = ConvertFrom-Json -InputObject $env:INFRA_MAIL_JSON; "
-        "$o = New-Object -ComObject Outlook.Application; "
-        "$m = $o.CreateItem(0); "
-        "$m.To = $d.to; $m.Subject = $d.subject; $m.Body = $d.body; $m.Send();"
-    )
-    try:
-        env = os.environ.copy()
-        env["INFRA_MAIL_JSON"] = payload
-        completed = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
-            capture_output=True,
-            text=True,
-            timeout=40,
-            env=env,
-        )
-        return completed.returncode == 0
-    except Exception:  # noqa: BLE001
-        return False

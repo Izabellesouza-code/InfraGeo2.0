@@ -8,7 +8,9 @@ window.InfraGeoLayoutMode = (function () {
     "a4-landscape": { wMm: 297, hMm: 210, label: "A4 Paisagem" },
     "a4-portrait": { wMm: 210, hMm: 297, label: "A4 Retrato" },
     "a3-landscape": { wMm: 420, hMm: 297, label: "A3 Paisagem" },
+    "a3-portrait": { wMm: 297, hMm: 420, label: "A3 Retrato" },
     "letter-landscape": { wMm: 279.4, hMm: 215.9, label: "Carta Paisagem" },
+    "letter-portrait": { wMm: 215.9, hMm: 279.4, label: "Carta Retrato" },
     "wide-16x9": { wMm: 338.7, hMm: 190.5, label: "16∶9" },
     "square-1x1": { wMm: 210, hMm: 210, label: "1∶1" },
   };
@@ -54,6 +56,37 @@ window.InfraGeoLayoutMode = (function () {
     return `${TYPE_LABELS[it.type] || it.type} #${it.id}`;
   }
 
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function safeColor(c) {
+    const s = String(c || "").trim();
+    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s)
+      ? s
+      : "#0A2E2C";
+  }
+
+  function safeImgSrc(src) {
+    const s = String(src || "").trim();
+    if (!s) return "";
+    const head = s.slice(0, 24).toLowerCase();
+    if (head.startsWith("javascript:") || head.startsWith("vbscript:")) return "";
+    if (
+      head.startsWith("data:image/") ||
+      head.startsWith("blob:") ||
+      /^https?:/i.test(s)
+    ) {
+      return s.replace(/"/g, "");
+    }
+    return "";
+  }
+
   let items = [];
   let selectedId = null;
   let nextId = 1;
@@ -66,6 +99,30 @@ window.InfraGeoLayoutMode = (function () {
   /** @type {null | 'adjust' | 'pick'} */
   let mapInteractMode = null;
   let selectedLayerId = null;
+  let previewZoom = 1;
+  let sheetAuto = true;
+  let sheetCompose = "full";
+  let locatorEngine = null;
+  let locatorRect = null;
+  let locatorOutline = null;
+  let locatorSeq = 0;
+  let locatorLive = null;
+  let locatorCenter = null;
+  let locatorZoom = null;
+  let overlayPos = {};
+  let overlaySize = {};
+  let overlayUnlocked = {};
+  let overlayDrag = null;
+  let overlaySelected = null;
+
+  const OVERLAY_MIN = {
+    title: [72, 28],
+    north: [18, 24],
+    scale: [40, 16],
+    locator: [56, 48],
+    legend: [72, 36],
+    credits: [40, 16],
+  };
 
   const COLORABLE = new Set([
     "title",
@@ -148,16 +205,52 @@ window.InfraGeoLayoutMode = (function () {
     return Object.values(registry).filter((e) => layerIsOn(e));
   }
 
+  function boundsFromMap(map) {
+    try {
+      const b = map?.getBounds?.();
+      if (!b) return null;
+      return [
+        [b.getSouth(), b.getWest()],
+        [b.getNorth(), b.getEast()],
+      ];
+    } catch {
+      return null;
+    }
+  }
+
+  function applyViewToMap(map, item, fallbackMap) {
+    if (!map || !window.L) return;
+    const bounds = item?.bounds;
+    if (bounds) {
+      try {
+        map.fitBounds(L.latLngBounds(bounds[0], bounds[1]), {
+          animate: false,
+          padding: [0, 0],
+        });
+        return;
+      } catch {
+        /* ignore */
+      }
+    }
+    const center = item?.center
+      ? L.latLng(item.center[0], item.center[1])
+      : fallbackMap?.getCenter?.();
+    const zoom = item?.zoom ?? fallbackMap?.getZoom?.() ?? 6;
+    if (center) map.setView(center, zoom, { animate: false });
+  }
+
   function syncMapItemsFromMain() {
     const main = window.InfraGeoMap?.getMap?.();
     if (!main) return;
     const c = main.getCenter?.();
     const z = main.getZoom?.();
+    const bounds = boundsFromMap(main);
     if (!c) return;
     items.forEach((it) => {
       if (it.type !== "map") return;
       it.center = [c.lat, c.lng];
       it.zoom = z;
+      if (bounds) it.bounds = bounds;
     });
   }
 
@@ -165,12 +258,6 @@ window.InfraGeoLayoutMode = (function () {
     const main = window.InfraGeoMap?.getMap?.();
     const mapDiv = main?.getContainer?.();
     if (!main || !mapDiv || !window.L) return "";
-    try {
-      main.invalidateSize?.({ animate: false });
-    } catch {
-      /* ignore */
-    }
-    await wait(40);
     const size = main.getSize?.();
     const w = Math.round(size?.x || mapDiv.clientWidth || 0);
     const h = Math.round(size?.y || mapDiv.clientHeight || 0);
@@ -181,46 +268,84 @@ window.InfraGeoLayoutMode = (function () {
     const ctx = canvas.getContext("2d");
     if (!ctx) return "";
     const painted = paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
+    paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
     const drawn = paintVisibleLayersToCanvas(ctx, main);
+    paintMapLayerGeojson(ctx, main);
+    paintExportPopupsOnMap(ctx, main);
     if (painted || drawn) {
-      return canvas.toDataURL("image/jpeg", 0.92);
+      return safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
     }
     return "";
+  }
+
+  function catalogMetas() {
+    return window.InfraGeoLayers?.allLayerMetas?.() || [];
+  }
+
+  function isLayerOnById(id) {
+    const checked = window.InfraGeoLayers?.getState?.()?.checked || {};
+    if (id && checked[id]) return true;
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    return layerIsOn(registry[id]);
+  }
+
+  async function enableLayerForExport(layerId, on = true) {
+    if (!layerId || !window.InfraGeoLayers?.setLayerVisible) return;
+    await window.InfraGeoLayers.setLayerVisible(layerId, on, { fit: false });
+    renderLayerChips();
+    document.querySelectorAll(".layout-el--legend").forEach((node) => {
+      const legendItem = items.find((x) => x.id === Number(node.dataset.id));
+      node.innerHTML = legendHtml();
+      fitLegendBox(node, legendItem);
+    });
+    const keepId = adjustMapId;
+    if (keepId != null) {
+      const item = items.find((x) => x.id === keepId);
+      if (item) mountAdjustLeaflet(item);
+    }
+    const loc = document.querySelector(".layout-sheet__float--locator");
+    if (loc && !pageEl()?.classList.contains("is-exporting")) {
+      mountLocatorLive(loc);
+    }
+    refreshMapSnapshots().catch(() => {});
   }
 
   function syncLayerSelectUi() {
     const sel = document.getElementById("layout-layer-select");
     const status = document.getElementById("layout-selected-layer");
     if (!sel) return;
-    const entries = visibleLayerEntries();
+    const metas = catalogMetas();
     const prev = selectedLayerId || sel.value || "";
+    const groups = {};
+    metas.forEach((m) => {
+      const g = m.groupName || "Outras";
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(m);
+    });
     sel.innerHTML =
-      `<option value="">— selecione ou clique no mapa —</option>` +
-      entries
-        .map((e) => {
-          const id = e.meta.id;
-          const name = e.meta.name || e.meta.schema || id;
-          return `<option value="${id}">${name}</option>`;
+      `<option value="">Nenhuma</option>` +
+      Object.keys(groups)
+        .map((g) => {
+          const opts = groups[g]
+            .map((m) => {
+              const name = esc(m.name || m.schema || m.id);
+              return `<option value="${esc(m.id)}">${name}</option>`;
+            })
+            .join("");
+          return `<optgroup label="${esc(g)}">${opts}</optgroup>`;
         })
         .join("");
-    if (prev && entries.some((e) => e.meta.id === prev)) {
+    if (prev && metas.some((m) => String(m.id) === String(prev))) {
       sel.value = prev;
       selectedLayerId = prev;
-    } else if (!entries.some((e) => e.meta.id === selectedLayerId)) {
-      selectedLayerId = null;
-      sel.value = "";
+    } else if (prev) {
+      sel.value = prev;
     }
     if (status) {
-      if (selectedLayerId) {
-        const entry = entries.find((e) => e.meta.id === selectedLayerId);
-        const name = entry?.meta?.name || selectedLayerId;
-        const st = layerStyle(entry?.meta || {});
-        const c = st.color || st.fillColor || featureColor;
-        status.innerHTML = `Selecionada: <strong>${name}</strong> <span class="layout-layer-dot" style="background:${c}"></span>`;
-      } else {
-        status.textContent = "Nenhuma camada selecionada";
-      }
+      status.textContent = "";
+      status.hidden = true;
     }
+    renderLayerChips();
     document.getElementById("btn-layout-pick-layer")?.classList.toggle(
       "is-active",
       mapInteractMode === "pick"
@@ -229,6 +354,7 @@ window.InfraGeoLayoutMode = (function () {
       "is-active",
       mapInteractMode === "adjust"
     );
+    renderPopupPinList();
   }
 
   function setSelectedLayer(layerId) {
@@ -306,7 +432,7 @@ window.InfraGeoLayoutMode = (function () {
   function applyItemColorStyles(el, it) {
     if (!it?.color || !COLORABLE.has(it.type)) return;
     // Roles do tema recomendado: se o usuário definiu cor, ela prevalece
-    const c = normalizeHex(it.color);
+    const c = safeColor(normalizeHex(it.color));
     if (it.type === "title" || it.type === "subtitle" || it.type === "text") {
       el.style.color = c;
     } else if (it.type === "line") {
@@ -328,7 +454,7 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function dpi() {
-    return Number(document.getElementById("layout-dpi")?.value || 180);
+    return Number(document.getElementById("layout-dpi")?.value || 150);
   }
 
   function syncExportStats() {
@@ -336,17 +462,171 @@ window.InfraGeoLayoutMode = (function () {
     const dpiEl = document.getElementById("layout-stat-dpi");
     const itemsEl = document.getElementById("layout-stat-items");
     const layersEl = document.getElementById("layout-stat-layers");
-    const opt = document.getElementById("layout-page-size")?.selectedOptions?.[0];
-    if (size) size.textContent = String(opt?.text || "A4").split("(")[0].trim();
+    const preset = currentPreset();
+    const margin = document.getElementById("layout-margins")?.value || "compact";
+    const marginLabel = margin === "comfortable" ? "margens confortáveis" : "margens compactas";
+    const presetSel = document.getElementById("layout-print-preset");
+    if (presetSel && preset.key) presetSel.value = preset.key;
+    if (size && size.tagName !== "SELECT") {
+      const ori = preset.hMm > preset.wMm ? "Retrato" : "Paisagem";
+      const paper = (preset.label || "A4").split(" ")[0];
+      size.textContent = `${paper} · ${ori} · ${Math.round(preset.wMm)} × ${Math.round(preset.hMm)} mm`;
+    }
     if (dpiEl) dpiEl.textContent = String(dpi());
     if (itemsEl) itemsEl.textContent = String(items.length);
-    const n = document.getElementById("layout-layer-select")?.options?.length || 1;
-    if (layersEl) layersEl.textContent = String(Math.max(0, n - 1));
+    if (layersEl) layersEl.textContent = String(visibleLayerEntries().length);
+  }
+
+  function applySizeKey(key) {
+    const presetKey = PAGE_PRESETS[key] ? key : "a4-landscape";
+    const size = document.getElementById("layout-page-size");
+    const vis = document.getElementById("layout-print-preset");
+    const fmtEl = document.getElementById("layout-page-format");
+    const oriEl = document.getElementById("layout-page-orient");
+    if (size) size.value = presetKey;
+    if (vis) vis.value = presetKey;
+    if (fmtEl) {
+      if (presetKey.startsWith("a3")) fmtEl.value = "a3";
+      else if (presetKey.startsWith("letter")) fmtEl.value = "letter";
+      else fmtEl.value = "a4";
+    }
+    if (oriEl) {
+      oriEl.value = presetKey.includes("portrait") ? "portrait" : "landscape";
+    }
   }
 
   function currentPreset() {
     const key = document.getElementById("layout-page-size")?.value || "a4-landscape";
     return { key, ...(PAGE_PRESETS[key] || PAGE_PRESETS["a4-landscape"]) };
+  }
+
+  function applySheetChrome() {
+    const showScale = document.getElementById("layout-show-scale")?.checked !== false;
+    const showCredits = document.getElementById("layout-show-credits")?.checked !== false;
+    items.forEach((it) => {
+      if (it.type === "scale") it.visible = showScale;
+      if (it.role === "footer-credit" || it.role === "footer-meta") it.visible = showCredits;
+    });
+  }
+
+  function setPreviewZoom(next) {
+    previewZoom = Math.min(1.4, Math.max(0.6, next));
+    const wrap = document.getElementById("layout-page-wrap");
+    const label = document.getElementById("layout-zoom-label");
+    if (wrap) wrap.style.transform = `scale(${previewZoom})`;
+    if (label) label.textContent = `${Math.round(previewZoom * 100)}%`;
+  }
+
+  function layersPop() {
+    return document.getElementById("layout-layers-pop");
+  }
+
+  function setLayersPop(open) {
+    const pop = layersPop();
+    const btn = document.getElementById("btn-layout-layers");
+    if (!pop) return;
+    pop.hidden = !open;
+    btn?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      renderLayerChips();
+      renderBasemapChips();
+    }
+  }
+
+  const BASEMAP_LABELS = {
+    "Esri Light Gray": "Mapa claro",
+    "Esri Light Gray + rótulos": "Mapa com nomes",
+    "Esri Streets": "Ruas",
+    OpenStreetMap: "Mapa (ruas)",
+    "Satélite (Esri)": "Satélite (Esri)",
+    "Google Earth": "Satélite (Google)",
+    "Esri Topográfico": "Terreno",
+    OpenTopoMap: "Relevo",
+  };
+
+  function renderBasemapChips() {
+    const host = document.getElementById("layout-basemap-chips");
+    if (!host) return;
+    const names = window.InfraGeoMap?.getBasemapNames?.() || [];
+    const active = window.InfraGeoMap?.getActiveBasemapName?.();
+    const rank = (n) => {
+      const t = String(n).toLowerCase();
+      if (t.includes("satél") || t.includes("google earth")) return 0;
+      if (t.includes("topo") || t.includes("relev")) return 2;
+      return 3;
+    };
+    const ordered = [...names].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "pt"));
+    if (!ordered.length) {
+      host.innerHTML = `<span class="layout-studio__empty">Nenhum mapa base</span>`;
+      return;
+    }
+    host.innerHTML = ordered
+      .map((name) => {
+        const on = name === active;
+        const label = BASEMAP_LABELS[name] || name;
+        return (
+          `<button type="button" class="layout-chip${on ? " is-on" : ""}" data-basemap="${esc(name)}" aria-pressed="${on}">` +
+          (on ? `<span class="layout-chip__check" aria-hidden="true">✓</span>` : "") +
+          `${esc(label)}</button>`
+        );
+      })
+      .join("");
+  }
+
+  function renderLayerChips() {
+    const host = document.getElementById("layout-layer-chips");
+    if (!host) return;
+    const metas = catalogMetas();
+    if (!metas.length) {
+      host.innerHTML = `<li class="layout-studio__empty">Nenhuma camada no catálogo</li>`;
+      return;
+    }
+    const onFirst = [...metas].sort((a, b) => {
+      const ao = isLayerOnById(a.id) ? 0 : 1;
+      const bo = isLayerOnById(b.id) ? 0 : 1;
+      return ao - bo;
+    });
+    const onRows = onFirst.filter((m) => isLayerOnById(m.id));
+    const offRows = onFirst.filter((m) => !isLayerOnById(m.id));
+    const row = (m, on) => {
+      const id = String(m.id);
+      const st = layerStyle(m);
+      const c = st.fillColor || st.color || "#0A2E2C";
+      const name = esc(m.name || m.schema || id);
+      return (
+        `<li>` +
+        `<button type="button" class="layout-layer-pill${on ? " is-on" : ""}" data-toggle-layer="${esc(id)}" aria-pressed="${on}">` +
+        `<span class="layout-layer-dot" style="background:${safeColor(c)}"></span>` +
+        `<span class="layout-layer-name">${name}</span>` +
+        `<span class="layout-layer-action">${on ? "Remover" : "Adicionar"}</span>` +
+        `</button></li>`
+      );
+    };
+    host.innerHTML =
+      (onRows.length
+        ? `<li class="layout-studio__group-label">No mapa</li>${onRows.map((m) => row(m, true)).join("")}`
+        : `<li class="layout-studio__empty">Nenhuma camada no mapa</li>`) +
+      `<li class="layout-studio__group-label">Disponíveis</li>` +
+      (offRows.length
+        ? offRows.map((m) => row(m, false)).join("")
+        : `<li class="layout-studio__empty">Todas as camadas já estão no mapa</li>`);
+  }
+
+  function renderPopupPinList() {
+    const host = document.getElementById("layout-popup-pins");
+    if (!host) return;
+    const pins = window.InfraGeoHoverPopup?.getExportPins?.() || [];
+    host.hidden = !pins.length;
+    host.innerHTML = pins
+      .map(
+        (p) =>
+          `<li>` +
+          `<span class="layout-layer-dot" style="background:${safeColor(p.color)}"></span>` +
+          `<span>${esc(p.title || "Ponto")}</span>` +
+          `<button type="button" data-del-pin="${esc(p.id)}">Remover</button>` +
+          `</li>`
+      )
+      .join("");
   }
 
   function applyPageSize() {
@@ -356,9 +636,9 @@ window.InfraGeoLayoutMode = (function () {
     const workspace = document.getElementById("layout-workspace");
     const cw = workspace?.clientWidth || 900;
     const ch = workspace?.clientHeight || 700;
-    const pad = cw < 720 ? 12 : 40;
-    const maxW = Math.max(220, cw - pad);
-    const maxH = Math.max(160, ch - pad);
+    const pad = cw < 720 ? 8 : 16;
+    const maxW = Math.max(360, cw - pad);
+    const maxH = Math.max(320, ch - pad);
     const ratio = preset.wMm / preset.hMm;
     let w = maxW;
     let h = w / ratio;
@@ -370,17 +650,56 @@ window.InfraGeoLayoutMode = (function () {
     page.style.height = `${Math.round(h)}px`;
     page.dataset.wMm = String(preset.wMm);
     page.dataset.hMm = String(preset.hMm);
+    const wrap = document.getElementById("layout-page-wrap");
+    if (wrap) {
+      wrap.style.width = `${Math.round(w)}px`;
+      wrap.style.height = `${Math.round(h)}px`;
+      wrap.style.transform = "none";
+    }
+    previewZoom = 1;
     syncExportStats();
+  }
+
+  let tileScrubTimer = 0;
+
+  function scrubLayoutTiles() {
+    document.querySelectorAll(".layout-mode img.leaflet-tile").forEach((img) => {
+      const broken =
+        img.classList.contains("leaflet-tile-error") ||
+        !img.getAttribute("src") ||
+        (img.complete && img.naturalWidth === 0);
+      if (!broken) return;
+      img.classList.add("leaflet-tile-error");
+      img.style.display = "none";
+      try {
+        img.remove();
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+
+  function setTileScrub(on) {
+    if (tileScrubTimer) {
+      window.clearInterval(tileScrubTimer);
+      tileScrubTimer = 0;
+    }
+    if (!on) return;
+    scrubLayoutTiles();
+    tileScrubTimer = window.setInterval(scrubLayoutTiles, 120);
   }
 
   async function open(show) {
     const el = root();
     if (!el) return;
     if (!show) {
+      setTileScrub(false);
       stopAdjustMap(false).catch(() => {});
+      el.classList.remove("is-open", "is-map-focus");
       el.hidden = true;
       el.setAttribute("aria-hidden", "true");
-      document.body.classList.toggle("layout-mode-open", false);
+      document.body.classList.remove("layout-mode-open");
+      setLayersPop(false);
       return;
     }
     let liveSrc = "";
@@ -390,29 +709,34 @@ window.InfraGeoLayoutMode = (function () {
       liveSrc = "";
     }
     el.hidden = false;
+    el.classList.add("is-open");
     el.setAttribute("aria-hidden", "false");
-    document.body.classList.toggle("layout-mode-open", true);
+    document.body.classList.add("layout-mode-open");
+    setTileScrub(true);
+    applyPageSize();
     items = items.filter((it) => it.type !== "layer-chip");
-    if (!items.length) seedDefaultLayout();
+    seedDefaultLayout();
     syncMapItemsFromMain();
     if (liveSrc) {
       items.forEach((it) => {
         if (it.type === "map") it.src = liveSrc;
       });
     }
-    applyPageSize();
     syncPageTheme();
     syncGridClasses();
     syncLayerSelectUi();
     renderAll();
     window.setTimeout(() => {
-      applyPageSize();
       syncMapItemsFromMain();
-      if (!items.some((it) => it.type === "map" && it.src)) {
-        refreshMapSnapshots().catch(() => {});
-      }
       syncLayerSelectUi();
-    }, 120);
+      const mapItem = items.find((it) => it.type === "map" && it.visible !== false);
+      if (mapItem) {
+        adjustMapId = mapItem.id;
+        mapInteractMode = "adjust";
+        mountAdjustLeaflet(mapItem);
+      }
+      refreshMapSnapshots().catch(() => {});
+    }, 180);
   }
 
   function syncPageTheme() {
@@ -425,40 +749,63 @@ window.InfraGeoLayoutMode = (function () {
     applyRecommendedLayout({ silentOpen: true });
   }
 
+  function layerGeomKind(entry) {
+    const gj = entry?.geojson;
+    const t = String(
+      gj?.features?.[0]?.geometry?.type || gj?.geometry?.type || entry?.meta?.geom || ""
+    );
+    if (/polygon/i.test(t)) return 0;
+    if (/line/i.test(t)) return 1;
+    return 2;
+  }
+
+  function activeLayerNames() {
+    return visibleLayerEntries().map((e) => e.meta?.name || e.meta?.id).filter(Boolean);
+  }
+
+  function autoSubtitle() {
+    const names = activeLayerNames();
+    if (!names.length) return "Nenhuma camada ligada no mapa";
+    if (names.length <= 3) return names.join(" · ");
+    return `${names.slice(0, 3).join(" · ")} +${names.length - 3}`;
+  }
+
+  function suggestedComposition() {
+    return visibleLayerEntries().length >= 5 ? "side" : "full";
+  }
+
+  function resolveComposition() {
+    if (sheetAuto) sheetCompose = suggestedComposition();
+    return sheetCompose;
+  }
+
   function applyRecommendedLayout(opts = {}) {
     stopAdjustMap(false).catch(() => {});
-
     pageTheme = "recommended";
-    const sizeSel = document.getElementById("layout-page-size");
-    if (sizeSel) sizeSel.value = "a4-landscape";
-    const screenGrid = document.getElementById("layout-screen-grid");
-    if (screenGrid) screenGrid.checked = false;
-    const snap = document.getElementById("layout-snap");
-    if (snap) snap.checked = true;
-    const scaleUnit = document.getElementById("layout-scale-unit");
-    if (scaleUnit) scaleUnit.value = "metric";
-
+    if (opts.resetUi) {
+      sheetAuto = true;
+      const scale = document.getElementById("layout-show-scale");
+      const north = document.getElementById("layout-show-north");
+      const loc = document.getElementById("layout-show-locator");
+      const credits = document.getElementById("layout-show-credits");
+      const titleOn = document.getElementById("layout-show-title");
+      const legendOn = document.getElementById("layout-show-legend");
+      if (scale) scale.checked = true;
+      if (north) north.checked = true;
+      if (loc) loc.checked = true;
+      if (credits) credits.checked = true;
+      if (titleOn) titleOn.checked = true;
+      if (legendOn) legendOn.checked = true;
+      overlayPos = {};
+      overlaySize = {};
+      overlayUnlocked = {};
+      locatorCenter = null;
+      locatorZoom = null;
+    }
     applyPageSize();
     syncGridClasses();
 
-    const page = pageEl();
-    const W = Math.max(640, page?.clientWidth || 980);
-    const H = Math.max(420, page?.clientHeight || 680);
-    const pad = Math.round(Math.min(36, W * 0.04));
-    const year = new Date().getFullYear();
-    const gap = 18;
-    const headerH = 108;
-    const footerH = 36;
-    const contentY = headerH;
-    const contentH = Math.max(240, H - contentY - footerH);
-    const legendW = Math.max(168, Math.min(240, Math.round((W - pad * 2 - gap) * 0.24)));
-    const mapW = W - pad * 2 - gap - legendW;
-    const mapH = contentH;
-    const mapX = pad;
-    const mapY = contentY;
-    const legendX = mapX + mapW + gap;
-    const legendY = contentY;
-
+    const prevMap = items.find((it) => it.type === "map");
     items = [];
     nextId = 1;
     selectedId = null;
@@ -472,117 +819,17 @@ window.InfraGeoLayoutMode = (function () {
     mapInteractMode = null;
 
     const main = window.InfraGeoMap?.getMap?.();
-    const mapCenter = main?.getCenter?.();
-    const mapZoom = main?.getZoom?.();
-
-    const push = (type, box, extra = {}) =>
-      addItem(type, box, { ...extra, skipSelect: true, silent: true });
-
-    push("text", {
-      x: pad,
-      y: 22,
-      w: 240,
-      h: 26,
-    }, { text: "INFRA GEO AM", role: "brand" });
-
-    push("text", {
-      x: W - pad - 280,
-      y: 24,
-      w: 280,
-      h: 22,
-    }, {
-      text: "Cartografia · Infraestrutura territorial",
-      role: "brand-meta",
+    const mapItem = addItem("map", { x: 0, y: 0, w: 400, h: 300 }, {
+      skipSelect: true,
+      silent: true,
+      role: "hero-map",
     });
+    if (prevMap?.src && mapItem) mapItem.src = prevMap.src;
+    const bounds = boundsFromMap(main);
+    if (mapItem && bounds) mapItem.bounds = bounds;
 
-    push("title", {
-      x: pad,
-      y: 56,
-      w: W - pad * 2,
-      h: 30,
-    }, {
-      text: "Mapa de Infraestrutura — Amazonas",
-      role: "hero-title",
-    });
-
-    push("subtitle", {
-      x: pad,
-      y: 86,
-      w: Math.min(420, W - pad * 2),
-      h: 18,
-    }, {
-      text: "Composição cartográfica institucional",
-      role: "hero-sub",
-    });
-
-    push("map", {
-      x: mapX,
-      y: mapY,
-      w: mapW,
-      h: mapH,
-      center: mapCenter ? [mapCenter.lat, mapCenter.lng] : undefined,
-      zoom: mapZoom,
-    }, { role: "hero-map" });
-
-    push("rect", {
-      x: legendX,
-      y: legendY,
-      w: legendW,
-      h: mapH,
-    }, { role: "side-panel" });
-
-    push("legend", {
-      x: legendX + 16,
-      y: legendY + 16,
-      w: legendW - 32,
-      h: mapH - 96,
-      _layoutH: mapH - 96,
-    }, { role: "side-legend" });
-
-    push("north", {
-      x: legendX + legendW - 46,
-      y: legendY + 16,
-      w: 28,
-      h: 36,
-    }, { role: "side-north" });
-
-    push("scale", {
-      x: legendX + 16,
-      y: legendY + mapH - 72,
-      w: legendW - 32,
-      h: 56,
-    }, { role: "side-scale" });
-
-    push("scale", {
-      x: mapX + 14,
-      y: mapY + mapH - 50,
-      w: 108,
-      h: 36,
-    }, { role: "map-scale" });
-
-    push("text", {
-      x: pad,
-      y: H - 28,
-      w: Math.min(420, W * 0.55),
-      h: 16,
-    }, {
-      text: `© ${year} InfraGeo AM · CONSÓRCIO SPU — DNIT`,
-      role: "footer-credit",
-    });
-
-    push("text", {
-      x: W - pad - 240,
-      y: H - 28,
-      w: 240,
-      h: 16,
-    }, {
-      text: "Sistema de visualização geográfica",
-      role: "footer-meta",
-    });
-
-    syncPageTheme();
     renderAll();
-    selectedId = items.find((it) => it.type === "map")?.id ?? null;
+    selectedId = mapItem?.id ?? null;
     captureLiveMainMap()
       .then((src) => {
         if (src) {
@@ -591,48 +838,108 @@ window.InfraGeoLayoutMode = (function () {
           });
         }
         renderAll();
-        startAdjustMap(selectedId);
       })
-      .catch(() => {
-        startAdjustMap(selectedId);
-      });
+      .catch(() => {});
   }
 
   function wait(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  function cloneBasemapTo(targetMap) {
-    const main = window.InfraGeoMap?.getMap?.();
-    if (!main || !window.L) return;
-    let added = false;
-    main.eachLayer((layer) => {
-      if (!(layer instanceof L.TileLayer)) return;
+  const EMPTY_TILE =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+  function purgeBrokenTiles(root) {
+    const scope = root || document;
+    scope.querySelectorAll?.("img.leaflet-tile")?.forEach((img) => {
+      if (img.classList.contains("leaflet-tile-error") || (img.complete && img.naturalWidth === 0)) {
+        img.classList.add("leaflet-tile-error");
+        try {
+          img.remove();
+        } catch {
+          img.style.display = "none";
+        }
+      }
+    });
+  }
+
+  function hideBrokenTiles(map) {
+    if (!map?.on) return;
+    map.on("tileerror", (ev) => {
+      const img = ev && ev.tile;
+      if (!img) return;
+      img.classList.add("leaflet-tile-error");
+      img.alt = "";
+      img.style.display = "none";
+      img.style.visibility = "hidden";
+      img.style.opacity = "0";
       try {
-        const opts = {
-          ...(layer.options || {}),
-          opacity: 1,
-          crossOrigin: true,
-        };
-        delete opts.pane;
-        delete opts.map;
-        delete opts.renderer;
-        L.tileLayer(layer._url, opts).addTo(targetMap);
-        added = true;
+        if (img.src !== EMPTY_TILE) img.src = EMPTY_TILE;
+      } catch {
+        /* ignore */
+      }
+      try {
+        img.remove();
       } catch {
         /* ignore */
       }
     });
-    if (!added) {
-      L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        {
-          maxZoom: 19,
-          crossOrigin: true,
-          attribution: "© Esri",
-        }
-      ).addTo(targetMap);
+    map.on("load", () => purgeBrokenTiles(map.getContainer?.()));
+  }
+
+  function safeCanvasDataUrl(canvas, type = "image/jpeg", quality = 0.92) {
+    if (!canvas) return "";
+    try {
+      return canvas.toDataURL(type, quality);
+    } catch (err) {
+      console.warn("layout-mode: canvas contaminado (CORS)", err);
+      return "";
     }
+  }
+
+  function tileImageSafeToCopy(img) {
+    if (!img?.src) return false;
+    const src = String(img.src);
+    if (src.startsWith("data:") || src.startsWith("blob:")) return true;
+    const cors = String(img.crossOrigin || "").toLowerCase();
+    return cors === "anonymous" || cors === "use-credentials";
+  }
+
+  function loadCorsImage(src) {
+    return new Promise((resolve) => {
+      if (!src) return resolve(null);
+      const im = new Image();
+      if (!String(src).startsWith("data:") && !String(src).startsWith("blob:")) {
+        im.crossOrigin = "anonymous";
+      }
+      const timer = window.setTimeout(() => resolve(null), 2800);
+      im.onload = () => {
+        window.clearTimeout(timer);
+        resolve(im);
+      };
+      im.onerror = () => {
+        window.clearTimeout(timer);
+        resolve(null);
+      };
+      im.src = src;
+    });
+  }
+
+  function cloneBasemapTo(targetMap, optsIn = {}) {
+    if (!targetMap || !window.L) return;
+    const cors = !!optsIn.cors;
+    const esriImg =
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    const opts = {
+      maxZoom: 19,
+      maxNativeZoom: 19,
+      opacity: 1,
+      detectRetina: false,
+      attribution: "© Esri",
+      errorTileUrl: EMPTY_TILE,
+    };
+    if (cors) opts.crossOrigin = "anonymous";
+    L.tileLayer(esriImg, opts).addTo(targetMap);
   }
 
   function layerStyle(meta) {
@@ -670,6 +977,7 @@ window.InfraGeoLayoutMode = (function () {
 
   function cloneVisibleLayersTo(targetMap, opts = {}) {
     const pickable = !!opts.pickable;
+    const radiusBoost = Number(opts.radiusBoost) || 0;
     const registry = window.InfraGeoMap?.overlayRegistry || {};
     Object.values(registry).forEach((entry) => {
       if (!layerIsOn(entry)) return;
@@ -684,21 +992,36 @@ window.InfraGeoLayoutMode = (function () {
       if (!geojson) return;
       const style = layerStyle(entry.meta);
       const layerId = entry.meta.id;
+      const pointRadius = Math.max(3, (style.radius || 6) + radiusBoost);
       try {
         const group = L.geoJSON(geojson, {
-          style: () => ({ ...style, interactive: pickable }),
+          style: () => ({
+            ...style,
+            weight: Math.max(1.2, style.weight || 2),
+            interactive: pickable,
+          }),
           pointToLayer: (_f, latlng) =>
             L.circleMarker(latlng, {
               ...style,
-              radius: Math.max(4, style.radius || 6),
+              radius: pointRadius,
               interactive: pickable,
             }),
           interactive: pickable,
           onEachFeature: pickable
-            ? (_feature, layer) => {
+            ? (feature, layer) => {
                 layer.on("click", (ev) => {
                   L.DomEvent.stopPropagation(ev);
                   setSelectedLayer(layerId);
+                  if (document.getElementById("layout-include-popups")?.checked) {
+                    window.InfraGeoHoverPopup?.addExportPin?.(
+                      feature,
+                      layer,
+                      entry.meta,
+                      ev.latlng
+                    );
+                    renderPopupPinList();
+                    refreshMapSnapshots().catch(() => {});
+                  }
                 });
               }
             : undefined,
@@ -780,6 +1103,7 @@ window.InfraGeoLayoutMode = (function () {
     let painted = 0;
     mapDiv.querySelectorAll(".leaflet-tile-pane img.leaflet-tile").forEach((img) => {
       if (!img.complete || !(img.naturalWidth > 0)) return;
+      if (!tileImageSafeToCopy(img)) return;
       try {
         const r = img.getBoundingClientRect();
         ctx.drawImage(
@@ -893,6 +1217,328 @@ window.InfraGeoLayoutMode = (function () {
     }
   }
 
+  function paintOverlayCanvasesToCanvas(ctx, mapDiv, mapW, mapH) {
+    const hostRect = mapDiv.getBoundingClientRect();
+    if (!(hostRect.width > 0)) return 0;
+    const scaleX = mapW / hostRect.width;
+    const scaleY = mapH / hostRect.height;
+    let painted = 0;
+    mapDiv
+      .querySelectorAll(".leaflet-overlay-pane canvas, .leaflet-marker-pane canvas")
+      .forEach((cnv) => {
+        if (!(cnv.width > 0) || !(cnv.height > 0)) return;
+        try {
+          const r = cnv.getBoundingClientRect();
+          ctx.drawImage(
+            cnv,
+            (r.left - hostRect.left) * scaleX,
+            (r.top - hostRect.top) * scaleY,
+            r.width * scaleX,
+            r.height * scaleY
+          );
+          painted += 1;
+        } catch {
+          /* tainted */
+        }
+      });
+    return painted;
+  }
+
+  function paintMapLayerGeojson(ctx, map) {
+    if (!map?.eachLayer) return 0;
+    let count = 0;
+    map.eachLayer((layer) => {
+      if (!layer || typeof layer.toGeoJSON !== "function") return;
+      if (layer instanceof L.TileLayer || layer instanceof L.GridLayer) return;
+      if (layer instanceof L.LayerGroup && !(layer instanceof L.GeoJSON)) return;
+      let geojson = null;
+      try {
+        geojson = layer.toGeoJSON();
+      } catch {
+        return;
+      }
+      if (!geojson) return;
+      const opt = layer.options || {};
+      const style = {
+        color: opt.color || "#111827",
+        fillColor: opt.fillColor || opt.color || "#111827",
+        weight: opt.weight ?? 2,
+        opacity: opt.opacity ?? 1,
+        fillOpacity: opt.fillOpacity ?? 0.2,
+        radius: opt.radius || 6,
+      };
+      const features =
+        geojson.type === "FeatureCollection"
+          ? geojson.features || []
+          : geojson.type === "Feature"
+            ? [geojson]
+            : [{ type: "Feature", geometry: geojson, properties: {} }];
+      features.forEach((f) => {
+        if (!f?.geometry) return;
+        paintGeometry(ctx, map, f.geometry, style);
+        count += 1;
+      });
+    });
+    return count;
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function ellipsizeText(ctx, text, maxW) {
+    let t = String(text ?? "");
+    if (!t) return "";
+    if (ctx.measureText(t).width <= maxW) return t;
+    while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
+    return `${t}…`;
+  }
+
+  function boxesOverlap(a, b, pad = 8) {
+    return !(
+      a.x + a.w + pad <= b.x ||
+      b.x + b.w + pad <= a.x ||
+      a.y + a.h + pad <= b.y ||
+      b.y + b.h + pad <= a.y
+    );
+  }
+
+  function projectPin(leafletMap, pin, canvasW, canvasH) {
+    const ll = window.L?.latLng?.(pin.lat, pin.lng);
+    if (!ll || !leafletMap?.latLngToContainerPoint) return null;
+    const raw = leafletMap.latLngToContainerPoint(ll);
+    const size = leafletMap.getSize?.() || { x: canvasW, y: canvasH };
+    const sx = size.x ? canvasW / size.x : 1;
+    const sy = size.y ? canvasH / size.y : 1;
+    return { x: raw.x * sx, y: raw.y * sy };
+  }
+
+  function paintExportPopupsOnMap(ctx, leafletMap) {
+    if (!document.getElementById("layout-include-popups")?.checked) return;
+    const pins = window.InfraGeoHoverPopup?.getExportPins?.() || [];
+    if (!pins.length || !leafletMap?.latLngToContainerPoint) return;
+    const canvasW = ctx.canvas?.width && ctx.getTransform
+      ? ctx.canvas.width / (ctx.getTransform().a || 1)
+      : leafletMap.getSize?.().x || 800;
+    const canvasH = ctx.canvas?.height && ctx.getTransform
+      ? ctx.canvas.height / (ctx.getTransform().d || 1)
+      : leafletMap.getSize?.().y || 600;
+    const size = { x: canvasW, y: canvasH };
+    const cardW = 196;
+    const rowH = 15;
+    const headH = 26;
+    const fontStack = "Segoe UI, Arial, sans-serif";
+    const placed = [];
+    const layout = pins.map((pin) => {
+      const pt = projectPin(leafletMap, pin, canvasW, canvasH);
+      if (!pt) return null;
+      const rows = (pin.rows || []).slice(0, 3);
+      const cardH = headH + 8 + rows.length * rowH + 8;
+      const clamp = (x, y) => ({
+        x: Math.max(8, Math.min(x, size.x - cardW - 8)),
+        y: Math.max(8, Math.min(y, size.y - cardH - 8)),
+        w: cardW,
+        h: cardH,
+      });
+      const candidates = [
+        clamp(pt.x - cardW / 2, pt.y - cardH - 20),
+        clamp(pt.x + 18, pt.y - cardH - 10),
+        clamp(pt.x - cardW - 18, pt.y - cardH - 10),
+        clamp(pt.x + 18, pt.y + 16),
+        clamp(pt.x - cardW - 18, pt.y + 16),
+        clamp(pt.x - cardW / 2, pt.y + 16),
+      ];
+      const free = candidates.filter((c) => !placed.some((p) => boxesOverlap(c, p)));
+      const score = (c) => Math.hypot(c.x + c.w / 2 - pt.x, c.y + c.h / 2 - pt.y);
+      const box = (free.length ? free : candidates).slice().sort((a, b) => score(a) - score(b))[0];
+      placed.push(box);
+      return { pin, pt, rows, box, cardH };
+    }).filter(Boolean);
+
+    layout.forEach(({ pin, pt }) => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = pin.color || "#f59e0b";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    layout.forEach(({ pin, pt, rows, box }) => {
+      const { x, y, w, h } = box;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+      const cx = Math.max(x + 12, Math.min(pt.x, x + w - 12));
+      const cy = pt.y < y ? y : pt.y > y + h ? y + h : y + h;
+      ctx.lineTo(cx, cy);
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.28)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.shadowColor = "rgba(16, 42, 67, 0.22)";
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 3;
+      roundRectPath(ctx, x, y, w, h, 10);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = "#e6edf4";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(x + 14, y + 14, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = pin.color || "#f59e0b";
+      ctx.fill();
+
+      ctx.fillStyle = "#12263a";
+      ctx.font = `700 12px ${fontStack}`;
+      ctx.fillText(ellipsizeText(ctx, pin.title || "Ponto", w - 36), x + 24, y + 18);
+
+      ctx.font = `500 10px ${fontStack}`;
+      rows.forEach((row, i) => {
+        const yy = y + headH + 6 + i * rowH;
+        ctx.fillStyle = "#7a8ca0";
+        ctx.fillText(ellipsizeText(ctx, row.label || "", 72), x + 12, yy);
+        ctx.fillStyle = "#16324f";
+        ctx.fillText(ellipsizeText(ctx, row.value || "", w - 96), x + 88, yy);
+      });
+      ctx.restore();
+    });
+  }
+
+  function captureLeafletView(leafletMap, scale = 2) {
+    if (!leafletMap || !window.L) return "";
+    const mapDiv = leafletMap.getContainer?.();
+    const size = leafletMap.getSize?.();
+    const w = Math.round(size?.x || mapDiv?.clientWidth || 0);
+    const h = Math.round(size?.y || mapDiv?.clientHeight || 0);
+    if (!mapDiv || w < 40 || h < 40) return "";
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
+    paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
+    paintVisibleLayersToCanvas(ctx, leafletMap);
+    paintMapLayerGeojson(ctx, leafletMap);
+    paintExportPopupsOnMap(ctx, leafletMap);
+    return safeCanvasDataUrl(canvas, "image/jpeg", 0.93);
+  }
+
+  async function paintBasemapTilesToCanvasAsync(ctx, mapDiv, mapW, mapH) {
+    const bg = window.getComputedStyle(mapDiv).backgroundColor || "#dbe4ea";
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, mapW, mapH);
+    const hostRect = mapDiv.getBoundingClientRect();
+    if (!(hostRect.width > 0) || !(hostRect.height > 0)) return 0;
+    const scaleX = mapW / hostRect.width;
+    const scaleY = mapH / hostRect.height;
+    const tiles = [...mapDiv.querySelectorAll(".leaflet-tile-pane img.leaflet-tile")];
+    let painted = 0;
+    await Promise.all(
+      tiles.map(async (img) => {
+        if (!img.complete || !(img.naturalWidth > 0)) return;
+        const r = img.getBoundingClientRect();
+        const dx = (r.left - hostRect.left) * scaleX;
+        const dy = (r.top - hostRect.top) * scaleY;
+        const dw = r.width * scaleX;
+        const dh = r.height * scaleY;
+        let src = img;
+        if (!tileImageSafeToCopy(img)) {
+          src = await loadCorsImage(img.currentSrc || img.src);
+        }
+        if (!src) return;
+        try {
+          ctx.drawImage(src, dx, dy, dw, dh);
+          painted += 1;
+        } catch {
+          /* tainted */
+        }
+      })
+    );
+    return painted;
+  }
+
+  async function captureLeafletViewAsync(leafletMap, scale = 2) {
+    if (!leafletMap || !window.L) return "";
+    const mapDiv = leafletMap.getContainer?.();
+    const size = leafletMap.getSize?.();
+    const w = Math.round(size?.x || mapDiv?.clientWidth || 0);
+    const h = Math.round(size?.y || mapDiv?.clientHeight || 0);
+    if (!mapDiv || w < 40 || h < 40) return "";
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    const painted = await paintBasemapTilesToCanvasAsync(ctx, mapDiv, w, h);
+    paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
+    paintVisibleLayersToCanvas(ctx, leafletMap);
+    paintMapLayerGeojson(ctx, leafletMap);
+    paintExportPopupsOnMap(ctx, leafletMap);
+    let url = safeCanvasDataUrl(canvas, "image/jpeg", 0.93);
+    if (painted && url) return url;
+    const cloned = await captureMapDataUrl({
+      w: Math.max(720, w * 2),
+      h: Math.max(480, h * 2),
+      center: leafletMap.getCenter?.()
+        ? [leafletMap.getCenter().lat, leafletMap.getCenter().lng]
+        : null,
+      zoom: leafletMap.getZoom?.(),
+      bounds: boundsFromMap(leafletMap),
+    });
+    if (cloned) return cloned;
+    if (url) return url;
+    if (window.html2canvas) {
+      try {
+        purgeBrokenTiles(mapDiv);
+        const shot = await window.html2canvas(mapDiv, {
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: null,
+          scale,
+          logging: false,
+          ignoreElements(el) {
+            return (
+              el instanceof HTMLImageElement &&
+              el.classList.contains("leaflet-tile") &&
+              (el.classList.contains("leaflet-tile-error") ||
+                (el.complete && el.naturalWidth === 0))
+            );
+          },
+        });
+        url = safeCanvasDataUrl(shot, "image/jpeg", 0.93);
+      } catch {
+        url = "";
+      }
+    }
+    return url;
+  }
+
+  function placeFreezeImage(host, src) {
+    if (!host) return;
+    host.querySelectorAll(".layout-export-freeze").forEach((n) => n.remove());
+    if (!src) return;
+    const img = document.createElement("img");
+    img.className = "layout-export-freeze";
+    img.alt = "";
+    img.src = src;
+    host.appendChild(img);
+  }
+
   function paintVisibleLayersToCanvas(ctx, map) {
     const registry = window.InfraGeoMap?.overlayRegistry || {};
     let count = 0;
@@ -928,10 +1574,7 @@ window.InfraGeoLayoutMode = (function () {
     if (!main || !window.L) return "";
     const w = Math.max(320, Math.round(opts.w || 900));
     const h = Math.max(240, Math.round(opts.h || 560));
-    const center = opts.center
-      ? L.latLng(opts.center[0], opts.center[1])
-      : main.getCenter();
-    const zoom = opts.zoom ?? main.getZoom();
+    const source = adjustLeaflet || main;
 
     // Precisa estar no viewport (mesmo quase invisível) para o Leaflet carregar tiles
     const host = document.createElement("div");
@@ -962,9 +1605,14 @@ window.InfraGeoLayoutMode = (function () {
         zoomAnimation: false,
         inertia: false,
       });
-      cloneBasemapTo(exportMap);
+      hideBrokenTiles(exportMap);
+      cloneBasemapTo(exportMap, { cors: true });
       cloneVisibleLayersTo(exportMap);
-      exportMap.setView(center, zoom, { animate: false });
+      applyViewToMap(exportMap, {
+        bounds: opts.bounds || boundsFromMap(source),
+        center: opts.center,
+        zoom: opts.zoom,
+      }, source);
       exportMap.invalidateSize({ animate: false });
       await wait(80);
       exportMap.invalidateSize({ animate: false });
@@ -976,7 +1624,10 @@ window.InfraGeoLayoutMode = (function () {
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       const painted = paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
+      paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
       const drawn = paintVisibleLayersToCanvas(ctx, exportMap);
+      paintMapLayerGeojson(ctx, exportMap);
+      paintExportPopupsOnMap(ctx, exportMap);
 
       if (!painted && !drawn) {
         if (window.html2canvas) {
@@ -987,11 +1638,11 @@ window.InfraGeoLayoutMode = (function () {
             scale: 1,
             logging: false,
           });
-          return shot.toDataURL("image/jpeg", 0.92);
+          return safeCanvasDataUrl(shot, "image/jpeg", 0.92);
         }
         return "";
       }
-      return canvas.toDataURL("image/jpeg", 0.92);
+      return safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
     } catch (err) {
       console.warn("layout-mode: captura do mapa falhou", err);
       return "";
@@ -1010,81 +1661,125 @@ window.InfraGeoLayoutMode = (function () {
     }
   }
 
+  async function snapshotMapForExport(it) {
+    persistAdjustView();
+    if (adjustLeaflet && adjustMapId === it.id) {
+      const live = captureLeafletView(adjustLeaflet, 2);
+      if (live) return live;
+    }
+    return captureMapDataUrl({
+      w: Math.max(720, Math.round(it.w * 2)),
+      h: Math.max(480, Math.round(it.h * 2)),
+      center: it.center,
+      zoom: it.zoom,
+      bounds: it.bounds,
+    });
+  }
+
   async function refreshMapSnapshots() {
+    persistAdjustView();
     const maps = items.filter((it) => it.type === "map" && it.visible !== false);
     if (!maps.length) return;
     for (const it of maps) {
-      const url = await captureMapDataUrl({
-        w: Math.max(640, Math.round(it.w * 2)),
-        h: Math.max(400, Math.round(it.h * 2)),
-        center: it.center,
-        zoom: it.zoom,
-      });
+      const url = await snapshotMapForExport(it);
       if (url) it.src = url;
     }
     renderAll();
   }
 
-  async function snapshotVisibleMap(it) {
-    const node = document.querySelector(`.layout-el[data-id="${it.id}"]`);
-    if (!node) return it.src || "";
-    const img = node.querySelector("img[alt='Mapa'], .layout-el--map img");
-    if (img?.currentSrc || img?.src) {
-      const src = img.currentSrc || img.src;
-      if (src && !src.endsWith("/")) return src;
-    }
-    const live = node.querySelector(".layout-map-live, .leaflet-container");
-    if (live && window.html2canvas) {
-      try {
-        const shot = await window.html2canvas(live, {
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#dfe6ea",
-          scale: 2,
-          logging: false,
-        });
-        return shot.toDataURL("image/png");
-      } catch (err) {
-        console.warn("layout-mode: snapshot do mapa visível", err);
-      }
-    }
-    return it.src || "";
+  async function waitForPageImages(page) {
+    const imgs = [...(page?.querySelectorAll("img") || [])];
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+              })
+      )
+    );
   }
 
   async function preparePageForExport() {
     persistAdjustView();
-    const maps = items.filter((it) => it.type === "map" && it.visible !== false);
-    maps.forEach((it) => {
-      it._exportBox = { x: it.x, y: it.y, w: it.w, h: it.h };
-    });
-    for (const it of maps) {
-      const url = await snapshotVisibleMap(it);
-      if (url) it.src = url;
-    }
-    maps.forEach((it) => {
-      if (!it._exportBox) return;
-      it.x = it._exportBox.x;
-      it.y = it._exportBox.y;
-      it.w = it._exportBox.w;
-      it.h = it._exportBox.h;
-    });
-    selectedId = null;
-    const page = pageEl();
-    page?.classList.add("is-exporting");
+    persistLocatorView();
     const resumeId = adjustMapId;
     const resumeMode = mapInteractMode;
-    adjustMapId = null;
-    mapInteractMode = null;
-    renderAll();
+    const wrap = document.getElementById("layout-page-wrap");
+    const prevTransform = wrap?.style.transform || "";
+    if (wrap) wrap.style.transform = "none";
+    const page = pageEl();
     page?.classList.add("is-exporting");
+    purgeBrokenTiles(page);
+    if (adjustLeaflet?.getContainer) purgeBrokenTiles(adjustLeaflet.getContainer());
+    if (locatorLive?.getContainer) purgeBrokenTiles(locatorLive.getContainer());
+    const mapShot = adjustLeaflet ? await captureLeafletViewAsync(adjustLeaflet, 2) : "";
+    const locShot = locatorLive ? await captureLeafletViewAsync(locatorLive, 2) : "";
+    placeFreezeImage(document.querySelector(".layout-el--map"), mapShot);
+    placeFreezeImage(document.querySelector(".layout-locator"), locShot);
+    page?.querySelectorAll("[contenteditable]").forEach((el) => {
+      el.setAttribute("contenteditable", "false");
+    });
     await wait(80);
-    return { resumeId, resumeMode };
+    await waitForPageImages(page);
+    await wait(40);
+    return { resumeId, resumeMode, prevTransform };
   }
 
-  function finishPageExport() {
+  function finishPageExport(resume) {
     pageEl()?.classList.remove("is-exporting");
+    document.querySelectorAll(".layout-export-freeze").forEach((n) => n.remove());
+    const wrap = document.getElementById("layout-page-wrap");
+    if (wrap) wrap.style.transform = resume?.prevTransform || "";
+    if (!resume?.prevTransform) setPreviewZoom(previewZoom);
     items.forEach((it) => {
       if (it._exportBox) delete it._exportBox;
+    });
+  }
+
+  async function captureSheetCanvas() {
+    const page = pageEl();
+    const scale = Math.min(4, Math.max(1.25, dpi() / 150));
+    return window.html2canvas(page, {
+      backgroundColor: "#fbfaf7",
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      letterRendering: true,
+      windowWidth: page.scrollWidth,
+      windowHeight: page.scrollHeight,
+      ignoreElements(el) {
+        if (!(el instanceof Element)) return false;
+        if (el.classList.contains("layout-export-freeze")) return false;
+        return (
+          el.id === "layout-locator-engine" ||
+          el.classList.contains("layout-locator-engine") ||
+          el.classList.contains("layout-map-live") ||
+          el.classList.contains("layout-locator__live") ||
+          el.classList.contains("leaflet-tile-pane") ||
+          el.classList.contains("leaflet-tile") ||
+          el.classList.contains("leaflet-container") ||
+          el.classList.contains("layout-sheet__overlay-remove") ||
+          el.classList.contains("layout-sheet__overlay-resize")
+        );
+      },
+      onclone(doc) {
+        const wrap = doc.getElementById("layout-page-wrap");
+        if (wrap) wrap.style.transform = "none";
+        const cloned = doc.getElementById("layout-page");
+        cloned?.classList.add("is-exporting");
+        cloned?.querySelectorAll("img.leaflet-tile").forEach((img) => {
+          if (!img.complete || img.naturalWidth === 0 || img.classList.contains("leaflet-tile-error")) {
+            img.remove();
+          }
+        });
+        cloned?.querySelectorAll(".layout-map-live, .layout-locator__live, .leaflet-container").forEach((n) => {
+          n.style.visibility = "hidden";
+        });
+      },
     });
   }
 
@@ -1097,13 +1792,20 @@ window.InfraGeoLayoutMode = (function () {
         const c = adjustLeaflet.getCenter();
         item.center = [c.lat, c.lng];
         item.zoom = adjustLeaflet.getZoom();
-        const url = await captureMapDataUrl({
-          w: Math.max(400, item.w * 1.5),
-          h: Math.max(280, item.h * 1.5),
-          center: item.center,
-          zoom: item.zoom,
-        });
-        if (url) item.src = url;
+        const b = boundsFromMap(adjustLeaflet);
+        if (b) item.bounds = b;
+        const live = captureLeafletView(adjustLeaflet, 2);
+        if (live) item.src = live;
+        else {
+          const url = await captureMapDataUrl({
+            w: Math.max(720, item.w * 2),
+            h: Math.max(480, item.h * 2),
+            center: item.center,
+            zoom: item.zoom,
+            bounds: item.bounds,
+          });
+          if (url) item.src = url;
+        }
       } catch (err) {
         console.warn("layout-mode: concluir ajuste", err);
       }
@@ -1182,12 +1884,14 @@ window.InfraGeoLayoutMode = (function () {
 
   /** Clique fora do quadro do mapa encerra ajuste/seleção. */
   function onOutsideMapInteract(ev) {
+    if (mapInteractMode === "adjust") return;
     if (!mapInteractMode || adjustMapId == null) return;
     const t = ev.target;
     if (!(t instanceof Element)) return;
     if (t.closest(".layout-el--map.is-adjusting")) return;
     if (t.closest("#btn-layout-adjust-map, [data-add='adjust-map']")) return;
     if (t.closest("#btn-layout-pick-layer, [data-add='pick-layer']")) return;
+    if (t.closest("#btn-layout-back-map, .layout-studio__back")) return;
     stopAdjustMap(true).catch(() => {});
   }
 
@@ -1202,18 +1906,16 @@ window.InfraGeoLayoutMode = (function () {
       /* ignore */
     }
     const main = window.InfraGeoMap?.getMap?.();
-    const center = item.center
-      ? L.latLng(item.center[0], item.center[1])
-      : main?.getCenter?.() || L.latLng(-3.4653, -62.2159);
-    const zoom = item.zoom ?? main?.getZoom?.() ?? 6;
     const picking = mapInteractMode === "pick";
 
     adjustLeaflet = L.map(host, {
       zoomControl: !picking,
       attributionControl: false,
-      maxZoom: 18,
-      dragging: !picking ? true : true,
-    }).setView(center, zoom);
+      maxZoom: 19,
+      dragging: true,
+    });
+    hideBrokenTiles(adjustLeaflet);
+    applyViewToMap(adjustLeaflet, item, main);
 
     if (picking) {
       host.style.cursor = "crosshair";
@@ -1221,9 +1923,21 @@ window.InfraGeoLayoutMode = (function () {
     }
 
     cloneBasemapTo(adjustLeaflet);
-    cloneVisibleLayersTo(adjustLeaflet, { pickable: picking });
+    cloneVisibleLayersTo(adjustLeaflet, {
+      pickable:
+        picking || !!document.getElementById("layout-include-popups")?.checked,
+    });
+    try {
+      adjustLeaflet.doubleClickZoom?.disable?.();
+    } catch {
+      /* ignore */
+    }
     adjustLeaflet.invalidateSize({ animate: false });
-    window.setTimeout(() => adjustLeaflet?.invalidateSize({ animate: false }), 80);
+    applyViewToMap(adjustLeaflet, item, main);
+    window.setTimeout(() => {
+      adjustLeaflet?.invalidateSize?.({ animate: false });
+      applyViewToMap(adjustLeaflet, item, main);
+    }, 80);
 
     host.addEventListener(
       "pointerdown",
@@ -1306,14 +2020,15 @@ window.InfraGeoLayoutMode = (function () {
         opts.color ||
         (!opts.role && COLORABLE.has(type) ? featureColor : ""),
       text:
-        opts.text ||
-        (type === "title"
-          ? "Título do Mapa"
-          : type === "subtitle"
-            ? "Subtítulo"
-            : type === "text"
-              ? "Texto livre"
-              : ""),
+        opts.text !== undefined
+          ? opts.text
+          : type === "title"
+            ? "Título do Mapa"
+            : type === "subtitle"
+              ? "Subtítulo"
+              : type === "text"
+                ? "Texto livre"
+                : "",
       src: opts.src || "",
     };
     if (type === "map") {
@@ -1333,38 +2048,35 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function legendHtml() {
-    const layers = [];
-    const registry = window.InfraGeoMap?.overlayRegistry || {};
-    Object.values(registry).forEach((entry) => {
-      if (!layerIsOn(entry)) return;
+    const entries = visibleLayerEntries().sort((a, b) => {
+      const d = layerGeomKind(a) - layerGeomKind(b);
+      if (d) return d;
+      return String(a.meta?.name || "").localeCompare(String(b.meta?.name || ""));
+    });
+    const layers = entries.map((entry) => {
       const st = layerStyle(entry.meta);
-      const color = st.fillColor || st.color || "#64748b";
-      const swatch = st.dashArray
-        ? `<span class="layout-legend__swatch layout-legend__swatch--line" style="--sw:${color}"></span>`
-        : `<span class="layout-legend__swatch" style="background:${color}"></span>`;
-      layers.push(
-        pageTheme === "recommended"
-          ? `<div class="layout-legend__row is-check">` +
-            `<span class="layout-legend__check" aria-hidden="true"></span>` +
-            `<span class="layout-legend__name">${entry.meta.name || entry.meta.id}</span></div>`
-          : `<div class="layout-legend__row">${swatch}` +
-            `<span class="layout-legend__name">${entry.meta.name || entry.meta.id}</span></div>`
+      const color = safeColor(st.fillColor || st.color || "#64748b");
+      const kind = layerGeomKind(entry);
+      const shape =
+        kind === 1
+          ? "layout-legend__swatch--line"
+          : kind === 2
+            ? "layout-legend__swatch--point"
+            : "layout-legend__swatch--area";
+      const swatch = `<span class="layout-legend__swatch ${shape}" style="--sw:${color};background:${color}"></span>`;
+      return (
+        `<div class="layout-legend__row">${swatch}` +
+        `<span class="layout-legend__name">${esc(entry.meta.name || entry.meta.id)}</span></div>`
       );
     });
     const n = layers.length;
-    const dense = pageTheme === "recommended" && n > 7;
-    const xdense = pageTheme === "recommended" && n > 14;
-    const cls = ["layout-legend"];
-    if (dense) cls.push("is-dense");
-    if (xdense) cls.push("is-xdense");
+    const compose = resolveComposition();
+    const cls = ["layout-legend", compose === "classic" || compose === "full" ? "is-inline" : "is-stack"];
     const body = n
       ? layers.join("")
       : `<div class="layout-legend__empty">Nenhuma camada visível</div>`;
     return (
       `<div class="${cls.join(" ")}">` +
-      `<div class="layout-legend__title">${
-        pageTheme === "recommended" ? "LEGENDA" : "Legenda"
-      }</div>` +
       `<div class="layout-legend__body">${body}</div>` +
       `</div>`
     );
@@ -1387,6 +2099,12 @@ window.InfraGeoLayoutMode = (function () {
     if (!el || !it || it.type !== "legend") return;
     const minH = 56;
     el.style.overflow = "hidden";
+
+    if (it.role === "footer-legend") {
+      el.style.overflow = "visible";
+      el.style.height = `${it.h || 28}px`;
+      return;
+    }
 
     if (it.role === "side-legend") {
       const maxH = sideLegendMaxHeight(it);
@@ -1429,6 +2147,8 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function scaleLabel() {
+    const ratio = document.getElementById("layout-scale-ratio")?.value;
+    if (ratio && ratio !== "auto") return ratio;
     const unit = document.getElementById("layout-scale-unit")?.value || "metric";
     return unit === "imperial" ? "1000 mi" : "1000 km";
   }
@@ -1471,15 +2191,15 @@ window.InfraGeoLayoutMode = (function () {
 
   function renderList() {
     const list = document.getElementById("layout-items-list");
-    if (!list) return;
+    if (!list || list.closest(".layout-studio__sr")) return;
     list.innerHTML = "";
     [...items].reverse().forEach((it) => {
       const li = document.createElement("li");
       li.className = `layout-mode__item${selectedId === it.id ? " is-selected" : ""}`;
       li.innerHTML = `
-        <button type="button" data-vis="${it.id}" title="Visibilidade">${it.visible ? "👁" : "🚫"}</button>
-        <span class="layout-mode__item-name">${itemListLabel(it)}</span>
-        <button type="button" data-del="${it.id}" title="Excluir">×</button>
+        <button type="button" data-vis="${esc(it.id)}" title="Visibilidade">${it.visible ? "👁" : "🚫"}</button>
+        <span class="layout-mode__item-name">${esc(itemListLabel(it))}</span>
+        <button type="button" data-del="${esc(it.id)}" title="Excluir">×</button>
       `;
       li.addEventListener("click", (ev) => {
         if (ev.target.closest("[data-vis]") || ev.target.closest("[data-del]")) return;
@@ -1489,21 +2209,30 @@ window.InfraGeoLayoutMode = (function () {
     });
   }
 
-  function renderItemDom(it) {
+  function renderItemDom(it, opts = {}) {
     const el = document.createElement("div");
     el.className = `layout-el layout-el--${it.type}${selectedId === it.id ? " is-selected" : ""}${
       it.visible ? "" : " is-hidden"
     }`;
     if (it.role) el.classList.add(`layout-el-role--${it.role}`);
     el.dataset.id = String(it.id);
-    el.style.left = `${it.x}px`;
-    el.style.top = `${it.y}px`;
-    if (it.type !== "triangle" && it.type !== "line") {
+    if (opts.flow) {
+      el.style.position = "relative";
+      el.style.inset = "auto";
+      el.style.width = "100%";
+      el.style.height = "100%";
+      el.style.left = "0";
+      el.style.top = "0";
+    } else {
+      el.style.left = `${it.x}px`;
+      el.style.top = `${it.y}px`;
+    }
+    if (!opts.flow && it.type !== "triangle" && it.type !== "line") {
       el.style.width = `${it.w}px`;
       el.style.height = `${it.h}px`;
-    } else if (it.type === "line") {
+    } else if (!opts.flow && it.type === "line") {
       el.style.width = `${it.w}px`;
-    } else if (it.type === "triangle") {
+    } else if (!opts.flow && it.type === "triangle") {
       el.style.left = `${it.x}px`;
       el.style.top = `${it.y}px`;
       el.style.borderLeftWidth = `${Math.round(it.w / 2)}px`;
@@ -1522,12 +2251,14 @@ window.InfraGeoLayoutMode = (function () {
           `<span class="layout-brand__text">INFRA <strong>GEO AM</strong></span>` +
           `</span>`;
       } else {
-        el.contentEditable = "true";
+        el.contentEditable = it.role === "hero-title" ? "false" : "true";
         el.spellcheck = false;
         el.textContent = it.text || "";
-        el.addEventListener("input", () => {
-          it.text = el.textContent || "";
-        });
+        if (el.contentEditable === "true") {
+          el.addEventListener("input", () => {
+            it.text = el.textContent || "";
+          });
+        }
       }
     } else if (it.type === "map") {
       const adjusting = adjustMapId === it.id;
@@ -1535,36 +2266,37 @@ window.InfraGeoLayoutMode = (function () {
         const picking = mapInteractMode === "pick";
         el.classList.add("is-adjusting");
         if (picking) el.classList.add("is-picking");
-        el.innerHTML = `
-          <div class="layout-map-adjust-bar">
-            <button type="button" class="is-primary" data-map-done="1">${
-              picking ? "Concluir seleção" : "Concluir ajuste"
-            }</button>
-            <button type="button" data-map-cancel="1">Cancelar</button>
-            ${
-              picking
-                ? `<span class="layout-pick-hint">${
-                    selectedLayerId
-                      ? "Camada selecionada — escolha a cor"
-                      : "Clique na feição no mapa"
-                  }</span>`
-                : ""
-            }
+        el.innerHTML = picking
+          ? `<div class="layout-map-adjust-bar">
+            <button type="button" class="is-primary" data-map-done="1">Concluir seleção</button>
+            <span class="layout-pick-hint">${
+              selectedLayerId
+                ? "Camada selecionada"
+                : "Clique na feição no mapa"
+            }</span>
           </div>
-          <div class="layout-map-live"></div>
-        `;
+          <div class="layout-map-live"></div>`
+          : `<div class="layout-map-live" title="Arraste para mover. Duplo clique para sair."></div>`;
         el.querySelector("[data-map-done]")?.addEventListener("click", (ev) => {
           ev.stopPropagation();
           stopAdjustMap(true).catch((e) => window.alert(e.message || e));
         });
-        el.querySelector("[data-map-cancel]")?.addEventListener("click", (ev) => {
+        el.querySelector(".layout-map-live")?.addEventListener("dblclick", (ev) => {
           ev.stopPropagation();
-          stopAdjustMap(false).catch(() => {});
+          ev.preventDefault();
+          stopAdjustMap(true).catch(() => {});
         });
-      } else {
-        el.innerHTML = it.src
-          ? `<img alt="Mapa" src="${it.src}" />`
+      } else if (pageEl()?.classList.contains("is-exporting")) {
+        const mapSrc = safeImgSrc(it.src);
+        el.innerHTML = mapSrc
+          ? `<img alt="Mapa" src="${mapSrc}" />`
           : `<div class="layout-map-placeholder">Atualizar Mapa ou Ajustar Mapa</div>`;
+      } else {
+        el.classList.add("is-adjusting");
+        const mapSrc = safeImgSrc(it.src);
+        el.innerHTML =
+          (mapSrc ? `<img alt="" src="${mapSrc}" class="layout-map-fallback" />` : "") +
+          `<div class="layout-map-live" title="Arraste para mover. Duplo clique para enquadrar."></div>`;
         el.addEventListener("dblclick", (ev) => {
           ev.stopPropagation();
           startAdjustMap(it.id);
@@ -1581,21 +2313,22 @@ window.InfraGeoLayoutMode = (function () {
           `<div class="layout-scale-block">` +
           `<div class="layout-scale-block__label">Escala</div>` +
           `<div class="layout-scale-block__row">` +
-          `<span>${scaleLabel()}</span>` +
+          `<span>${esc(scaleLabel())}</span>` +
           `<div class="layout-el--scale-bar"></div>` +
           `</div></div>`;
       } else if (it.role === "map-scale") {
         el.innerHTML =
           `<div class="layout-map-scale">` +
-          `<span>${scaleLabel()}</span>` +
+          `<span>${esc(scaleLabel())}</span>` +
           `<div class="layout-el--scale-bar"></div>` +
           `</div>`;
       } else {
-        el.innerHTML = `<div class="layout-el--scale-bar"></div><span>${scaleLabel()}</span>`;
+        el.innerHTML = `<div class="layout-el--scale-bar"></div><span>${esc(scaleLabel())}</span>`;
       }
     } else if (it.type === "image") {
-      el.innerHTML = it.src
-        ? `<img alt="Imagem" src="${it.src}" />`
+      const imgSrc = safeImgSrc(it.src);
+      el.innerHTML = imgSrc
+        ? `<img alt="Imagem" src="${imgSrc}" />`
         : `<div style="padding:8px;font-size:12px;color:#64748b">Sem imagem</div>`;
     } else if (it.type === "arrow") {
       el.textContent = "➤";
@@ -1603,20 +2336,587 @@ window.InfraGeoLayoutMode = (function () {
 
     applyItemColorStyles(el, it);
 
-    if (selectedId === it.id && it.type !== "triangle" && adjustMapId !== it.id) {
+    const lockedChrome = it.type !== "map" || opts.flow;
+    if (selectedId === it.id && it.type === "map" && adjustMapId !== it.id && !opts.flow) {
       const handle = document.createElement("span");
       handle.className = "layout-el__handle";
       handle.dataset.resize = "1";
       el.appendChild(handle);
     }
 
-    // Elementos decorativos do tema também podem ser movidos
-    const lockedChrome = false;
     if (adjustMapId !== it.id && !lockedChrome) {
       el.classList.add("is-draggable");
       el.addEventListener("pointerdown", onPointerDown);
     }
     return el;
+  }
+
+  function flagOn(id) {
+    return !!document.getElementById(id)?.checked;
+  }
+
+  function fitTitleBox(wrap) {
+    const box =
+      wrap?.classList?.contains("layout-sheet__title")
+        ? wrap
+        : wrap?.closest?.(".layout-sheet__title") ||
+          pageEl()?.querySelector(".layout-sheet__title");
+    const input = box?.querySelector?.("#layout-sheet-title");
+    if (!box || !input) return;
+    if (overlaySize.title) return;
+    const cs = window.getComputedStyle(input);
+    const canvas = fitTitleBox._c || (fitTitleBox._c = document.createElement("canvas"));
+    const ctx = canvas.getContext("2d");
+    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const text = String(input.value || "");
+    const tw = Math.ceil(ctx.measureText(text || " ").width);
+    const parentW = box.parentElement?.clientWidth || 900;
+    const max = Math.max(180, parentW - 28);
+    const w = Math.min(max, Math.max(180, tw + 56));
+    box.style.width = `${w}px`;
+    box.style.maxWidth = `${max}px`;
+    input.style.width = "100%";
+  }
+
+  function syncOverlayChrome() {
+    document.querySelectorAll("[data-overlay]").forEach((node) => {
+      const on = node.getAttribute("data-overlay") === overlaySelected;
+      node.classList.toggle("is-editing", on);
+      node.classList.toggle("is-unlocked", on);
+    });
+  }
+
+  function clearMapMarking() {
+    selectedLayerId = null;
+    if (selectedId != null) {
+      const it = items.find((x) => x.id === selectedId);
+      if (it?.type === "map") selectedId = null;
+    }
+    document.querySelectorAll(".layout-el--map.is-selected").forEach((n) => {
+      n.classList.remove("is-selected");
+    });
+  }
+
+  function bindSheetOverlay(el, id, opts = {}) {
+    if (!el || pageEl()?.classList.contains("is-exporting")) return;
+    const flag = opts.flag;
+    el.dataset.overlay = id;
+    el.classList.add("layout-sheet__movable");
+    if (overlaySelected === id) el.classList.add("is-editing", "is-unlocked");
+    el.title = "Clique para marcar · arraste para mover";
+    overlayUnlocked[id] = true;
+    const pin = opts.pin !== false;
+    const pos = overlayPos[id];
+    if (pin && pos) {
+      el.style.position = "absolute";
+      el.style.left = `${pos.left}px`;
+      el.style.top = `${pos.top}px`;
+      el.style.right = "auto";
+      el.style.bottom = "auto";
+      el.style.gridArea = "auto";
+    }
+    const size = overlaySize[id];
+    if (pin && size?.w) {
+      el.style.width = `${size.w}px`;
+      el.style.maxWidth = "none";
+      if (size.h) {
+        el.style.height = `${size.h}px`;
+        el.style.maxHeight = "none";
+      }
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "layout-sheet__overlay-remove";
+    btn.setAttribute("aria-label", "Remover");
+    btn.textContent = "×";
+    btn.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (flag) {
+        const box = document.getElementById(flag);
+        if (box) box.checked = false;
+      }
+      renderAll();
+    });
+    const resize = document.createElement("span");
+    resize.className = "layout-sheet__overlay-resize";
+    resize.title = "Redimensionar";
+    resize.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      overlayDrag = {
+        id,
+        el,
+        mode: "resize",
+        startX: ev.clientX,
+        startY: ev.clientY,
+        origW: el.offsetWidth,
+        origH: el.offsetHeight,
+        origL: el.offsetLeft,
+        origT: el.offsetTop,
+      };
+      el.classList.add("is-resizing");
+      resize.setPointerCapture?.(ev.pointerId);
+    });
+    el.appendChild(btn);
+    el.appendChild(resize);
+    el.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest("input, textarea, button, .layout-sheet__overlay-resize, .leaflet-container, .leaflet-control")) {
+        return;
+      }
+      ev.stopPropagation();
+      ev.preventDefault();
+      overlaySelected = id;
+      syncOverlayChrome();
+      overlayDrag = {
+        id,
+        el,
+        mode: "move",
+        startX: ev.clientX,
+        startY: ev.clientY,
+        origL: el.offsetLeft,
+        origT: el.offsetTop,
+      };
+      el.classList.add("is-dragging");
+      el.setPointerCapture?.(ev.pointerId);
+    });
+  }
+
+  function limiteEstadualRings() {
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    const rings = [];
+    const walk = (geom) => {
+      if (!geom) return;
+      if (geom.type === "Polygon") rings.push(geom.coordinates?.[0] || []);
+      else if (geom.type === "MultiPolygon") {
+        (geom.coordinates || []).forEach((poly) => rings.push(poly?.[0] || []));
+      } else if (geom.type === "GeometryCollection") {
+        (geom.geometries || []).forEach(walk);
+      }
+    };
+    Object.values(registry).forEach((entry) => {
+      const schema = String(entry?.meta?.schema || entry?.meta?.id || "").toUpperCase();
+      if (!schema.startsWith("LIMITE_ESTADUAL") && !/LIMITE_ESTADUAL/.test(schema)) return;
+      const gj = entry.geojson;
+      if (!gj) return;
+      if (gj.type === "FeatureCollection") (gj.features || []).forEach((f) => walk(f.geometry));
+      else if (gj.type === "Feature") walk(gj.geometry);
+      else walk(gj);
+    });
+    return rings.filter((r) => r.length > 3);
+  }
+
+  function locatorBBox() {
+    const rings = limiteEstadualRings().map((ring) => {
+      const step = Math.max(1, Math.floor(ring.length / 280));
+      return ring.filter((_, i) => i % step === 0 || i === ring.length - 1);
+    });
+    let west = -73.9;
+    let south = -9.9;
+    let east = -56.0;
+    let north = 2.3;
+    try {
+      const b = window.InfraGeoMap?.getAmazonasBounds?.();
+      if (b?.isValid?.()) {
+        south = b.getSouth();
+        north = b.getNorth();
+        west = b.getWest();
+        east = b.getEast();
+      }
+    } catch {
+      /* keep defaults */
+    }
+    rings.forEach((ring) => {
+      ring.forEach((c) => {
+        const lng = Number(c[0]);
+        const lat = Number(c[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        west = Math.min(west, lng);
+        east = Math.max(east, lng);
+        south = Math.min(south, lat);
+        north = Math.max(north, lat);
+      });
+    });
+    return { west, east, south, north, rings };
+  }
+
+  function paintLocatorMini(canvas) {
+    if (!canvas?.getContext) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const box = locatorBBox();
+    const pad = 14;
+    const geoW = Math.max(0.0001, box.east - box.west);
+    const geoH = Math.max(0.0001, box.north - box.south);
+    const innerW = w - pad * 2;
+    const innerH = h - pad * 2;
+    const scale = Math.min(innerW / geoW, innerH / geoH);
+    const ox = pad + (innerW - geoW * scale) / 2;
+    const oy = pad + (innerH - geoH * scale) / 2;
+    const toXY = (lat, lng) => [
+      ox + (lng - box.west) * scale,
+      oy + (box.north - lat) * scale,
+    ];
+
+    const round = 16;
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(round, 0);
+    ctx.arcTo(w, 0, w, h, round);
+    ctx.arcTo(w, h, 0, h, round);
+    ctx.arcTo(0, h, 0, 0, round);
+    ctx.arcTo(0, 0, w, 0, round);
+    ctx.closePath();
+    ctx.clip();
+
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, "#d7e8e3");
+    sky.addColorStop(1, "#c3d6d0");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    const drawState = (fill, stroke, width) => {
+      if (!box.rings.length) {
+        ctx.fillStyle = fill;
+        ctx.fillRect(ox, oy, geoW * scale, geoH * scale);
+        return;
+      }
+      box.rings.forEach((ring) => {
+        ctx.beginPath();
+        ring.forEach((c, i) => {
+          const p = toXY(c[1], c[0]);
+          if (i === 0) ctx.moveTo(p[0], p[1]);
+          else ctx.lineTo(p[0], p[1]);
+        });
+        ctx.closePath();
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = width;
+          ctx.lineJoin = "round";
+          ctx.stroke();
+        }
+      });
+    };
+
+    ctx.shadowColor = "rgba(15, 59, 52, 0.18)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+    drawState("#8eaaa3", null, 0);
+    ctx.shadowColor = "transparent";
+    const land = ctx.createLinearGradient(0, oy, 0, oy + geoH * scale);
+    land.addColorStop(0, "#a8c2bb");
+    land.addColorStop(1, "#6f9088");
+    drawState(land, "#f7fbf9", 3.5);
+    drawState(null, "#0f3b34", 1.35);
+
+    ctx.restore();
+    ctx.strokeStyle = "rgba(15, 59, 52, 0.22)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(round, 1);
+    ctx.arcTo(w - 1, 1, w - 1, h - 1, round);
+    ctx.arcTo(w - 1, h - 1, 1, h - 1, round);
+    ctx.arcTo(1, h - 1, 1, 1, round);
+    ctx.arcTo(1, 1, w - 1, 1, round);
+    ctx.stroke();
+  }
+
+  function locatorHtml(forExport) {
+    if (forExport) {
+      return (
+        `<div class="layout-locator" aria-label="Mini mapa de localização">` +
+        `<img class="layout-locator__map" alt="Localização no Amazonas" />` +
+        `</div>`
+      );
+    }
+    return (
+      `<div class="layout-locator" aria-label="Mini mapa de localização">` +
+      `<div class="layout-locator__live"></div>` +
+      `</div>`
+    );
+  }
+
+  function persistLocatorView() {
+    if (!locatorLive) return;
+    try {
+      const c = locatorLive.getCenter();
+      locatorCenter = [c.lat, c.lng];
+      locatorZoom = locatorLive.getZoom();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function destroyLocatorLive() {
+    persistLocatorView();
+    try {
+      locatorLive?.off?.();
+      locatorLive?.remove?.();
+    } catch {
+      /* ignore */
+    }
+    locatorLive = null;
+  }
+
+  function addLocatorDecorations(map) {
+    cloneVisibleLayersTo(map, { pickable: false, radiusBoost: 1 });
+  }
+
+  function mountLocatorLive(el) {
+    destroyLocatorLive();
+    const box = el?.querySelector?.(".layout-locator__live");
+    if (!box || !window.L) return;
+    locatorLive = L.map(box, {
+      zoomControl: true,
+      attributionControl: false,
+      scrollWheelZoom: true,
+      dragging: true,
+      doubleClickZoom: true,
+      boxZoom: false,
+      keyboard: false,
+    });
+    hideBrokenTiles(locatorLive);
+    cloneBasemapTo(locatorLive);
+    addLocatorDecorations(locatorLive);
+    const am = window.InfraGeoMap?.getAmazonasBounds?.();
+    if (locatorCenter && Number.isFinite(locatorZoom)) {
+      locatorLive.setView(locatorCenter, locatorZoom, { animate: false });
+    } else if (am?.isValid?.()) {
+      locatorLive.fitBounds(am, { padding: [8, 8], animate: false, maxZoom: 8 });
+    } else {
+      locatorLive.setView([-3.5, -64.5], 5, { animate: false });
+    }
+    locatorLive.on("zoomend", persistLocatorView);
+    locatorLive.on("moveend", persistLocatorView);
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    window.setTimeout(() => locatorLive?.invalidateSize?.({ animate: false }), 60);
+  }
+
+  function ensureLocatorEngine() {
+    const host = document.getElementById("layout-locator-engine");
+    if (!host || !window.L) return null;
+    if (locatorEngine) return locatorEngine;
+    locatorEngine = L.map(host, {
+      zoomControl: false,
+      attributionControl: false,
+      fadeAnimation: false,
+      zoomAnimation: false,
+      markerZoomAnimation: false,
+      inertia: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      touchZoom: false,
+    });
+    hideBrokenTiles(locatorEngine);
+    cloneBasemapTo(locatorEngine, { cors: true });
+    return locatorEngine;
+  }
+
+  function updateLocatorLayers(map) {
+    if (locatorRect) {
+      try {
+        map.removeLayer(locatorRect);
+      } catch {
+        /* ignore */
+      }
+      locatorRect = null;
+    }
+    if (!locatorOutline) {
+      const rings = limiteEstadualRings();
+      if (rings.length) {
+        const latlngs = rings.map((ring) =>
+          ring.map((c) => [c[1], c[0]])
+        );
+        locatorOutline = L.polygon(latlngs, {
+          color: "#ffffff",
+          weight: 1.4,
+          fill: false,
+          interactive: false,
+          opacity: 0.95,
+        }).addTo(map);
+      }
+    }
+  }
+
+  async function fillLocatorImage(img) {
+    if (!img) return;
+    const seq = (locatorSeq += 1);
+    const map = ensureLocatorEngine();
+    if (!map) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 220;
+      canvas.height = 200;
+      paintLocatorMini(canvas);
+      img.src = safeCanvasDataUrl(canvas, "image/png") || "";
+      return;
+    }
+    const am = window.InfraGeoMap?.getAmazonasBounds?.();
+    map.invalidateSize({ animate: false });
+    if (locatorCenter && Number.isFinite(locatorZoom)) {
+      map.setView(locatorCenter, locatorZoom, { animate: false });
+    } else if (am?.isValid?.()) {
+      map.fitBounds(am, { padding: [10, 10], animate: false, maxZoom: 7 });
+    }
+    updateLocatorLayers(map);
+    cloneVisibleLayersTo(map, { pickable: false, radiusBoost: 1 });
+    await waitForTiles(map, 2800);
+    await wait(120);
+    if (seq !== locatorSeq || !img.isConnected) return;
+    const host = map.getContainer();
+    const w = 256;
+    const h = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    const painted = paintBasemapTilesToCanvas(ctx, host, w, h);
+    paintOverlayCanvasesToCanvas(ctx, host, w, h);
+    paintVisibleLayersToCanvas(ctx, map);
+    if (!painted) paintLocatorMini(canvas);
+    const locUrl = safeCanvasDataUrl(canvas, "image/jpeg", 0.9);
+    if (locUrl) img.src = locUrl;
+    else {
+      paintLocatorMini(canvas);
+      img.src = safeCanvasDataUrl(canvas, "image/png") || "";
+    }
+  }
+
+  function renderElementChips() {
+    const host = document.getElementById("layout-element-chips");
+    if (!host) return;
+    const chips = [
+      ["layout-show-title", "Título"],
+      ["layout-show-legend", "Legenda"],
+      ["layout-show-scale", "Escala"],
+      ["layout-show-north", "Norte"],
+      ["layout-show-locator", "Localização"],
+      ["layout-show-credits", "Créditos"],
+    ];
+    host.innerHTML = chips
+      .map(([id, label]) => {
+        const on = !!document.getElementById(id)?.checked;
+        return (
+          `<button type="button" class="layout-chip" data-flag="${id}" aria-pressed="${on}">` +
+          (on ? `<span class="layout-chip__check" aria-hidden="true">✓</span>` : "") +
+          `${label}</button>`
+        );
+      })
+      .join("");
+  }
+
+  function syncCompositionUi() {
+    const auto = document.getElementById("layout-auto-toggle");
+    if (auto) auto.checked = sheetAuto;
+    const compose = resolveComposition();
+    document.querySelectorAll(".layout-compose-card").forEach((btn) => {
+      const id = btn.getAttribute("data-compose");
+      btn.setAttribute("aria-pressed", id === compose ? "true" : "false");
+    });
+  }
+
+  function syncExportButtonLabel() {
+    const fmt = document.getElementById("layout-export-format")?.value || "pdf";
+    const label = "PDF";
+    const top = document.getElementById("btn-layout-export-main");
+    const dock = document.getElementById("btn-layout-export-pdf");
+    if (top) {
+      top.innerHTML =
+        `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>` +
+        label;
+    }
+    if (dock) dock.textContent = label;
+  }
+
+  function renderSheet(page) {
+    const compose = resolveComposition();
+    const overlay = compose === "full";
+    const titleText = (
+      document.getElementById("layout-map-title")?.value ||
+      "Mapa de Infraestrutura — Amazonas"
+    ).trim();
+    const year = new Date().getFullYear();
+    page.classList.add("layout-sheet", "is-recommended");
+    page.classList.toggle("layout-sheet--overlays", overlay);
+    page.dataset.compose = compose;
+    page.innerHTML = "";
+
+    const mapCell = document.createElement("div");
+    mapCell.className = "layout-sheet__map";
+    const mapIt = items.find((it) => it.type === "map");
+    if (mapIt) mapCell.appendChild(renderItemDom(mapIt, { flow: true }));
+
+    const putChrome = (el, host) => {
+      if (overlay) mapCell.appendChild(el);
+      else host.appendChild(el);
+    };
+
+    if (flagOn("layout-show-title")) {
+      const title = document.createElement("div");
+      title.className = "layout-sheet__title";
+      title.innerHTML =
+        `<label class="visually-hidden" for="layout-sheet-title">Título do mapa</label>` +
+        `<input id="layout-sheet-title" class="layout-sheet__title-input" type="text" maxlength="80" value="${esc(titleText)}" />`;
+      putChrome(title, page);
+      bindSheetOverlay(title, "title", { flag: "layout-show-title", pin: overlay });
+      if (overlay) window.requestAnimationFrame(() => fitTitleBox(title));
+    }
+    if (flagOn("layout-show-north")) {
+      const n = document.createElement("div");
+      n.className = "layout-sheet__float layout-sheet__float--north";
+      n.innerHTML = northArrowHtml();
+      mapCell.appendChild(n);
+      bindSheetOverlay(n, "north", { flag: "layout-show-north" });
+    }
+    if (flagOn("layout-show-scale")) {
+      const s = document.createElement("div");
+      s.className = "layout-sheet__float layout-sheet__float--scale";
+      s.innerHTML =
+        `<div class="layout-map-scale">` +
+        `<div class="layout-el--scale-bar" aria-hidden="true"></div>` +
+        `<span>${esc(scaleLabel())}</span></div>`;
+      mapCell.appendChild(s);
+      bindSheetOverlay(s, "scale", { flag: "layout-show-scale" });
+    }
+    if (flagOn("layout-show-locator")) {
+      const exporting = page.classList.contains("is-exporting");
+      const loc = document.createElement("div");
+      loc.className = "layout-sheet__float layout-sheet__float--locator";
+      loc.innerHTML = locatorHtml(exporting);
+      mapCell.appendChild(loc);
+      if (!exporting) {
+        bindSheetOverlay(loc, "locator", { flag: "layout-show-locator" });
+        mountLocatorLive(loc);
+      } else {
+        const img = loc.querySelector("img");
+        if (img) fillLocatorImage(img).catch(() => {});
+      }
+    }
+    if (flagOn("layout-show-legend")) {
+      const legend = document.createElement("div");
+      legend.className = "layout-sheet__legend";
+      legend.innerHTML = legendHtml();
+      putChrome(legend, page);
+      bindSheetOverlay(legend, "legend", { flag: "layout-show-legend", pin: overlay });
+    }
+    if (flagOn("layout-show-credits")) {
+      const meta = document.createElement("div");
+      meta.className = "layout-sheet__meta";
+      meta.textContent = `InfraGeo · ${year}`;
+      putChrome(meta, page);
+      bindSheetOverlay(meta, "credits", { flag: "layout-show-credits", pin: overlay });
+    }
+    page.appendChild(mapCell);
   }
 
   function persistAdjustView() {
@@ -1627,6 +2927,8 @@ window.InfraGeoLayoutMode = (function () {
       const c = adjustLeaflet.getCenter();
       item.center = [c.lat, c.lng];
       item.zoom = adjustLeaflet.getZoom();
+      const b = boundsFromMap(adjustLeaflet);
+      if (b) item.bounds = b;
     } catch {
       /* ignore */
     }
@@ -1637,6 +2939,8 @@ window.InfraGeoLayoutMode = (function () {
     if (!page) return;
     const keepAdjustId = adjustMapId;
     persistAdjustView();
+    persistLocatorView();
+    destroyLocatorLive();
     if (keepAdjustId != null) {
       try {
         adjustLeaflet?.off?.();
@@ -1646,15 +2950,27 @@ window.InfraGeoLayoutMode = (function () {
       }
       adjustLeaflet = null;
     }
-    page.innerHTML = "";
-    items.forEach((it) => page.appendChild(renderItemDom(it)));
+    renderSheet(page);
     syncPageTheme();
     renderList();
+    renderLayerChips();
+    renderBasemapChips();
+    renderElementChips();
+    syncCompositionUi();
+    syncExportButtonLabel();
     syncExportStats();
-    if (keepAdjustId != null) {
-      const item = items.find((it) => it.id === keepAdjustId);
-      if (item) window.setTimeout(() => mountAdjustLeaflet(item), 20);
-    }
+    window.requestAnimationFrame(() => {
+      applyPageSize();
+      fitTitleBox();
+      if (page.classList.contains("is-exporting")) return;
+      const mapItem =
+        items.find((it) => it.id === keepAdjustId && it.type === "map") ||
+        items.find((it) => it.type === "map" && it.visible !== false);
+      if (!mapItem) return;
+      adjustMapId = mapItem.id;
+      if (!mapInteractMode) mapInteractMode = "adjust";
+      window.setTimeout(() => mountAdjustLeaflet(mapItem), 40);
+    });
   }
 
   function onPointerDown(ev) {
@@ -1701,6 +3017,38 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function onPointerMove(ev) {
+    if (overlayDrag?.el) {
+      const el = overlayDrag.el;
+      const parent = el.offsetParent || el.parentElement;
+      if (overlayDrag.mode === "resize") {
+        const mins = OVERLAY_MIN[overlayDrag.id] || [32, 16];
+        const maxW = Math.max(mins[0], (parent?.clientWidth || 1200) * 0.98);
+        const maxH = Math.max(mins[1], (parent?.clientHeight || 800) * 0.98);
+        const w = Math.min(maxW, Math.max(mins[0], overlayDrag.origW + ev.clientX - overlayDrag.startX));
+        const h = Math.min(maxH, Math.max(mins[1], overlayDrag.origH + ev.clientY - overlayDrag.startY));
+        el.style.width = `${Math.round(w)}px`;
+        el.style.height = `${Math.round(h)}px`;
+        el.style.maxWidth = "none";
+        el.style.maxHeight = "none";
+        overlaySize[overlayDrag.id] = { w: Math.round(w), h: Math.round(h) };
+        if (overlayDrag.id === "locator") {
+          locatorLive?.invalidateSize?.({ animate: false });
+        }
+        return;
+      }
+      const slack = 48;
+      const maxX = Math.max(slack, (parent?.clientWidth || 0) - slack);
+      const maxY = Math.max(slack, (parent?.clientHeight || 0) - slack);
+      const left = Math.max(-slack, Math.min(maxX, overlayDrag.origL + ev.clientX - overlayDrag.startX));
+      const top = Math.max(-slack, Math.min(maxY, overlayDrag.origT + ev.clientY - overlayDrag.startY));
+      el.style.position = "absolute";
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+      el.style.right = "auto";
+      el.style.bottom = "auto";
+      overlayPos[overlayDrag.id] = { left, top };
+      return;
+    }
     if (!dragState) return;
     const item = items.find((it) => it.id === dragState.id);
     if (!item) return;
@@ -1733,6 +3081,11 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function onPointerUp() {
+    if (overlayDrag?.el) {
+      overlayDrag.el.classList.remove("is-dragging", "is-resizing");
+      if (overlayDrag.id === "locator") locatorLive?.invalidateSize?.({ animate: false });
+    }
+    overlayDrag = null;
     if (dragState?.el) dragState.el.classList.remove("is-dragging");
     const moved = dragState;
     dragState = null;
@@ -1752,27 +3105,57 @@ window.InfraGeoLayoutMode = (function () {
     let resume = { resumeId: null, resumeMode: null };
     try {
       resume = await preparePageForExport();
-      const canvas = await window.html2canvas(page, {
-        backgroundColor: pageTheme === "recommended" ? "#F4F7F6" : "#0f172a",
-        scale: Math.max(1, dpi() / 96),
-        useCORS: true,
-        logging: false,
-        windowWidth: page.scrollWidth,
-        windowHeight: page.scrollHeight,
-      });
+      const canvas = await captureSheetCanvas();
+      const href = safeCanvasDataUrl(canvas, "image/png");
+      if (!href) throw new Error("Não foi possível gerar o PNG.");
       const a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png");
+      a.href = href;
       a.download = `infrageo-layout-${Date.now()}.png`;
       a.click();
     } finally {
-      finishPageExport();
+      finishPageExport(resume);
       selectedId = wasSelected;
-      if (resume.resumeId != null) {
-        startMapInteract(resume.resumeMode || "adjust", resume.resumeId);
-      } else {
-        renderAll();
-      }
+      renderAll();
     }
+  }
+
+  async function exportSvg() {
+    const page = pageEl();
+    if (!page || !window.html2canvas) {
+      window.alert("html2canvas indisponível");
+      return;
+    }
+    const wasSelected = selectedId;
+    let resume = { resumeId: null, resumeMode: null };
+    try {
+      resume = await preparePageForExport();
+      const canvas = await captureSheetCanvas();
+      const png = safeCanvasDataUrl(canvas, "image/png");
+      if (!png) throw new Error("Não foi possível gerar o SVG.");
+      const preset = currentPreset();
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${preset.wMm}mm" height="${preset.hMm}mm" ` +
+        `viewBox="0 0 ${canvas.width} ${canvas.height}">` +
+        `<image href="${png}" width="${canvas.width}" height="${canvas.height}"/>` +
+        `</svg>`;
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `infrageo-layout-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      finishPageExport(resume);
+      selectedId = wasSelected;
+      renderAll();
+    }
+  }
+
+  async function exportCurrent() {
+    const fmt = document.getElementById("layout-export-format")?.value || "pdf";
+    if (fmt === "png") return exportPng();
+    if (fmt === "svg") return exportSvg();
+    return exportPdf();
   }
 
   async function exportPdf() {
@@ -1791,14 +3174,7 @@ window.InfraGeoLayoutMode = (function () {
     let resume = { resumeId: null, resumeMode: null };
     try {
       resume = await preparePageForExport();
-      const canvas = await window.html2canvas(page, {
-        backgroundColor: pageTheme === "recommended" ? "#F4F7F6" : "#0f172a",
-        scale: Math.max(1, dpi() / 96),
-        useCORS: true,
-        logging: false,
-        windowWidth: page.scrollWidth,
-        windowHeight: page.scrollHeight,
-      });
+      const canvas = await captureSheetCanvas();
       const preset = currentPreset();
       const landscape = preset.wMm >= preset.hMm;
       const pdf = new JsPDF({
@@ -1806,17 +3182,14 @@ window.InfraGeoLayoutMode = (function () {
         unit: "mm",
         format: [preset.wMm, preset.hMm],
       });
-      const img = canvas.toDataURL("image/jpeg", 0.92);
+      const img = safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
+      if (!img) throw new Error("Não foi possível gerar o PDF.");
       pdf.addImage(img, "JPEG", 0, 0, preset.wMm, preset.hMm);
       pdf.save(`infrageo-layout-${Date.now()}.pdf`);
     } finally {
-      finishPageExport();
+      finishPageExport(resume);
       selectedId = wasSelected;
-      if (resume.resumeId != null) {
-        startMapInteract(resume.resumeMode || "adjust", resume.resumeId);
-      } else {
-        renderAll();
-      }
+      renderAll();
     }
   }
 
@@ -1848,30 +3221,193 @@ window.InfraGeoLayoutMode = (function () {
         open(true);
       }, true);
     }
-    backBtn?.addEventListener("click", () => open(false));
-    pageSize?.addEventListener("change", () => {
+    backBtn?.addEventListener(
+      "click",
+      (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        open(false);
+      },
+      true
+    );
+    const rebuildSheet = () => {
       applyPageSize();
+      applyRecommendedLayout({ keepSize: true, silentOpen: true });
+      const mapItem = items.find((it) => it.type === "map" && it.visible !== false);
+      if (mapItem && !root()?.hidden) {
+        window.setTimeout(() => {
+          mountAdjustLeaflet(mapItem);
+          adjustLeaflet?.invalidateSize?.({ animate: false });
+        }, 40);
+      }
+    };
+    pageSize?.addEventListener("change", rebuildSheet);
+    document.getElementById("layout-print-preset")?.addEventListener("change", (ev) => {
+      applySizeKey(ev.target.value);
+      rebuildSheet();
+    });
+    document.getElementById("layout-page-format")?.addEventListener("change", rebuildSheet);
+    document.getElementById("layout-page-orient")?.addEventListener("change", rebuildSheet);
+    document.getElementById("layout-margins")?.addEventListener("change", rebuildSheet);
+    document.getElementById("layout-scale-ratio")?.addEventListener("change", () => renderAll());
+    document.getElementById("layout-show-scale")?.addEventListener("change", () => {
+      applySheetChrome();
       renderAll();
     });
-    dpiRange?.addEventListener("input", () => {
+    document.getElementById("layout-show-credits")?.addEventListener("change", () => {
+      applySheetChrome();
+      renderAll();
+    });
+    document.getElementById("layout-include-popups")?.addEventListener("change", () => {
+      renderPopupPinList();
+      refreshMapSnapshots().catch(() => {});
+    });
+    document.getElementById("btn-layout-add-popup")?.addEventListener("click", () => {
+      const pin = window.InfraGeoHoverPopup?.addCurrentExportPin?.();
+      if (!pin) {
+        window.alert("Abra um ponto no mapa (clique na feição) e tente de novo.");
+        return;
+      }
+      const box = document.getElementById("layout-include-popups");
+      if (box) box.checked = true;
+      renderPopupPinList();
+      refreshMapSnapshots().catch(() => {});
+    });
+    document.getElementById("layout-popup-pins")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest?.("[data-del-pin]");
+      if (!btn) return;
+      window.InfraGeoHoverPopup?.removeExportPin?.(btn.getAttribute("data-del-pin"));
+      renderPopupPinList();
+      refreshMapSnapshots().catch(() => {});
+    });
+    document.addEventListener("infrageo-export-pins", () => {
+      renderPopupPinList();
+    });
+    document.getElementById("btn-layout-zoom-in")?.addEventListener("click", () => {
+      setPreviewZoom(previewZoom + 0.1);
+    });
+    document.getElementById("btn-layout-zoom-out")?.addEventListener("click", () => {
+      setPreviewZoom(previewZoom - 0.1);
+    });
+    document.getElementById("btn-layout-layers")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setLayersPop(!!layersPop()?.hidden);
+    });
+    document.getElementById("btn-layout-layers-close")?.addEventListener("click", () => {
+      setLayersPop(false);
+    });
+    document.addEventListener("pointerdown", (ev) => {
+      const pop = layersPop();
+      if (pop && !pop.hidden) {
+        if (!pop.contains(ev.target) && !ev.target.closest?.("#btn-layout-layers")) {
+          setLayersPop(false);
+        }
+      }
+      const studio = root();
+      if (!studio || studio.hidden || !(ev.target instanceof Element)) return;
+      if (!studio.contains(ev.target)) return;
+      if (ev.target.closest("[data-overlay]")) return;
+      overlaySelected = null;
+      syncOverlayChrome();
+      if (!ev.target.closest(".layout-sheet__map")) {
+        clearMapMarking();
+      }
+    });
+    document.getElementById("layout-basemap-chips")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest?.("[data-basemap]");
+      if (!btn) return;
+      const name = btn.getAttribute("data-basemap");
+      if (!name) return;
+      window.InfraGeoMap?.setBasemapByName?.(name);
+      renderBasemapChips();
+      const keepId = adjustMapId;
+      if (keepId != null) {
+        const item = items.find((x) => x.id === keepId);
+        if (item) mountAdjustLeaflet(item);
+      }
+      const loc = document.querySelector(".layout-sheet__float--locator");
+      if (loc && !pageEl()?.classList.contains("is-exporting")) {
+        mountLocatorLive(loc);
+      }
+      refreshMapSnapshots().catch(() => {});
+    });
+    document.getElementById("layout-layer-chips")?.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest?.("[data-toggle-layer]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-toggle-layer");
+      const on = btn.getAttribute("aria-pressed") === "true";
+      await window.InfraGeoLayers?.setLayerVisible?.(id, !on, { fit: false });
+      renderAll();
+      const keepId = adjustMapId;
+      if (keepId != null) {
+        const item = items.find((x) => x.id === keepId);
+        if (item) mountAdjustLeaflet(item);
+      }
+      refreshMapSnapshots().catch(() => {});
+    });
+    document.getElementById("layout-element-chips")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest?.("[data-flag]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-flag");
+      const box = document.getElementById(id);
+      if (box) box.checked = !box.checked;
+      renderAll();
+    });
+    document.getElementById("layout-auto-toggle")?.addEventListener("change", (ev) => {
+      sheetAuto = !!ev.target.checked;
+      renderAll();
+    });
+    document.getElementById("layout-compose-list")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest?.("[data-compose]");
+      if (!btn) return;
+      sheetAuto = false;
+      sheetCompose = btn.getAttribute("data-compose") || "classic";
+      renderAll();
+    });
+    document.getElementById("layout-map-title")?.addEventListener("input", (ev) => {
+      const text = String(ev.target.value || "");
+      const node = pageEl()?.querySelector("#layout-sheet-title");
+      if (node && node !== document.activeElement) node.value = text;
+      fitTitleBox();
+    });
+    document.getElementById("layout-page")?.addEventListener("input", (ev) => {
+      const field = ev.target?.closest?.("#layout-sheet-title");
+      if (!field) return;
+      const header = document.getElementById("layout-map-title");
+      if (header) header.value = field.value;
+      fitTitleBox(field);
+    });
+    const onDpi = () => {
       if (dpiValue) dpiValue.textContent = String(dpi());
       syncExportStats();
-    });
+    };
+    dpiRange?.addEventListener("input", onDpi);
+    dpiRange?.addEventListener("change", onDpi);
     document.getElementById("layout-screen-grid")?.addEventListener("change", syncGridClasses);
     document.getElementById("layout-wgs84-grid")?.addEventListener("change", syncGridClasses);
     document.getElementById("layout-scale-unit")?.addEventListener("change", renderAll);
     document.getElementById("btn-layout-export-png")?.addEventListener("click", () => {
       exportPng().catch((e) => window.alert(e.message || e));
     });
-    document.getElementById("btn-layout-export-pdf")?.addEventListener("click", () => {
-      exportPdf().catch((e) => window.alert(e.message || e));
-    });
+    const runExport = () => exportCurrent().catch((e) => window.alert(e.message || e));
+    document.getElementById("btn-layout-export-pdf")?.addEventListener("click", runExport);
+    document.getElementById("btn-layout-export-main")?.addEventListener("click", runExport);
+    document.getElementById("layout-export-format")?.addEventListener("change", syncExportButtonLabel);
     document.getElementById("btn-layout-clear")?.addEventListener("click", clearItems);
     document.getElementById("btn-layout-delete-sel")?.addEventListener("click", () => {
       if (selectedId != null) removeItem(selectedId);
     });
     document.getElementById("btn-layout-recommended")?.addEventListener("click", () => {
-      applyRecommendedLayout();
+      const fmt = document.getElementById("layout-page-format");
+      const ori = document.getElementById("layout-page-orient");
+      const title = document.getElementById("layout-map-title");
+      const margins = document.getElementById("layout-margins");
+      if (fmt) fmt.value = "a4";
+      if (ori) ori.value = "landscape";
+      if (title) title.value = "Mapa de Infraestrutura — Amazonas";
+      if (margins) margins.value = "compact";
+      sheetAuto = true;
+      applyRecommendedLayout({ silentOpen: true, resetUi: true });
     });
 
     const colorInput = document.getElementById("layout-feature-color");
@@ -1883,8 +3419,10 @@ window.InfraGeoLayoutMode = (function () {
         applyColorToSelected(btn.dataset.color);
       });
     });
-    document.getElementById("layout-layer-select")?.addEventListener("change", (ev) => {
-      setSelectedLayer(ev.target.value || null);
+    document.getElementById("layout-layer-select")?.addEventListener("change", async (ev) => {
+      const id = ev.target.value || null;
+      setSelectedLayer(id);
+      if (id) await enableLayerForExport(id, true);
     });
     syncColorUi(featureColor);
     syncLayerSelectUi();
@@ -1935,10 +3473,18 @@ window.InfraGeoLayoutMode = (function () {
       }).observe(workspace);
     }
     document.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape" && root() && !root().hidden) open(false);
+      if (ev.key === "Escape" && root() && !root().hidden) {
+        if (layersPop() && !layersPop().hidden) {
+          ev.preventDefault();
+          setLayersPop(false);
+          return;
+        }
+        open(false);
+      }
       if ((ev.key === "Delete" || ev.key === "Backspace") && selectedId != null) {
         const tag = (ev.target?.tagName || "").toLowerCase();
         if (tag === "input" || tag === "textarea" || ev.target?.isContentEditable) return;
+        if (root()?.classList.contains("layout-studio")) return;
         if (!root()?.hidden) removeItem(selectedId);
       }
     });

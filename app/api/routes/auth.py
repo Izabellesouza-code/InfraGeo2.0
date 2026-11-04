@@ -11,22 +11,27 @@ from sqlalchemy.orm import Session
 from app.api.deps import SESSION_COOKIE, extract_access_token, get_current_user, require_admin_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
-from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_access_token
+from app.core.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    EMAIL_GATE_EXPIRE_MINUTES,
+    decode_access_token,
+)
 from app.database import get_db
 from app.schemas.auth import (
     AuditAccessIn,
     ChangePasswordRequest,
     CreateUserRequest,
     CreatedUserResponse,
+    EmailGateRequest,
     ForgotPasswordRequest,
     LoginRequest,
-    RecoverPasswordRequest,
     ResetPasswordRequest,
     TokenResponse,
     UpdateUserRequest,
     UserPublic,
 )
 from app.services import audit_service, auth_service
+from app.utils.rate_limit import limit_request
 
 router = APIRouter()
 bearer = HTTPBearer(auto_error=False)
@@ -43,13 +48,43 @@ def _cookie_kwargs() -> dict[str, Any]:
     }
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _set_session_cookie(
+    response: Response, token: str, max_age_sec: int | None = None
+) -> None:
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=max_age_sec if max_age_sec is not None else ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         **_cookie_kwargs(),
     )
+
+
+@router.post("/entrar", response_model=TokenResponse)
+def entrar_email(
+    payload: EmailGateRequest,
+    response: Response,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """Abre o mapa com e-mail e mantém a sessão neste navegador."""
+    limit_request(request, "email-gate", max_hits=10, window_sec=60)
+    limit_request(
+        request, "email-gate-user", max_hits=10, window_sec=60, extra=payload.email
+    )
+    result = auth_service.entrar_com_email(db, payload.email)
+    audit_service.record(
+        category="login",
+        action="email_gate",
+        summary=f"Entrou no mapa ({result.user.email})",
+        actor_email=result.user.email,
+        target="login",
+        request=request,
+        db=db,
+    )
+    _set_session_cookie(
+        response, result.access_token, max_age_sec=EMAIL_GATE_EXPIRE_MINUTES * 60
+    )
+    return result
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -60,6 +95,15 @@ def login(
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     """Autentica contra a tabela usuarios.usuarios no Neon."""
+    # Público: 5/min por IP, 8/15 min por e-mail (força bruta).
+    limit_request(request, "login", max_hits=5, window_sec=60)
+    limit_request(
+        request,
+        "login-user",
+        max_hits=8,
+        window_sec=900,
+        extra=payload.username,
+    )
     try:
         result = auth_service.login(db, payload.username, payload.password)
     except WebGISException as exc:
@@ -114,25 +158,6 @@ def change_password(
     return result
 
 
-@router.post("/recover-password")
-def recover_password(
-    payload: RecoverPasswordRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-) -> dict[str, str]:
-    """Redefine senha com e-mail e nome cadastrados no Neon."""
-    auth_service.recover_password(db, payload.email, payload.nome, payload.new_password)
-    audit_service.record(
-        category="alteracao",
-        action="senha_recuperada",
-        summary="Redefiniu a senha pelo fluxo de recuperação",
-        actor_email=payload.email,
-        target=payload.email,
-        request=request,
-    )
-    return {"message": "Senha atualizada. Faça login com a nova senha."}
-
-
 @router.post("/forgot-password")
 def forgot_password(
     payload: ForgotPasswordRequest,
@@ -140,6 +165,10 @@ def forgot_password(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     """Envia token de redefinição para o e-mail cadastrado em usuarios."""
+    limit_request(request, "forgot-password", max_hits=3, window_sec=900)
+    limit_request(
+        request, "forgot-password-email", max_hits=3, window_sec=900, extra=payload.email
+    )
     base = (auth_service.settings.app_public_url or str(request.base_url)).rstrip("/")
     message = auth_service.request_password_reset(db, payload.email, base)
     return {"message": message}
@@ -148,9 +177,11 @@ def forgot_password(
 @router.post("/reset-password")
 def reset_password(
     payload: ResetPasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     """Grava a nova senha em usuarios.usuarios."""
+    limit_request(request, "reset-password", max_hits=5, window_sec=900)
     auth_service.reset_password(db, payload.token, payload.new_password)
     return {"message": "Senha atualizada. Faça login com a nova senha."}
 
@@ -209,6 +240,7 @@ def create_user(
     admin: auth_service.AuthPrincipal = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> CreatedUserResponse:
+    limit_request(request, "create-user", max_hits=10, window_sec=60, extra=str(admin.id))
     user, temporary_password = auth_service.create_usuario(
         db,
         nome=payload.nome,

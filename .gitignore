@@ -30,6 +30,8 @@ data/exports/*
 !data/exports/.gitkeep
 data/pending_schema_deletes.json
 data/last_data_update.json
+data/feedback.json
+data/sugestoes_reclamacoes.xlsx
 
 # Frontend build (gerado na Vercel)
 frontend/dist/

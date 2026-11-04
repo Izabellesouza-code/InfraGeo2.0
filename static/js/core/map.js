@@ -11,6 +11,78 @@ window.InfraGeoMap = (function () {
   let basemapControls = {};
 
   const MASK_FILL = "#e8eef5";
+  const EMPTY_TILE =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+  function silenceBrokenTile(img) {
+    if (!img || !img.classList) return;
+    img.classList.add("leaflet-tile-error");
+    img.alt = "";
+    img.removeAttribute("title");
+    img.style.display = "none";
+    img.style.visibility = "hidden";
+    img.style.opacity = "0";
+    try {
+      if (img.getAttribute("src") !== EMPTY_TILE) img.src = EMPTY_TILE;
+    } catch {
+      /* ignore */
+    }
+    try {
+      img.remove();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function watchLeafletTile(img) {
+    if (!(img instanceof HTMLImageElement) || img.__igTileWatch) return;
+    if (!img.classList.contains("leaflet-tile")) return;
+    img.__igTileWatch = true;
+    img.alt = "";
+    const check = () => {
+      if (img.complete && img.naturalWidth === 0) silenceBrokenTile(img);
+    };
+    img.addEventListener("error", () => silenceBrokenTile(img));
+    img.addEventListener("load", check);
+    if (img.complete) check();
+  }
+
+  document.addEventListener(
+    "error",
+    (ev) => {
+      const el = ev.target;
+      if (el && el.tagName === "IMG" && el.classList.contains("leaflet-tile")) {
+        silenceBrokenTile(el);
+      }
+    },
+    true
+  );
+
+  const tileWatcher = new MutationObserver((recs) => {
+    recs.forEach((rec) => {
+      rec.addedNodes.forEach((node) => {
+        if (node.nodeType !== 1) return;
+        if (node.matches?.("img.leaflet-tile")) watchLeafletTile(node);
+        node.querySelectorAll?.("img.leaflet-tile").forEach(watchLeafletTile);
+      });
+    });
+  });
+  tileWatcher.observe(document.documentElement, { childList: true, subtree: true });
+  document.querySelectorAll("img.leaflet-tile").forEach(watchLeafletTile);
+
+  if (window.L?.TileLayer) {
+    const origInit = L.TileLayer.prototype.initialize;
+    L.TileLayer.prototype.initialize = function (url, options) {
+      const opts = { ...(options || {}) };
+      opts.errorTileUrl = EMPTY_TILE;
+      return origInit.call(this, url, opts);
+    };
+  }
+  if (window.L?.Map) {
+    L.Map.addInitHook(function () {
+      this.on("tileerror", (ev) => silenceBrokenTile(ev && ev.tile));
+    });
+  }
 
   function createMap(elementId) {
     const el = document.getElementById(elementId);
@@ -86,24 +158,17 @@ window.InfraGeoMap = (function () {
         maxZoom: 19,
       },
       {
+        name: "Satélite (Esri)",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attribution: esriSatAttr,
+        maxZoom: 19,
+      },
+      {
         name: "Google Earth",
         url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         attribution: "&copy; Google",
         maxZoom: 21,
         subdomains: ["0", "1", "2", "3"],
-      },
-      {
-        name: "Google Earth híbrido",
-        url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-        attribution: "&copy; Google",
-        maxZoom: 21,
-        subdomains: ["0", "1", "2", "3"],
-      },
-      {
-        name: "Satélite (Esri)",
-        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attribution: esriSatAttr,
-        maxZoom: 19,
       },
     ];
 
@@ -152,10 +217,13 @@ window.InfraGeoMap = (function () {
 
     const basemapControlsLocal = {};
     basemapDefs.forEach((bm) => {
+      const native = bm.maxZoom || 19;
       const opts = {
         attribution: bm.attribution,
-        maxZoom: bm.maxZoom || 19,
-        crossOrigin: true,
+        maxZoom: Math.max(native, 22),
+        maxNativeZoom: native,
+        detectRetina: false,
+        errorTileUrl: EMPTY_TILE,
       };
       if (bm.subdomains) opts.subdomains = bm.subdomains;
       let tile;
@@ -173,9 +241,13 @@ window.InfraGeoMap = (function () {
     });
     basemapControls = basemapControlsLocal;
 
-    layerControl = L.control
-      .layers(basemapControls, null, { position: "topright", collapsed: true })
-      .addTo(map);
+    // Controle nativo do Leaflet fica escondido: o seletor do InfraGeo já troca o fundo.
+    layerControl = L.control.layers(basemapControls, null, {
+      position: "topright",
+      collapsed: true,
+    });
+
+    map.on("tileerror", (ev) => silenceBrokenTile(ev && ev.tile));
 
     // Restringe a navegação ao Amazonas desde o início
     applyAmazonasMapLimits({ fit: true, animate: false });
@@ -560,25 +632,53 @@ window.InfraGeoMap = (function () {
     );
   }
 
+  function stripBasemapTiles(keep) {
+    if (!map) return;
+    const keepSet = new Set();
+    const collect = (lyr) => {
+      if (!lyr) return;
+      keepSet.add(lyr);
+      if (typeof lyr.eachLayer === "function") lyr.eachLayer(collect);
+    };
+    collect(keep);
+    const dump = [];
+    map.eachLayer((lyr) => {
+      if (
+        (lyr instanceof L.TileLayer || lyr instanceof L.GridLayer) &&
+        !keepSet.has(lyr)
+      ) {
+        dump.push(lyr);
+      }
+    });
+    dump.forEach((lyr) => {
+      try {
+        map.removeLayer(lyr);
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+
   function setBasemapByName(name) {
     if (!map || !basemapControls) return;
     const layer = basemapControls[name];
     if (!layer) return;
     Object.values(basemapControls).forEach((t) => {
       try {
-        if (map.hasLayer(t)) map.removeLayer(t);
+        if (t !== layer && map.hasLayer(t)) map.removeLayer(t);
       } catch {
         /* ignore */
       }
     });
-    layer.addTo(map);
+    stripBasemapTiles(layer);
+    if (!map.hasLayer(layer)) layer.addTo(map);
   }
 
   function setBasemapPreset(preset) {
     if (!map || !basemapControls) return;
     const names = {
       map: ["Esri Light Gray", "OpenStreetMap"],
-      satellite: ["Satélite (Esri)", "Google Earth"],
+      satellite: ["Google Earth", "Satélite (Esri)"],
       terrain: ["Esri Topográfico", "OpenTopoMap"],
     };
     const wanted = names[preset] || names.map;
@@ -589,12 +689,13 @@ window.InfraGeoMap = (function () {
     if (!layer) layer = Object.values(basemapControls)[0];
     Object.values(basemapControls).forEach((t) => {
       try {
-        if (map.hasLayer(t)) map.removeLayer(t);
+        if (t !== layer && map.hasLayer(t)) map.removeLayer(t);
       } catch {
         /* ignore */
       }
     });
-    if (layer) layer.addTo(map);
+    stripBasemapTiles(layer);
+    if (layer && !map.hasLayer(layer)) layer.addTo(map);
   }
 
   function zoomBy(delta) {

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, text
@@ -12,13 +11,21 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core.exceptions import WebGISException
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (
+    EMAIL_GATE_EXPIRE_MINUTES,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from app.models.password_reset import PasswordResetToken
 from app.models.usuario import Usuario
 from app.schemas.auth import TokenResponse, UserPublic
 from app.services.mail_service import send_email
 
 settings = get_settings()
+
+ALLOWED_EMAIL_DOMAIN = "consorciospu.com.br"
+ALLOWED_EXTRA_EMAILS = frozenset({"sandro@unicaconsultores.com.br"})
 
 RESET_TOKEN_HOURS = 1
 RESET_TOKEN_DIGITS = 6
@@ -130,6 +137,58 @@ def authenticate(db: Session, username: str, password: str) -> Usuario:
     return user
 
 
+def is_allowed_email(email: str) -> bool:
+    raw = (email or "").strip().lower()
+    if "@" not in raw or " " in raw:
+        return False
+    if raw in ALLOWED_EXTRA_EMAILS:
+        return True
+    local, _, domain = raw.partition("@")
+    return bool(local) and domain == ALLOWED_EMAIL_DOMAIN
+
+
+def entrar_com_email(db: Session, email: str) -> TokenResponse:
+    """Libera o mapa com e-mail, sem senha. Sessão de 30 dias neste navegador."""
+    key = (email or "").strip().lower()
+    if "@" not in key or " " in key or not key.split("@", 1)[0]:
+        raise WebGISException(
+            "Não foi possível entrar.",
+            status_code=403,
+        )
+    user = find_usuario(db, key)
+    extra = {
+        "username": key,
+        "email": key,
+        "is_admin": False,
+        "can_upload": False,
+        "must_change_password": False,
+        "auth_source": "email_gate",
+    }
+    gate_ttl = timedelta(minutes=EMAIL_GATE_EXPIRE_MINUTES)
+    if user and user.is_active is not False:
+        token = create_access_token(
+            subject=str(user.id), extra=extra, expires_delta=gate_ttl
+        )
+        principal = _principal_from_usuario(user)
+        principal.is_admin = False
+        principal.can_upload = False
+        principal.must_change_password = False
+        principal.source = "email_gate"
+        return TokenResponse(access_token=token, user=user_to_public(principal))
+    guest = AuthPrincipal(
+        id=0,
+        username=key,
+        email=key,
+        full_name=key.split("@", 1)[0],
+        is_active=True,
+        is_admin=False,
+        can_upload=False,
+        source="email_gate",
+    )
+    token = create_access_token(subject=key, extra=extra, expires_delta=gate_ttl)
+    return TokenResponse(access_token=token, user=user_to_public(guest))
+
+
 def login(db: Session, username: str, password: str) -> TokenResponse:
     user = authenticate(db, username, password)
     principal = _principal_from_usuario(user)
@@ -147,6 +206,28 @@ def login(db: Session, username: str, password: str) -> TokenResponse:
 
 
 def principal_from_token(payload: dict, db: Session | None = None) -> AuthPrincipal | None:
+    if payload.get("auth_source") == "email_gate":
+        email = str(payload.get("email") or payload.get("username") or payload.get("sub") or "")
+        email = email.strip().lower()
+        if "@" not in email or " " in email or not email.split("@", 1)[0]:
+            return None
+        if db:
+            user = find_usuario(db, email)
+            if user and user.is_active is not False:
+                principal = _principal_from_usuario(user)
+                principal.is_admin = False
+                principal.can_upload = False
+                principal.must_change_password = False
+                principal.source = "email_gate"
+                return principal
+        return AuthPrincipal(
+            id=0,
+            username=email,
+            email=email,
+            full_name=email.split("@", 1)[0],
+            is_active=True,
+            source="email_gate",
+        )
     if not db:
         return None
     sub = str(payload.get("sub") or "")
@@ -162,33 +243,6 @@ def principal_from_token(payload: dict, db: Session | None = None) -> AuthPrinci
 
 def get_user_by_id(db: Session, user_id: int) -> Usuario | None:
     return db.query(Usuario).filter(Usuario.id == user_id).first()
-
-
-def _normalize_name(value: str) -> str:
-    text = unicodedata.normalize("NFKD", value or "")
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    return " ".join(text.casefold().split())
-
-
-def recover_password(db: Session, email: str, nome: str, new_password: str) -> None:
-    """Redefine senha com e-mail + nome cadastrados, sem SMTP."""
-    key = (email or "").strip().lower()
-    name = _normalize_name(nome)
-    password = (new_password or "").strip()
-    if not key or not name or len(password) < 6:
-        raise WebGISException("Preencha e-mail, nome completo e a nova senha.", status_code=400)
-
-    user = db.query(Usuario).filter(func.lower(Usuario.email) == key).first()
-    if (
-        not user
-        or user.is_active is False
-        or _normalize_name(user.nome) != name
-    ):
-        raise WebGISException("E-mail e nome não conferem com o cadastro.", status_code=400)
-
-    user.senha_hash = hash_password(password)
-    user.must_change_password = False
-    db.commit()
 
 
 def request_password_reset(db: Session, email: str, public_base_url: str) -> str:

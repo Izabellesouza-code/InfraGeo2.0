@@ -125,7 +125,9 @@ window.InfraGeoChrome = (function () {
         } else if (action === "exportar" || action === "compartilhar") {
           window.InfraGeoLayoutMode?.open?.(true);
         } else if (action === "ajuda") {
-          document.getElementById("btn-sobre")?.click();
+          window.InfraGeoAbout?.open?.(true);
+        } else if (action === "sobre") {
+          window.InfraGeoAbout?.openInfo?.(true);
         }
       });
     });
@@ -158,9 +160,6 @@ window.InfraGeoChrome = (function () {
     document.getElementById("btn-zoom-out")?.addEventListener("click", () => {
       window.InfraGeoMap?.zoomBy?.(-1);
     });
-    document.getElementById("btn-locate")?.addEventListener("click", () => {
-      window.InfraGeoMap?.locateUser?.();
-    });
     document.getElementById("btn-fullscreen")?.addEventListener("click", () => {
       const el = document.querySelector(".map-area");
       if (!el) return;
@@ -173,9 +172,8 @@ window.InfraGeoChrome = (function () {
       "Esri Light Gray + rótulos": "Mapa com nomes",
       "Esri Streets": "Ruas",
       OpenStreetMap: "Mapa (ruas)",
-      "Satélite (Esri)": "Satélite",
+      "Satélite (Esri)": "Satélite (Esri)",
       "Google Earth": "Satélite (Google)",
-      "Google Earth híbrido": "Híbrido (satélite + ruas)",
       "Esri Topográfico": "Terreno",
       OpenTopoMap: "Relevo",
     };

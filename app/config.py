@@ -3,7 +3,20 @@
 from functools import lru_cache
 from typing import List
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_WEAK_JWT_SECRETS = frozenset(
+    {
+        "",
+        "dev-secret-change-me",
+        "altere-esta-chave-em-producao",
+        "change-me",
+        "secret",
+        "jwt-secret",
+        "your-secret-key",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -17,9 +30,10 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "InfraGeo AM"
-    app_version: str = "2.0.0"
+    app_version: str = "2.1"
     debug: bool = True
     secret_key: str = ""
+    jwt_secret: str = Field(default="", validation_alias="JWT_SECRET")
 
     host: str = "0.0.0.0"
     port: int = 8000
@@ -78,6 +92,15 @@ class Settings(BaseSettings):
     # URL do front na Vercel (produção). Se definida e DEBUG=false, / redireciona para lá.
     frontend_url: str = ""
 
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
+    @model_validator(mode="after")
+    def bind_jwt_secret(self):
+        key = (self.jwt_secret or self.secret_key or "").strip()
+        object.__setattr__(self, "secret_key", key)
+        return self
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -87,7 +110,20 @@ class Settings(BaseSettings):
         return self.max_upload_size_mb * 1024 * 1024
 
 
+def require_jwt_secret(secret: str) -> str:
+    """Exige SECRET_KEY ou JWT_SECRET forte — sem default de desenvolvimento."""
+    key = (secret or "").strip()
+    if key.lower() in _WEAK_JWT_SECRETS or len(key) < 32:
+        raise RuntimeError(
+            "SECRET_KEY ou JWT_SECRET obrigatória no ambiente: mínimo 32 caracteres, "
+            "sem valores de desenvolvimento (ex.: dev-secret-change-me)."
+        )
+    return key
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Retorna instância cacheada das configurações."""
-    return Settings()
+    settings = Settings()
+    require_jwt_secret(settings.secret_key)
+    return settings

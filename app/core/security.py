@@ -8,10 +8,9 @@ from jose import JWTError, jwt
 
 from app.config import get_settings
 
-settings = get_settings()
-
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8
+EMAIL_GATE_EXPIRE_MINUTES = 60 * 24 * 30
 
 
 def hash_password(password: str) -> str:
@@ -45,12 +44,12 @@ def create_access_token(
     payload: dict[str, Any] = {"sub": subject, "exp": expire}
     if extra:
         payload.update(extra)
-    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+    return jwt.encode(payload, get_settings().secret_key, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[dict[str, Any]]:
     """Decodifica JWT; retorna None se inválido."""
     try:
-        return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        return jwt.decode(token, get_settings().secret_key, algorithms=[ALGORITHM])
     except JWTError:
         return None

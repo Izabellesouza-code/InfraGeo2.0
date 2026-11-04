@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Capa do tutorial InfraGeo AM">
+  <rect width="1600" height="900" fill="#0A2E2C"/>
+  <rect x="48" y="48" width="1504" height="804" rx="28" fill="#13232F" stroke="#1E3242" stroke-width="2"/>
+  <circle cx="800" cy="400" r="92" fill="#0A2E2C" stroke="#6FCF8E" stroke-width="4"/>
+  <polygon points="778,360 778,440 848,400" fill="#6FCF8E"/>
+  <text x="800" y="560" text-anchor="middle" fill="#FFFFFF" font-family="Manrope, Segoe UI, sans-serif" font-size="42" font-weight="700">InfraGEO AM</text>
+  <text x="800" y="618" text-anchor="middle" fill="#8FA3B5" font-family="Manrope, Segoe UI, sans-serif" font-size="24">Tutorial em vídeo · 1 minuto</text>
+</svg>

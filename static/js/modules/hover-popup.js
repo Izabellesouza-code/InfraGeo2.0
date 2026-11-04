@@ -107,6 +107,61 @@ window.InfraGeoHoverPopup = (function () {
     lastSelection = null;
   }
 
+  let exportPins = [];
+  const MAX_EXPORT_PINS = 8;
+
+  function pinId(lat, lng, layerId, title) {
+    return `${layerId || "x"}:${Number(lat).toFixed(5)}:${Number(lng).toFixed(5)}:${title || ""}`;
+  }
+
+  function addExportPin(feature, layer, meta, clickLatLng) {
+    const ll = getLatLng(feature, layer, clickLatLng || lastSelection?.latlng);
+    if (!ll) return null;
+    const props = feature?.properties || {};
+    const title =
+      prettyText(primaryName(props)) || titleFromMeta(meta) || "Ponto no mapa";
+    const id = pinId(ll.lat, ll.lng, meta?.id, title);
+    if (exportPins.some((p) => p.id === id)) return exportPins.find((p) => p.id === id);
+    const rows = pickRows(props, feature, layer).slice(0, 5);
+    const pin = {
+      id,
+      lat: ll.lat,
+      lng: ll.lng,
+      title,
+      layerName: titleFromMeta(meta) || "",
+      color: layerAccent(meta, layer),
+      rows,
+    };
+    if (exportPins.length >= MAX_EXPORT_PINS) exportPins.shift();
+    exportPins.push(pin);
+    document.dispatchEvent(new CustomEvent("infrageo-export-pins"));
+    return pin;
+  }
+
+  function addCurrentExportPin() {
+    if (!lastSelection) return null;
+    return addExportPin(
+      lastSelection.feature,
+      popupContext?.layer || null,
+      lastSelection.meta,
+      lastSelection.latlng
+    );
+  }
+
+  function removeExportPin(id) {
+    exportPins = exportPins.filter((p) => p.id !== id);
+    document.dispatchEvent(new CustomEvent("infrageo-export-pins"));
+  }
+
+  function getExportPins() {
+    return exportPins.slice();
+  }
+
+  function clearExportPins() {
+    exportPins = [];
+    document.dispatchEvent(new CustomEvent("infrageo-export-pins"));
+  }
+
   function esc(s) {
     return String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -276,7 +331,14 @@ window.InfraGeoHoverPopup = (function () {
       feature: hit.feature,
       meta: hit.meta,
       layerId: hit.meta?.id || null,
+      latlng: e?.latlng || null,
     };
+    if (
+      opts?.force &&
+      document.getElementById("layout-include-popups")?.checked
+    ) {
+      addExportPin(hit.feature, hit.layer, hit.meta, e?.latlng);
+    }
     if (opts?.zoom) zoomToFeature(hit.feature, hit.layer);
   }
 
@@ -363,9 +425,22 @@ window.InfraGeoHoverPopup = (function () {
     return kind;
   }
 
-  function getLatLng(feature, layer) {
+  function asLatLng(value) {
+    if (!value || !window.L) return null;
+    const lat = Number(value.lat ?? value[0]);
+    const lng = Number(value.lng ?? value[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return L.latLng(lat, lng);
+  }
+
+  function getLatLng(feature, layer, clickLatLng) {
+    const fromClick = asLatLng(clickLatLng);
+    if (fromClick) return fromClick;
     try {
-      if (layer?.getLatLng) return layer.getLatLng();
+      if (typeof layer?.getLatLng === "function") {
+        const ll = asLatLng(layer.getLatLng());
+        if (ll) return ll;
+      }
       const g = feature?.geometry;
       if (g?.type === "Point" && Array.isArray(g.coordinates)) {
         return L.latLng(g.coordinates[1], g.coordinates[0]);
@@ -376,7 +451,7 @@ window.InfraGeoHoverPopup = (function () {
     return null;
   }
 
-  function pickRows(props, feature, layer) {
+  function pickRows(props, feature, layer, clickLatLng) {
     const entries = Object.entries(props || {}).filter(([k]) => {
       if (SKIP_KEYS.has(String(k).toLowerCase())) return false;
       return true;
@@ -394,7 +469,7 @@ window.InfraGeoHoverPopup = (function () {
       picked.push({ label: friendlyLabel(key), value: formatted });
     };
 
-    const latlng = getLatLng(feature, layer);
+    const latlng = getLatLng(feature, layer, clickLatLng);
     const hasLat = byNorm.has("latitude") || byNorm.has("lat");
     const hasLon =
       byNorm.has("longitude") || byNorm.has("lng") || byNorm.has("lon") || byNorm.has("long");
@@ -505,26 +580,33 @@ window.InfraGeoHoverPopup = (function () {
   }
 
   function placeNearEvent(box, e) {
-    const src = e?.originalEvent;
-    let x = src?.clientX;
-    let y = src?.clientY;
-    if ((x == null || y == null) && e?.containerPoint) {
-      const map = window.InfraGeoMap?.getMap?.();
-      const rect = map?.getContainer?.()?.getBoundingClientRect?.();
-      if (rect) {
-        x = rect.left + e.containerPoint.x;
-        y = rect.top + e.containerPoint.y;
-      }
+    const map = e?.target?.getContainer
+      ? e.target
+      : window.InfraGeoMap?.getMap?.();
+    let x;
+    let y;
+    if (e?.latlng && map?.latLngToContainerPoint && map.getContainer) {
+      const pt = map.latLngToContainerPoint(e.latlng);
+      const rect = map.getContainer().getBoundingClientRect();
+      const size = map.getSize?.();
+      const sx = size?.x ? rect.width / size.x : 1;
+      const sy = size?.y ? rect.height / size.y : 1;
+      x = rect.left + pt.x * sx;
+      y = rect.top + pt.y * sy;
+    } else {
+      const src = e?.originalEvent;
+      x = src?.clientX;
+      y = src?.clientY;
     }
     if (x == null || y == null) return;
     const w = box.offsetWidth || 260;
     const h = box.offsetHeight || 150;
     let left = x - w / 2;
-    let top = y - h - 18;
+    let top = y - h - 16;
     left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
-    if (top < 8) top = y + 18;
-    box.style.left = `${left}px`;
-    box.style.top = `${top}px`;
+    if (top < 8) top = y + 16;
+    box.style.left = `${Math.round(left)}px`;
+    box.style.top = `${Math.round(top)}px`;
     box.style.right = "auto";
     box.style.bottom = "auto";
   }
@@ -586,7 +668,7 @@ window.InfraGeoHoverPopup = (function () {
     const props = feature?.properties || {};
     const layerTitle = titleFromMeta(meta);
     const featureName = prettyText(primaryName(props));
-    let rows = pickRows(props, feature, layer);
+    let rows = pickRows(props, feature, layer, e?.latlng);
 
     if (featureName) {
       const sn = normKey(featureName);
@@ -770,6 +852,7 @@ window.InfraGeoHoverPopup = (function () {
           feature,
           meta,
           layerId: meta?.id || null,
+          latlng: e?.latlng || null,
         };
         zoomToFeature(feature, layer);
         popupFrozen = true;
@@ -840,5 +923,17 @@ window.InfraGeoHoverPopup = (function () {
     setTimeout(bindMap, 1200);
   }
 
-  return { init, bindFeature, hide, show, getSelection, clearSelection };
+  return {
+    init,
+    bindFeature,
+    hide,
+    show,
+    getSelection,
+    clearSelection,
+    addExportPin,
+    addCurrentExportPin,
+    removeExportPin,
+    getExportPins,
+    clearExportPins,
+  };
 })();

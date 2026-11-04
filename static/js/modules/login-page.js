@@ -43,6 +43,55 @@
     }
   }
 
+  async function doEmailGate() {
+    const username = document.getElementById("login-page-usuario")?.value?.trim();
+    if (!username) {
+      showError("Informe o e-mail.");
+      return;
+    }
+    const form = document.getElementById("form-login-page");
+    const card = document.getElementById("login-duo-card");
+    const submitEl = document.getElementById("login-duo-submit");
+    const submitLabel = submitEl?.querySelector(".login-duo__btn-label");
+    const idleLabel = "Entrar no mapa";
+    const buttons = [
+      ...(form ? [...form.querySelectorAll("button")] : []),
+      document.getElementById("btn-login-admin"),
+      document.getElementById("btn-login-user"),
+    ].filter(Boolean);
+    function setLoading(on) {
+      card?.classList.toggle("is-loading", on);
+      card?.setAttribute("aria-busy", on ? "true" : "false");
+      buttons.forEach((b) => {
+        b.disabled = on;
+      });
+      if (submitLabel) submitLabel.textContent = on ? "Abrindo…" : idleLabel;
+      document.getElementById("login-page-usuario")?.toggleAttribute("readonly", on);
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/auth/entrar"), {
+        method: "POST",
+        credentials: window.InfraGeoApi?.credentials?.() || "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: username }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(formatApiError(data, res.status));
+      if (data.access_token) localStorage.setItem(TOKEN_KEY, data.access_token);
+      if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      window.location.href = "/";
+    } catch (err) {
+      setLoading(false);
+      const raw = String(err.message || "");
+      const msg =
+        /failed to fetch|networkerror|load failed/i.test(raw)
+          ? "Não foi possível conectar à API. Tente de novo em alguns segundos."
+          : raw || "Não foi possível entrar";
+      showError(msg);
+    }
+  }
+
   async function doLogin(goAdmin) {
     const username = document.getElementById("login-page-usuario")?.value?.trim();
     const password = document.getElementById("login-page-senha")?.value || "";
@@ -121,14 +170,17 @@
       card.classList.add("is-switching");
       window.setTimeout(() => {
         card.classList.toggle("is-admin", on);
-        if (titleEl) titleEl.textContent = on ? "Administrador" : "Entrar";
+        const adminFields = document.getElementById("login-admin-fields");
+        const senha = document.getElementById("login-page-senha");
+        if (adminFields) adminFields.hidden = !on;
+        if (senha) senha.required = on;
+        if (titleEl) titleEl.textContent = on ? "Administrador" : "Acessar o mapa";
         if (hintEl) {
-          hintEl.textContent = on
-            ? "Entre com uma conta de administrador"
-            : "Use o e-mail e a senha cadastrados";
+          hintEl.textContent = on ? "Entre com e-mail e senha de administrador" : "";
+          hintEl.hidden = !on;
         }
-        if (submitLabel) submitLabel.textContent = on ? "Entrar no painel" : "Entrar";
-        else if (submitEl) submitEl.textContent = on ? "Entrar no painel" : "Entrar";
+        if (submitLabel) submitLabel.textContent = on ? "Entrar no painel" : "Entrar no mapa";
+        else if (submitEl) submitEl.textContent = on ? "Entrar no painel" : "Entrar no mapa";
         if (errEl) {
           errEl.hidden = true;
           errEl.textContent = "";
@@ -144,7 +196,11 @@
 
     loginForm.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      await doLogin(!!card?.classList.contains("is-admin"));
+      if (card?.classList.contains("is-admin")) {
+        await doLogin(true);
+        return;
+      }
+      await doEmailGate();
     });
     document.getElementById("btn-login-admin")?.addEventListener("click", () => {
       setAdminMode(true);
@@ -156,40 +212,6 @@
     document.getElementById("btn-toggle-senha")?.addEventListener("click", () => {
       if (!senha) return;
       senha.type = senha.type === "password" ? "text" : "password";
-    });
-  }
-
-  const recoverForm = document.getElementById("form-recover-password");
-  if (recoverForm) {
-    recoverForm.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const email = document.getElementById("recover-email")?.value?.trim();
-      const nome = document.getElementById("recover-nome")?.value?.trim();
-      const newPassword = document.getElementById("recover-password")?.value || "";
-      const btn = recoverForm.querySelector('button[type="submit"]');
-      if (!email || !nome || newPassword.length < 6) {
-        showError("Informe e-mail, nome completo e uma senha com pelo menos 6 caracteres.");
-        return;
-      }
-      if (btn) btn.disabled = true;
-      try {
-        const res = await fetch(apiUrl("/api/auth/recover-password"), {
-          method: "POST",
-          credentials: window.InfraGeoApi?.credentials?.() || "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, nome, new_password: newPassword }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(formatApiError(data, res.status));
-        showOk(data.message || "Senha atualizada.");
-        window.setTimeout(() => {
-          window.location.href = "/login";
-        }, 1200);
-      } catch (err) {
-        showError(err.message || "Não foi possível salvar a senha");
-      } finally {
-        if (btn) btn.disabled = false;
-      }
     });
   }
 

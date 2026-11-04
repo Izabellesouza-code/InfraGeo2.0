@@ -356,7 +356,7 @@ window.InfraGeoSidebar = (function () {
         handlers.onFitAmazonas?.();
       } else if (v === "ajuda") {
         setOpen(false);
-        document.getElementById("btn-sobre")?.click();
+        window.InfraGeoAbout?.open?.(true);
       }
       if (v !== "favoritos") ev.target.value = "camadas";
     });

@@ -25,4 +25,5 @@ python-jose[cryptography]==3.3.0
 
 httpx==0.28.1
 orjson==3.10.12
+openai==1.59.6
 openpyxl==3.1.5

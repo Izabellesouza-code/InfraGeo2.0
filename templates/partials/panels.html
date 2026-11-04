@@ -72,41 +72,141 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="sobre-title"
+  aria-describedby="sobre-sub"
 >
-  <div class="about-modal__card">
-    <div class="about-modal__head">
-      <h2 id="sobre-title">Sobre o InfraGeo AM</h2>
-      <button type="button" class="icon-btn" id="btn-fechar-sobre" aria-label="Fechar">×</button>
+  <div class="about-modal__card" tabindex="-1">
+    <div class="about-modal__top">
+      <div class="about-modal__brandline">
+        <img class="about-modal__logo" src="/static/img/logo-infrageo.png?v=1" alt="" />
+        <span>InfraGEO <small>AM</small></span>
+      </div>
+      <div class="about-modal__top-actions">
+        <button type="button" class="about-modal__back" id="btn-fechar-sobre">Voltar ao mapa</button>
+        <button type="button" class="about-modal__play" id="btn-ajuda-play" aria-label="Reproduzir tutorial">
+          PLAY
+        </button>
+      </div>
     </div>
+    <p class="about-modal__crumb">Ajuda · Tutorial</p>
+    <h2 id="sobre-title">Como usar o InfraGeo AM</h2>
+    <p id="sobre-sub" class="about-modal__sub">
+      Um minuto para conhecer o sistema. Clique em um capítulo para ir direto ao trecho.
+    </p>
     <div class="about-modal__body">
-      <p>
-        Sistema de Informações Geográficas para visualização e gestão de
-        camadas territoriais no Amazonas.
-      </p>
-      <p class="about-modal__meta">
-        <strong>Versão</strong> <span id="sobre-versao">{{ app_version|default("2.0.0") }}</span>
-      </p>
-      <p class="about-modal__meta">
-        <strong>Atualização</strong><br />
-        <span id="sobre-ultima-atualizacao">Carregando…</span>
-      </p>
-      <p class="about-modal__meta">
-        <strong>Institucional</strong> CONSÓRCIO SPU - DNIT
-      </p>
-      <p class="about-modal__meta">
-        <strong>Desenvolvimento</strong>
-      </p>
-      <ul class="about-modal__authors">
-        <li>Bianca Silveira</li>
-        <li>Fabíola Alencar</li>
-        <li>Izabelle Mendonça</li>
-      </ul>
-      <p class="about-modal__note">
-        © {{ year|default(2026) }} InfraGeo AM
-      </p>
+      <div class="about-modal__col about-modal__col--video">
+        <div class="about-modal__video-wrap">
+          <video
+            id="sobre-tutorial"
+            class="about-modal__video"
+            controls
+            preload="metadata"
+            playsinline
+            poster="/static/img/ajuda-tutorial-poster.svg"
+          >
+            <source src="/static/video/InfraGeo_AM_tutorial.mp4?v=6" type="video/mp4" />
+            Seu navegador não reproduz este vídeo.
+          </video>
+        </div>
+      </div>
+      <aside class="about-modal__chapters" id="sobre-tutorial-chips" aria-label="Capítulos">
+        <div class="about-modal__chapters-head">
+          <strong>Capítulos</strong>
+          <span>9 trechos · 1:00</span>
+        </div>
+        <button type="button" class="about-modal__chap is-on" data-seek="0">
+          <time>0:00</time>
+          <span><b>Abertura</b></span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="5">
+          <time>0:05</time>
+          <span><b>O que é o InfraGeo</b>SIG do DNIT no Amazonas. Fé, gestão.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="10">
+          <time>0:10</time>
+          <span><b>Mapa</b>Zoom, tela cheia e enquadrar AM.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="15">
+          <time>0:15</time>
+          <span><b>Busca</b>Digite um município, obra ou trecho.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="20">
+          <time>0:20</time>
+          <span><b>Camadas</b>Ligar grupos e ver o que está no mapa.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="25">
+          <time>0:25</time>
+          <span><b>Detalhes e tabela</b>Clique num ponto, ponte ou trecho.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="33">
+          <time>0:33</time>
+          <span><b>Legenda e favoritos</b>Leia cores e fixe o que usa sempre.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="39">
+          <time>0:39</time>
+          <span><b>Exportar</b>Mapa pronto em PNG ou PDF.</span>
+        </button>
+        <button type="button" class="about-modal__chap" data-seek="46">
+          <time>0:46</time>
+          <span><b>Agente InfraGeo</b>Dúvidas, sugestão ou correção.</span>
+        </button>
+      </aside>
     </div>
-    <div class="about-modal__actions">
-      <button type="button" class="btn-primary" id="btn-ok-sobre">Fechar</button>
+    <div class="about-modal__guide">
+      <span class="about-modal__guide-title">Guia rápido</span>
+      <button type="button" class="about-modal__cardlet" data-seek="10">Mapa · 0:10</button>
+      <button type="button" class="about-modal__cardlet" data-seek="15">Busca · 0:15</button>
+      <button type="button" class="about-modal__cardlet" data-seek="20">Camadas · 0:20</button>
+      <button type="button" class="about-modal__cardlet" data-seek="25">Tabela · 0:25</button>
+      <button type="button" class="about-modal__cardlet" data-seek="33">Legenda · 0:33</button>
+      <button type="button" class="about-modal__cardlet" data-seek="39">Exportar · 0:39</button>
+    </div>
+    <p class="about-modal__note">
+      Consórcio SPU–DNIT · InfraGeo AM versão <span id="sobre-versao">{{ app_version|default("2.1") }}</span>
+      · atualização <span id="sobre-ultima-atualizacao">—</span>
+    </p>
+    <button type="button" class="about-modal__sr" id="btn-ok-sobre">Fechar</button>
+  </div>
+</div>
+
+<div
+  id="modal-info-sobre"
+  class="info-modal"
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="info-sobre-title"
+>
+  <div class="info-modal__card" tabindex="-1">
+    <div class="info-modal__head">
+      <h2 id="info-sobre-title">Sobre o InfraGeo AM</h2>
+      <button type="button" class="info-modal__x" id="btn-fechar-info-sobre" aria-label="Fechar sobre">×</button>
+    </div>
+    <p>
+      Sistema de Informações Geográficas para visualização e gestão de
+      camadas territoriais no Amazonas.
+    </p>
+    <p class="info-modal__meta">
+      <strong>Versão</strong>
+      <span id="info-sobre-versao">{{ app_version|default("2.1") }}</span>
+    </p>
+    <p class="info-modal__meta">
+      <strong>Atualização</strong>
+      <span id="info-sobre-atualizacao">—</span>
+    </p>
+    <p class="info-modal__meta">
+      <strong>Institucional</strong>
+      Consórcio SPU–DNIT
+    </p>
+    <p class="info-modal__meta"><strong>Desenvolvimento</strong></p>
+    <ul class="info-modal__authors">
+      <li><span class="info-modal__avatar" aria-hidden="true">BS</span> Bianca Silveira</li>
+      <li><span class="info-modal__avatar" aria-hidden="true">FA</span> Fabíola Alencar</li>
+      <li><span class="info-modal__avatar" aria-hidden="true">IM</span> Izabelle Mendonça</li>
+    </ul>
+    <div class="info-modal__foot">
+      <span>© {{ year|default(2026) }} InfraGeo AM</span>
+      <button type="button" class="info-modal__done" id="btn-ok-info-sobre">Fechar</button>
     </div>
   </div>
 </div>
@@ -515,119 +615,144 @@
   </div>
 </div>
 
-<div id="layout-mode" class="layout-mode" hidden aria-hidden="true">
-  <header class="layout-mode__top">
-    <button type="button" class="layout-mode__back" id="btn-layout-back-map">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18 9 12l6-6"/><path d="M9 12h12"/></svg>
-      Mapa
-    </button>
-    <p class="layout-mode__top-title">Exportar</p>
-    <nav class="layout-mode__menu" aria-label="Ações do exportar">
-      <button type="button" class="is-active" id="btn-layout-recommended">Composição</button>
-      <button type="button" class="layout-tool" data-add="refresh-map">Atualizar</button>
-      <button type="button" class="layout-tool" data-add="adjust-map" id="btn-layout-adjust-map">Ajustar</button>
-      <button type="button" class="layout-tool" data-add="pick-layer" id="btn-layout-pick-layer">Camada</button>
-    </nav>
-    <div class="layout-mode__head-actions">
-      <button type="button" class="layout-mode__btn" id="btn-layout-export-png">PNG</button>
-      <button type="button" class="layout-mode__btn" id="btn-layout-export-pdf">PDF</button>
+<div id="layout-locator-engine" class="layout-locator-engine" aria-hidden="true"></div>
+<div id="layout-mode" class="layout-mode layout-studio" hidden aria-hidden="true">
+  <header class="layout-studio__top">
+    <div class="layout-studio__pill layout-studio__brand">
+      <button type="button" class="layout-studio__back" id="btn-layout-back-map" aria-label="Voltar ao mapa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18 9 12l6-6"/></svg>
+      </button>
+      <label class="layout-studio__title-wrap" for="layout-map-title">
+        <span class="visually-hidden">Título do mapa</span>
+        <input id="layout-map-title" type="text" maxlength="80" value="Mapa de Infraestrutura — Amazonas" />
+      </label>
+    </div>
+    <div class="layout-studio__pill layout-studio__compose-list" id="layout-compose-list" role="group" aria-label="Layout">
+      <button type="button" class="layout-compose-card" data-compose="full" aria-pressed="true" title="Mapa">Mapa</button>
+      <button type="button" class="layout-compose-card" data-compose="classic" aria-pressed="false" title="Clássico">Clássico</button>
+      <button type="button" class="layout-compose-card" data-compose="side" aria-pressed="false" title="Painel">Painel</button>
+    </div>
+    <div class="layout-studio__pill layout-studio__top-actions">
+      <button type="button" class="layout-studio__layers-btn" id="btn-layout-layers" aria-haspopup="dialog" aria-expanded="false" aria-controls="layout-layers-pop">
+        Camadas
+      </button>
+      <button type="button" class="layout-studio__restore" id="btn-layout-recommended">Limpar</button>
+      <button type="button" class="layout-studio__export-png" id="btn-layout-export-png">PNG</button>
+      <button type="button" class="layout-studio__export-top" id="btn-layout-export-main">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+        PDF
+      </button>
+      <button type="button" class="layout-studio__export-dock" id="btn-layout-export-pdf" hidden>Exportar</button>
     </div>
   </header>
 
-  <div class="layout-mode__main">
-    <section class="layout-card layout-card--preview">
+  <div class="layout-studio__body">
+    <section class="layout-studio__preview-col">
+      <div class="layout-layers-pop" id="layout-layers-pop" hidden role="dialog" aria-labelledby="layout-layers-pop-title">
+        <header class="layout-layers-pop__head">
+          <h3 id="layout-layers-pop-title">Camadas</h3>
+          <button type="button" class="layout-layers-pop__close" id="btn-layout-layers-close" aria-label="Fechar">×</button>
+        </header>
+        <p class="layout-studio__mini-label">Mapa base / satélite</p>
+        <div class="layout-studio__chips" id="layout-basemap-chips" role="group" aria-label="Mapa base"></div>
+        <ul class="layout-studio__layer-pills" id="layout-layer-chips"></ul>
+        <p class="layout-studio__mini-label">Extras</p>
+        <div class="layout-studio__chips" id="layout-element-chips" role="group" aria-label="Elementos da folha"></div>
+      </div>
+      <div class="layout-studio__print-meta">
+        <span class="layout-studio__print-badge">Área de impressão</span>
+        <label class="layout-studio__print-size-wrap">
+          <span class="visually-hidden">Tamanho da impressão</span>
+          <select id="layout-print-preset" class="layout-studio__print-size" aria-label="Tamanho da impressão">
+            <option value="a4-landscape" selected>A4 · Paisagem · 297 × 210 mm</option>
+            <option value="a4-portrait">A4 · Retrato · 210 × 297 mm</option>
+            <option value="a3-landscape">A3 · Paisagem · 420 × 297 mm</option>
+            <option value="a3-portrait">A3 · Retrato · 297 × 420 mm</option>
+            <option value="letter-landscape">Carta · Paisagem · 279 × 216 mm</option>
+            <option value="letter-portrait">Carta · Retrato · 216 × 279 mm</option>
+            <option value="wide-16x9">16∶9 · Apresentação · 339 × 191 mm</option>
+            <option value="square-1x1">1∶1 · Quadrado · 210 × 210 mm</option>
+          </select>
+        </label>
+      </div>
       <div class="layout-mode__workspace" id="layout-workspace">
-        <div class="layout-mode__page-wrap">
+        <div class="layout-mode__page-wrap" id="layout-page-wrap">
+          <span class="layout-studio__handle layout-studio__handle--tl" aria-hidden="true"></span>
+          <span class="layout-studio__handle layout-studio__handle--tr" aria-hidden="true"></span>
+          <span class="layout-studio__handle layout-studio__handle--bl" aria-hidden="true"></span>
+          <span class="layout-studio__handle layout-studio__handle--br" aria-hidden="true"></span>
           <div class="layout-mode__page" id="layout-page" role="region" aria-label="Página do layout"></div>
         </div>
       </div>
     </section>
-
-    <section class="layout-card layout-card--tools">
-      <div class="layout-card__head">
-        <h2>Ajustes</h2>
-        <div class="layout-mode__items-actions">
-          <button type="button" class="layout-mode__btn layout-mode__btn--ghost" id="btn-layout-delete-sel">Remover</button>
-          <button type="button" class="layout-mode__btn layout-mode__btn--ghost" id="btn-layout-clear">Limpar</button>
-        </div>
-      </div>
-      <div class="layout-card__grid">
-        <div>
-          <p class="layout-mode__section-title">Adicionar</p>
-          <div class="layout-mode__tools" role="toolbar">
-            <button type="button" class="layout-tool" data-add="map"><span>Mapa</span></button>
-            <button type="button" class="layout-tool" data-add="legend"><span>Legenda</span></button>
-            <button type="button" class="layout-tool" data-add="north"><span>Norte</span></button>
-            <button type="button" class="layout-tool" data-add="scale"><span>Escala</span></button>
-            <button type="button" class="layout-tool" data-add="title"><span>Título</span></button>
-            <button type="button" class="layout-tool" data-add="text"><span>Texto</span></button>
-            <button type="button" class="layout-tool" data-add="image"><span>Imagem</span></button>
-            <button type="button" class="layout-tool" data-add="rect"><span>Forma</span></button>
-          </div>
-        </div>
-        <div>
-          <p class="layout-mode__section-title">Cor</p>
-          <label class="layout-mode__field">
-            Camada
-            <select id="layout-layer-select">
-              <option value="">Selecione no mapa ou na lista</option>
-            </select>
-          </label>
-          <p class="layout-selected-layer" id="layout-selected-layer">Nenhuma camada</p>
-          <div class="layout-color-row">
-            <label class="layout-color-picker" title="Escolher cor">
-              <input type="color" id="layout-feature-color" value="#0f766e" />
-              <span id="layout-feature-color-hex">#0f766e</span>
-            </label>
-            <div class="layout-color-swatches" role="group" aria-label="Cores rápidas">
-              <button type="button" class="layout-color-swatch" data-color="#0f766e" style="--sw:#0f766e" title="Teal"></button>
-              <button type="button" class="layout-color-swatch" data-color="#0b1c24" style="--sw:#0b1c24" title="Grafite"></button>
-              <button type="button" class="layout-color-swatch" data-color="#1d4ed8" style="--sw:#1d4ed8" title="Azul"></button>
-              <button type="button" class="layout-color-swatch" data-color="#b91c1c" style="--sw:#b91c1c" title="Vermelho"></button>
-              <button type="button" class="layout-color-swatch" data-color="#ca8a04" style="--sw:#ca8a04" title="Âmbar"></button>
-              <button type="button" class="layout-color-swatch" data-color="#ffffff" style="--sw:#ffffff" title="Branco"></button>
-            </div>
-          </div>
-        </div>
-        <div>
-          <p class="layout-mode__section-title">Página</p>
-          <div class="layout-mode__checks">
-            <label class="layout-mode__check"><input type="checkbox" id="layout-snap" checked /> Encaixar</label>
-            <label class="layout-mode__check"><input type="checkbox" id="layout-screen-grid" /> Grid</label>
-            <label class="layout-mode__check"><input type="checkbox" id="layout-wgs84-grid" /> WGS84</label>
-          </div>
-          <div class="layout-mode__page-fields">
-          <label class="layout-mode__field">
-            Escala
-            <select id="layout-scale-unit">
-              <option value="metric" selected>Métrico</option>
-              <option value="imperial">Imperial</option>
-            </select>
-          </label>
-          <label class="layout-mode__field">
-            Formato <span id="layout-stat-size" hidden>A4 Paisagem</span>
-            <select id="layout-page-size">
-              <option value="a4-landscape" selected>A4 Paisagem</option>
-              <option value="a4-portrait">A4 Retrato</option>
-              <option value="a3-landscape">A3 Paisagem</option>
-              <option value="letter-landscape">Carta Paisagem</option>
-              <option value="wide-16x9">16∶9</option>
-              <option value="square-1x1">1∶1</option>
-            </select>
-          </label>
-          <label class="layout-mode__field">
-            Qualidade <span id="layout-stat-dpi">180</span> DPI
-            <input type="range" id="layout-dpi" min="96" max="300" step="12" value="180" />
-            <span class="layout-mode__dpi-labels"><span>menor</span><span id="layout-dpi-value">180</span><span>maior</span></span>
-          </label>
-          </div>
-        </div>
-      </div>
-      <ul class="layout-mode__items" id="layout-items-list" hidden></ul>
-      <span id="layout-stat-items" hidden>0</span>
-      <span id="layout-stat-layers" hidden>0</span>
-    </section>
   </div>
-  <button type="button" id="btn-layout-mode-stay" hidden disabled>Modo Layout</button>
-  <input type="file" id="layout-image-input" accept="image/*" hidden />
+
+  <div class="layout-studio__sr" hidden>
+    <select id="layout-page-format" hidden data-native-select="1">
+      <option value="a4" selected>A4</option>
+      <option value="a3">A3</option>
+      <option value="letter">Carta</option>
+    </select>
+    <select id="layout-page-orient" hidden data-native-select="1">
+      <option value="landscape" selected>Paisagem</option>
+      <option value="portrait">Retrato</option>
+    </select>
+    <select id="layout-export-format" hidden>
+      <option value="pdf" selected>PDF</option>
+      <option value="png">PNG</option>
+      <option value="svg">SVG</option>
+    </select>
+    <select id="layout-page-size" hidden data-native-select="1">
+      <option value="a4-landscape" selected>A4 Paisagem</option>
+      <option value="a4-portrait">A4 Retrato</option>
+      <option value="a3-landscape">A3 Paisagem</option>
+      <option value="a3-portrait">A3 Retrato</option>
+      <option value="letter-landscape">Carta Paisagem</option>
+      <option value="letter-portrait">Carta Retrato</option>
+      <option value="wide-16x9">16∶9</option>
+      <option value="square-1x1">1∶1</option>
+    </select>
+    <input type="hidden" id="layout-feature-color" value="#0A2E2C" />
+    <span id="layout-feature-color-hex">#0A2E2C</span>
+    <input type="checkbox" id="layout-snap" checked />
+    <input type="checkbox" id="layout-screen-grid" />
+    <input type="checkbox" id="layout-wgs84-grid" checked />
+    <select id="layout-scale-unit" hidden data-native-select="1">
+      <option value="metric" selected>Métrico</option>
+    </select>
+    <select id="layout-margins" hidden>
+      <option value="compact" selected>Compactas</option>
+      <option value="comfortable">Amplas</option>
+    </select>
+    <select id="layout-scale-ratio" hidden>
+      <option value="auto" selected>Automática</option>
+    </select>
+    <select id="layout-layer-select" hidden><option value="">Nenhuma</option></select>
+    <input type="checkbox" id="layout-show-title" checked />
+    <input type="checkbox" id="layout-show-legend" checked />
+    <input type="checkbox" id="layout-show-scale" checked />
+    <input type="checkbox" id="layout-show-north" checked />
+    <input type="checkbox" id="layout-show-locator" />
+    <input type="checkbox" id="layout-show-credits" checked />
+    <input type="checkbox" id="layout-include-popups" />
+    <input type="checkbox" id="layout-auto-toggle" checked />
+    <select id="layout-dpi" hidden>
+      <option value="150" selected>150</option>
+      <option value="300">300</option>
+      <option value="600">600</option>
+    </select>
+    <button type="button" id="btn-layout-adjust-map" hidden>Enquadrar</button>
+    <span id="layout-dpi-value">150</span>
+    <span id="layout-stat-dpi">150</span>
+    <ul class="layout-mode__items" id="layout-items-list"></ul>
+    <span id="layout-stat-items">0</span>
+    <span id="layout-stat-layers">0</span>
+    <p class="layout-selected-layer" id="layout-selected-layer"></p>
+    <ul id="layout-popup-pins" hidden></ul>
+    <button type="button" id="btn-layout-mode-stay" disabled>Modo Layout</button>
+    <button type="button" id="btn-layout-export-png-sr" hidden>PNG</button>
+    <button type="button" id="btn-layout-pick-layer" hidden>pick</button>
+    <button type="button" id="btn-layout-add-popup" hidden>popup</button>
+    <input type="file" id="layout-image-input" accept="image/*" />
+  </div>
 </div>

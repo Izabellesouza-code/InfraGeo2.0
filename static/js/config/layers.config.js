@@ -72,14 +72,6 @@ window.InfraGeoConfig = {
       subdomains: ["0", "1", "2", "3"],
     },
     {
-      id: "google-hybrid",
-      name: "Google Earth híbrido",
-      url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-      attribution: "&copy; Google",
-      maxZoom: 21,
-      subdomains: ["0", "1", "2", "3"],
-    },
-    {
       id: "esri-satellite",
       name: "Satélite (Esri)",
       url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",

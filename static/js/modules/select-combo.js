@@ -40,6 +40,7 @@ window.InfraGeoSelectCombo = (function () {
 
   function enhance(sel) {
     if (!sel || sel.dataset.nativeSelect === "1" || sel.size > 1 || sel.multiple) return;
+    if (sel.hidden || sel.closest("[hidden], .layout-studio__sr")) return;
     let wrap = sel.closest(".ig-combo");
     if (!wrap) {
       wrap = document.createElement("div");

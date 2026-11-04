@@ -75,6 +75,7 @@ async def webgis_exception_handler(_request: Request, exc: WebGISException) -> J
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.message, "details": exc.details},
+        headers=getattr(exc, "headers", None) or {},
     )
 
 

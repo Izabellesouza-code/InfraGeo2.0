@@ -727,3 +727,13 @@ body.basemap-picker-open .leaflet-control-layers {
     text-overflow: ellipsis;
   }
 }
+
+/* Tile que falhou: o Chrome desenha um losango — nunca mostrar. */
+.leaflet-container img.leaflet-tile:not(.leaflet-tile-loaded),
+.leaflet-container img.leaflet-tile-error,
+.leaflet-container img.leaflet-tile:-moz-broken,
+.leaflet-container img.leaflet-tile[src=""] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
