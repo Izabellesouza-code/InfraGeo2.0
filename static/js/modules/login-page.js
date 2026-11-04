@@ -77,7 +77,14 @@
         body: JSON.stringify({ email: username }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(formatApiError(data, res.status));
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error(
+            "A API ainda não atualizou. Aguarde um minuto e tente de novo."
+          );
+        }
+        throw new Error(formatApiError(data, res.status));
+      }
       if (data.access_token) localStorage.setItem(TOKEN_KEY, data.access_token);
       if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       window.location.href = "/";

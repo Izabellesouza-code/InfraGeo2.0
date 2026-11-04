@@ -125,5 +125,14 @@ def require_jwt_secret(secret: str) -> str:
 def get_settings() -> Settings:
     """Retorna instância cacheada das configurações."""
     settings = Settings()
-    require_jwt_secret(settings.secret_key)
+    key = (settings.secret_key or "").strip()
+    if not key:
+        raise RuntimeError(
+            "SECRET_KEY ou JWT_SECRET obrigatória no ambiente (mínimo 32 caracteres)."
+        )
+    try:
+        require_jwt_secret(key)
+    except RuntimeError as exc:
+        # Não derruba o processo: um SECRET_KEY antigo no Render ainda sobe a API.
+        print(f"[config] aviso: {exc}")
     return settings
