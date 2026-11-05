@@ -24,7 +24,7 @@ def test_rejects_other_domains():
 
 
 def test_guest_token_payload_builds_principal():
-    email = "pessoa@exemplo.com"
+    email = _ok()
     principal = principal_from_token(
         {
             "auth_source": "email_gate",
@@ -39,19 +39,19 @@ def test_guest_token_payload_builds_principal():
     assert principal.can_upload is False
 
 
-def test_guest_rejects_invalid_email_in_token():
+def test_guest_rejects_foreign_domain_in_token():
     assert (
         principal_from_token(
-            {"auth_source": "email_gate", "email": "sem-arroba", "sub": "sem-arroba"},
+            {"auth_source": "email_gate", "email": "a@gmail.com", "sub": "a@gmail.com"},
             db=None,
         )
         is None
     )
 
 
-def test_entrar_com_email_rejects_invalid_email():
+def test_entrar_com_email_rejects_without_db_call():
     from app.services import auth_service
 
     with pytest.raises(WebGISException) as exc:
-        auth_service.entrar_com_email(db=None, email="invalido")
+        auth_service.entrar_com_email(db=None, email="leo.a@example.org")
     assert exc.value.status_code == 403

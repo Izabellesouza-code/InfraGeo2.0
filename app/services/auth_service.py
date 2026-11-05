@@ -148,9 +148,9 @@ def is_allowed_email(email: str) -> bool:
 
 
 def entrar_com_email(db: Session, email: str) -> TokenResponse:
-    """Libera o mapa com e-mail, sem senha. Sessão de 30 dias neste navegador."""
+    """Libera o mapa com e-mail permitido, sem senha. Sessão de 30 dias neste navegador."""
     key = (email or "").strip().lower()
-    if "@" not in key or " " in key or not key.split("@", 1)[0]:
+    if not is_allowed_email(key):
         raise WebGISException(
             "Não foi possível entrar.",
             status_code=403,
@@ -209,7 +209,7 @@ def principal_from_token(payload: dict, db: Session | None = None) -> AuthPrinci
     if payload.get("auth_source") == "email_gate":
         email = str(payload.get("email") or payload.get("username") or payload.get("sub") or "")
         email = email.strip().lower()
-        if "@" not in email or " " in email or not email.split("@", 1)[0]:
+        if not is_allowed_email(email):
             return None
         if db:
             user = find_usuario(db, email)

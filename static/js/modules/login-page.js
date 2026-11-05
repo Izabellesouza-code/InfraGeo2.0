@@ -94,7 +94,9 @@
       const msg =
         /failed to fetch|networkerror|load failed/i.test(raw)
           ? "Não foi possível conectar à API. Tente de novo em alguns segundos."
-          : raw || "Não foi possível entrar";
+          : /não foi possível entrar|403/i.test(raw)
+            ? "Use um e-mail autorizado para entrar no mapa."
+            : raw || "Não foi possível entrar";
       showError(msg);
     }
   }
