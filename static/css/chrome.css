@@ -728,12 +728,18 @@ body.basemap-picker-open .leaflet-control-layers {
   }
 }
 
-/* Tile que falhou: o Chrome desenha um losango — nunca mostrar. */
+/* Tile que falhou: o Chrome desenha losango/estrela — nunca mostrar. */
 .leaflet-container img.leaflet-tile:not(.leaflet-tile-loaded),
 .leaflet-container img.leaflet-tile-error,
 .leaflet-container img.leaflet-tile:-moz-broken,
-.leaflet-container img.leaflet-tile[src=""] {
+.leaflet-container img.leaflet-tile[src=""],
+.leaflet-container img.leaflet-tile[data-ig-empty="1"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
+  background: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  content: none !important;
 }

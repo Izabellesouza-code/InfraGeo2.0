@@ -31,6 +31,11 @@ window.InfraGeoLayoutMode = (function () {
     arrow: "Seta",
   };
 
+  /** Satélite (Esri/Google) deixa de ter imagem e mostra "Map data not yet available". */
+  const EXPORT_MAX_ZOOM = 16;
+  /** Mini mapa de localização: contexto em volta da seleção, sem zoom de rua. */
+  const LOCATOR_MAX_ZOOM = 11;
+
   const ROLE_LABELS = {
     "accent-rail": "Acento",
     "header-band": "Cabeçalho",
@@ -96,9 +101,17 @@ window.InfraGeoLayoutMode = (function () {
   let adjustLeaflet = null;
   let pageTheme = "basic";
   let featureColor = "#0f766e";
-  /** @type {null | 'adjust' | 'pick'} */
+  /** @type {null | 'adjust' | 'pick' | 'select'} */
   let mapInteractMode = null;
   let selectedLayerId = null;
+  let selectionBounds = null;
+  let selectionHighlight = null;
+  let selectionRectLayer = null;
+  let boxDrawCleanup = null;
+  let boxDrawArmed = false;
+  let selectionGeojson = null;
+  /** Só os registros da tabela de atributos — esconde as demais camadas na folha. */
+  let sheetSoloSelection = false;
   let previewZoom = 1;
   let sheetAuto = true;
   let sheetCompose = "full";
@@ -185,6 +198,24 @@ window.InfraGeoLayoutMode = (function () {
     });
   }
 
+  function layerAllowedOnSheet(layerId) {
+    if (sheetSoloSelection) {
+      return !!selectedLayerId && String(layerId) === String(selectedLayerId);
+    }
+    return true;
+  }
+
+  function refreshSoloMap() {
+    renderAll();
+    const keepId = adjustMapId;
+    if (keepId != null) {
+      const item = items.find((x) => x.id === keepId);
+      if (item) mountAdjustLeaflet(item);
+    }
+    scheduleLocatorMount();
+    refreshMapSnapshots().catch(() => {});
+  }
+
   function layerIsOn(entry) {
     if (!entry?.meta) return false;
     if (entry.visible) return true;
@@ -202,6 +233,14 @@ window.InfraGeoLayoutMode = (function () {
 
   function visibleLayerEntries() {
     const registry = window.InfraGeoMap?.overlayRegistry || {};
+    if (sheetSoloSelection && selectedLayerId) {
+      const hit =
+        registry[selectedLayerId] ||
+        Object.values(registry).find(
+          (e) => String(e.meta?.id) === String(selectedLayerId)
+        );
+      return hit ? [hit] : [];
+    }
     return Object.values(registry).filter((e) => layerIsOn(e));
   }
 
@@ -225,7 +264,8 @@ window.InfraGeoLayoutMode = (function () {
       try {
         map.fitBounds(L.latLngBounds(bounds[0], bounds[1]), {
           animate: false,
-          padding: [0, 0],
+          padding: sheetSoloSelection ? [48, 48] : [28, 28],
+          maxZoom: EXPORT_MAX_ZOOM,
         });
         return;
       } catch {
@@ -235,7 +275,10 @@ window.InfraGeoLayoutMode = (function () {
     const center = item?.center
       ? L.latLng(item.center[0], item.center[1])
       : fallbackMap?.getCenter?.();
-    const zoom = item?.zoom ?? fallbackMap?.getZoom?.() ?? 6;
+    const zoom = Math.min(
+      item?.zoom ?? fallbackMap?.getZoom?.() ?? 6,
+      EXPORT_MAX_ZOOM
+    );
     if (center) map.setView(center, zoom, { animate: false });
   }
 
@@ -249,7 +292,7 @@ window.InfraGeoLayoutMode = (function () {
     items.forEach((it) => {
       if (it.type !== "map") return;
       it.center = [c.lat, c.lng];
-      it.zoom = z;
+      it.zoom = Math.min(z ?? 6, EXPORT_MAX_ZOOM);
       if (bounds) it.bounds = bounds;
     });
   }
@@ -270,7 +313,7 @@ window.InfraGeoLayoutMode = (function () {
     const painted = paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
     paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
     const drawn = paintVisibleLayersToCanvas(ctx, main);
-    paintMapLayerGeojson(ctx, main);
+    if (!drawn) paintMapLayerGeojson(ctx, main);
     paintExportPopupsOnMap(ctx, main);
     if (painted || drawn) {
       return safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
@@ -303,10 +346,7 @@ window.InfraGeoLayoutMode = (function () {
       const item = items.find((x) => x.id === keepId);
       if (item) mountAdjustLeaflet(item);
     }
-    const loc = document.querySelector(".layout-sheet__float--locator");
-    if (loc && !pageEl()?.classList.contains("is-exporting")) {
-      mountLocatorLive(loc);
-    }
+    scheduleLocatorMount();
     refreshMapSnapshots().catch(() => {});
   }
 
@@ -350,6 +390,9 @@ window.InfraGeoLayoutMode = (function () {
       "is-active",
       mapInteractMode === "pick"
     );
+    const boxBtn = document.getElementById("btn-layout-box-select");
+    boxBtn?.classList.toggle("is-active", mapInteractMode === "select");
+    boxBtn?.setAttribute("aria-pressed", mapInteractMode === "select" ? "true" : "false");
     document.getElementById("btn-layout-adjust-map")?.classList.toggle(
       "is-active",
       mapInteractMode === "adjust"
@@ -359,7 +402,10 @@ window.InfraGeoLayoutMode = (function () {
 
   function setSelectedLayer(layerId) {
     selectedLayerId = layerId || null;
-    const entry = visibleLayerEntries().find((e) => e.meta.id === selectedLayerId);
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    const entry =
+      visibleLayerEntries().find((e) => String(e.meta.id) === String(selectedLayerId)) ||
+      Object.values(registry).find((e) => String(e.meta?.id) === String(selectedLayerId));
     if (entry) {
       const st = layerStyle(entry.meta);
       const c = st.color || st.fillColor;
@@ -369,9 +415,10 @@ window.InfraGeoLayoutMode = (function () {
     const hint = document.querySelector(".layout-pick-hint");
     if (hint) {
       hint.textContent = selectedLayerId
-        ? "Camada selecionada — escolha a cor"
+        ? "Somente esta camada no mapa"
         : "Clique na feição no mapa";
     }
+    refreshSoloMap();
   }
 
   function recolorSelectedMapLayer(hex) {
@@ -457,6 +504,10 @@ window.InfraGeoLayoutMode = (function () {
     return Number(document.getElementById("layout-dpi")?.value || 150);
   }
 
+  function mapExportScale() {
+    return Math.min(4, Math.max(3, Math.round(dpi() / 100) || 3));
+  }
+
   function syncExportStats() {
     const size = document.getElementById("layout-stat-size");
     const dpiEl = document.getElementById("layout-stat-dpi");
@@ -539,6 +590,7 @@ window.InfraGeoLayoutMode = (function () {
     "Esri Streets": "Ruas",
     OpenStreetMap: "Mapa (ruas)",
     "Satélite (Esri)": "Satélite (Esri)",
+    "Sentinel-2": "Sentinel-2",
     "Google Earth": "Satélite (Google)",
     "Esri Topográfico": "Terreno",
     OpenTopoMap: "Relevo",
@@ -551,7 +603,7 @@ window.InfraGeoLayoutMode = (function () {
     const active = window.InfraGeoMap?.getActiveBasemapName?.();
     const rank = (n) => {
       const t = String(n).toLowerCase();
-      if (t.includes("satél") || t.includes("google earth")) return 0;
+      if (t.includes("satél") || t.includes("google earth") || t.includes("sentinel")) return 0;
       if (t.includes("topo") || t.includes("relev")) return 2;
       return 3;
     };
@@ -593,9 +645,10 @@ window.InfraGeoLayoutMode = (function () {
       const st = layerStyle(m);
       const c = st.fillColor || st.color || "#0A2E2C";
       const name = esc(m.name || m.schema || id);
+      const solo = on && selectedLayerId && String(selectedLayerId) === id;
       return (
         `<li>` +
-        `<button type="button" class="layout-layer-pill${on ? " is-on" : ""}" data-toggle-layer="${esc(id)}" aria-pressed="${on}">` +
+        `<button type="button" class="layout-layer-pill${on ? " is-on" : ""}${solo ? " is-solo" : ""}" data-toggle-layer="${esc(id)}" aria-pressed="${on}">` +
         `<span class="layout-layer-dot" style="background:${safeColor(c)}"></span>` +
         `<span class="layout-layer-name">${name}</span>` +
         `<span class="layout-layer-action">${on ? "Remover" : "Adicionar"}</span>` +
@@ -669,10 +722,12 @@ window.InfraGeoLayoutMode = (function () {
         !img.getAttribute("src") ||
         (img.complete && img.naturalWidth === 0);
       if (!broken) return;
+      img.dataset.igEmpty = "1";
       img.classList.add("leaflet-tile-error");
-      img.style.display = "none";
+      img.style.cssText =
+        "display:none!important;visibility:hidden!important;opacity:0!important;width:0!important;height:0!important";
       try {
-        img.remove();
+        if (img.getAttribute("src") !== EMPTY_TILE) img.src = EMPTY_TILE;
       } catch {
         /* ignore */
       }
@@ -689,7 +744,7 @@ window.InfraGeoLayoutMode = (function () {
     tileScrubTimer = window.setInterval(scrubLayoutTiles, 120);
   }
 
-  async function open(show) {
+  async function open(show, opts = {}) {
     const el = root();
     if (!el) return;
     if (!show) {
@@ -703,10 +758,19 @@ window.InfraGeoLayoutMode = (function () {
       return;
     }
     let liveSrc = "";
-    try {
-      liveSrc = await captureLiveMainMap();
-    } catch {
-      liveSrc = "";
+    const fromSelection = !!opts.fromSelection && !!selectionGeojson?.features?.length;
+    if (show && !fromSelection) {
+      sheetSoloSelection = false;
+      selectionGeojson = null;
+      selectionBounds = null;
+      selectedLayerId = null;
+    }
+    if (!fromSelection) {
+      try {
+        liveSrc = await captureLiveMainMap();
+      } catch {
+        liveSrc = "";
+      }
     }
     el.hidden = false;
     el.classList.add("is-open");
@@ -716,7 +780,7 @@ window.InfraGeoLayoutMode = (function () {
     applyPageSize();
     items = items.filter((it) => it.type !== "layer-chip");
     seedDefaultLayout();
-    syncMapItemsFromMain();
+    if (!fromSelection) syncMapItemsFromMain();
     if (liveSrc) {
       items.forEach((it) => {
         if (it.type === "map") it.src = liveSrc;
@@ -727,16 +791,56 @@ window.InfraGeoLayoutMode = (function () {
     syncLayerSelectUi();
     renderAll();
     window.setTimeout(() => {
-      syncMapItemsFromMain();
+      if (!fromSelection) syncMapItemsFromMain();
       syncLayerSelectUi();
       const mapItem = items.find((it) => it.type === "map" && it.visible !== false);
       if (mapItem) {
+        if (fromSelection && selectionBounds) {
+          mapItem.bounds = boundsToItem(selectionBounds);
+          const c = selectionBounds.getCenter?.();
+          if (c) mapItem.center = [c.lat, c.lng];
+        }
         adjustMapId = mapItem.id;
         mapInteractMode = "adjust";
         mountAdjustLeaflet(mapItem);
       }
+      scheduleLocatorMount();
       refreshMapSnapshots().catch(() => {});
     }, 180);
+  }
+
+  async function openWithSelection(opts = {}) {
+    const layerId = opts.layerId || null;
+    const collection = {
+      type: "FeatureCollection",
+      features: (opts.collection?.features || []).filter((f) => f?.geometry),
+    };
+    sheetSoloSelection = true;
+    selectedLayerId = layerId;
+    selectionGeojson = collection;
+    selectionBounds = expandBoundsForSheet(boundsFromCollection(collection));
+    locatorCenter = null;
+    locatorZoom = null;
+    await open(true, { fromSelection: true });
+    selectedLayerId = layerId;
+    selectionGeojson = collection;
+    selectionBounds = expandBoundsForSheet(boundsFromCollection(collection));
+    const bounds = selectionBounds;
+    if (bounds) {
+      items.forEach((it) => {
+        if (it.type !== "map") return;
+        it.bounds = boundsToItem(bounds);
+        const c = bounds.getCenter();
+        it.center = [c.lat, c.lng];
+        it.src = "";
+      });
+    }
+    if (opts.title) {
+      const titleEl = document.getElementById("layout-map-title");
+      if (titleEl) titleEl.value = opts.title;
+    }
+    syncLayerSelectUi();
+    refreshSoloMap();
   }
 
   function syncPageTheme() {
@@ -746,6 +850,8 @@ window.InfraGeoLayoutMode = (function () {
   }
 
   function seedDefaultLayout() {
+    const loc = document.getElementById("layout-show-locator");
+    if (loc) loc.checked = true;
     applyRecommendedLayout({ silentOpen: true });
   }
 
@@ -853,11 +959,14 @@ window.InfraGeoLayoutMode = (function () {
     const scope = root || document;
     scope.querySelectorAll?.("img.leaflet-tile")?.forEach((img) => {
       if (img.classList.contains("leaflet-tile-error") || (img.complete && img.naturalWidth === 0)) {
+        img.dataset.igEmpty = "1";
         img.classList.add("leaflet-tile-error");
+        img.style.cssText =
+          "display:none!important;visibility:hidden!important;opacity:0!important;width:0!important;height:0!important";
         try {
-          img.remove();
+          if (img.getAttribute("src") !== EMPTY_TILE) img.src = EMPTY_TILE;
         } catch {
-          img.style.display = "none";
+          /* ignore */
         }
       }
     });
@@ -867,19 +976,14 @@ window.InfraGeoLayoutMode = (function () {
     if (!map?.on) return;
     map.on("tileerror", (ev) => {
       const img = ev && ev.tile;
-      if (!img) return;
+      if (!img || img.dataset.igEmpty === "1") return;
+      img.dataset.igEmpty = "1";
       img.classList.add("leaflet-tile-error");
       img.alt = "";
-      img.style.display = "none";
-      img.style.visibility = "hidden";
-      img.style.opacity = "0";
+      img.style.cssText =
+        "display:none!important;visibility:hidden!important;opacity:0!important;width:0!important;height:0!important";
       try {
         if (img.src !== EMPTY_TILE) img.src = EMPTY_TILE;
-      } catch {
-        /* ignore */
-      }
-      try {
-        img.remove();
       } catch {
         /* ignore */
       }
@@ -930,8 +1034,9 @@ window.InfraGeoLayoutMode = (function () {
     const cors = !!optsIn.cors;
     const esriImg =
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    const cap = Number(optsIn.maxZoom) || EXPORT_MAX_ZOOM;
     const opts = {
-      maxZoom: 19,
+      maxZoom: cap,
       maxNativeZoom: 19,
       opacity: 1,
       detectRetina: false,
@@ -940,6 +1045,19 @@ window.InfraGeoLayoutMode = (function () {
     };
     if (cors) opts.crossOrigin = "anonymous";
     L.tileLayer(esriImg, opts).addTo(targetMap);
+  }
+
+  function sheetDrawStyle(meta) {
+    const st = layerStyle(meta);
+    return {
+      ...st,
+      color: st.color || "#e11d48",
+      fillColor: st.fillColor || st.color || "#e11d48",
+      weight: Math.max(2.5, Number(st.weight) || 2),
+      radius: Math.max(6, Number(st.radius) || 6),
+      opacity: 1,
+      fillOpacity: st.fillOpacity ?? 0.35,
+    };
   }
 
   function layerStyle(meta) {
@@ -975,29 +1093,59 @@ window.InfraGeoLayoutMode = (function () {
     };
   }
 
+  function geojsonForSheet(entry) {
+    if (!entry) return null;
+    const id = entry.meta?.id;
+    if (sheetSoloSelection) {
+      if (!layerAllowedOnSheet(id)) return null;
+      const feats = (selectionGeojson?.features || []).filter((f) => f?.geometry);
+      if (!feats.length) return null;
+      return { type: "FeatureCollection", features: feats };
+    }
+    if (!layerIsOn(entry) || !layerAllowedOnSheet(id)) return null;
+    let geojson = entry.geojson;
+    if (!geojson && entry.leaflet?.toGeoJSON) {
+      try {
+        geojson = entry.leaflet.toGeoJSON();
+      } catch {
+        geojson = null;
+      }
+    }
+    return geojson || null;
+  }
+
   function cloneVisibleLayersTo(targetMap, opts = {}) {
     const pickable = !!opts.pickable;
     const radiusBoost = Number(opts.radiusBoost) || 0;
     const registry = window.InfraGeoMap?.overlayRegistry || {};
-    Object.values(registry).forEach((entry) => {
-      if (!layerIsOn(entry)) return;
-      let geojson = entry.geojson;
-      if (!geojson && entry.leaflet?.toGeoJSON) {
-        try {
-          geojson = entry.leaflet.toGeoJSON();
-        } catch {
-          geojson = null;
+    const soloGeo = sheetSoloSelection
+      ? {
+          type: "FeatureCollection",
+          features: (selectionGeojson?.features || []).filter((f) => f?.geometry),
         }
-      }
+      : null;
+    const entries = soloGeo?.features?.length
+      ? [
+          {
+            meta:
+              Object.values(registry).find(
+                (e) => String(e?.meta?.id) === String(selectedLayerId)
+              )?.meta || { id: selectedLayerId, style: { color: "#e11d48", weight: 4 } },
+            geojson: soloGeo,
+          },
+        ]
+      : Object.values(registry);
+    entries.forEach((entry) => {
+      const geojson = soloGeo?.features?.length ? soloGeo : geojsonForSheet(entry);
       if (!geojson) return;
-      const style = layerStyle(entry.meta);
+      const style = sheetDrawStyle(entry.meta);
       const layerId = entry.meta.id;
       const pointRadius = Math.max(3, (style.radius || 6) + radiusBoost);
       try {
         const group = L.geoJSON(geojson, {
           style: () => ({
             ...style,
-            weight: Math.max(1.2, style.weight || 2),
+            weight: style.weight,
             interactive: pickable,
           }),
           pointToLayer: (_f, latlng) =>
@@ -1027,7 +1175,7 @@ window.InfraGeoLayoutMode = (function () {
             : undefined,
         }).addTo(targetMap);
         try {
-          group.setStyle({ ...style });
+          group.setStyle({ ...style, weight: style.weight });
         } catch {
           /* ignore */
         }
@@ -1077,7 +1225,7 @@ window.InfraGeoLayoutMode = (function () {
           pending -= 1;
           if (pending <= 0) {
             clearTimeout(timer);
-            done();
+            window.setTimeout(done, 80);
           }
         };
         if (
@@ -1091,6 +1239,71 @@ window.InfraGeoLayoutMode = (function () {
         }
       });
     });
+  }
+
+  const SAT_WAIT_HTML =
+    `<div class="layout-map-sat-wait" hidden>` +
+    `<span class="layout-map-sat-wait__spin" aria-hidden="true"></span>` +
+    `<p>Carregando imagem de satélite…</p>` +
+    `</div>` +
+    `<div class="layout-map-zoom-limit" hidden role="status">` +
+    `Limite de zoom excedido. Não há imagem de satélite neste nível.` +
+    `</div>`;
+
+  function satWaitRoot(from) {
+    if (from?.closest) {
+      const box = from.closest(".layout-el--map") || from.closest(".layout-sheet__map");
+      if (box) return box.querySelector(".layout-map-sat-wait");
+    }
+    return document.querySelector(".layout-sheet .layout-map-sat-wait");
+  }
+
+  function setSatWait(on, from) {
+    const el = satWaitRoot(from);
+    if (!el) return;
+    el.hidden = !on;
+    el.setAttribute("aria-busy", on ? "true" : "false");
+  }
+
+  function bindSatWait(map, host) {
+    if (!map || !host) return;
+    setSatWait(true, host);
+    const hide = () => setSatWait(false, host);
+    map.on("loading", () => setSatWait(true, host));
+    map.on("load", hide);
+    waitForTiles(map, 9000).then(hide);
+  }
+
+  function bindLayoutZoomLimit(map, host) {
+    if (!map) return;
+    map.setMaxZoom(EXPORT_MAX_ZOOM);
+    const box =
+      host?.closest?.(".layout-el--map")?.querySelector(".layout-map-zoom-limit") ||
+      document.querySelector(".layout-map-zoom-limit");
+    const atCap = () => map.getZoom() >= map.getMaxZoom() - 0.05;
+    const sync = () => {
+      const on = atCap();
+      if (box) box.hidden = !on;
+      if (on) window.InfraGeoMap?.notifyZoomLimit?.(true);
+    };
+    map.on("zoomend", sync);
+    map.on("zoom", () => {
+      if (map.getZoom() > EXPORT_MAX_ZOOM) {
+        map.setZoom(EXPORT_MAX_ZOOM, { animate: false });
+        sync();
+      }
+    });
+    host?.addEventListener(
+      "wheel",
+      (ev) => {
+        if (ev.deltaY < 0 && atCap()) {
+          if (box) box.hidden = false;
+          window.InfraGeoMap?.notifyZoomLimit?.(true);
+        }
+      },
+      { passive: true }
+    );
+    window.setTimeout(sync, 120);
   }
 
   function paintBasemapTilesToCanvas(ctx, mapDiv, mapW, mapH) {
@@ -1165,6 +1378,8 @@ window.InfraGeoLayoutMode = (function () {
     const strokePath = () => {
       ctx.strokeStyle = style.color;
       ctx.lineWidth = style.weight || 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.globalAlpha = style.opacity ?? 1;
       if (style.dashArray) {
         const parts = String(style.dashArray)
@@ -1428,13 +1643,15 @@ window.InfraGeoLayoutMode = (function () {
     canvas.height = Math.round(h * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) return "";
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
     paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
-    paintVisibleLayersToCanvas(ctx, leafletMap);
-    paintMapLayerGeojson(ctx, leafletMap);
+    const drawnView = paintVisibleLayersToCanvas(ctx, leafletMap);
+    if (!drawnView) paintMapLayerGeojson(ctx, leafletMap);
     paintExportPopupsOnMap(ctx, leafletMap);
-    return safeCanvasDataUrl(canvas, "image/jpeg", 0.93);
+    return safeCanvasDataUrl(canvas, "image/jpeg", 0.97);
   }
 
   async function paintBasemapTilesToCanvasAsync(ctx, mapDiv, mapW, mapH) {
@@ -1483,13 +1700,15 @@ window.InfraGeoLayoutMode = (function () {
     canvas.height = Math.round(h * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) return "";
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     const painted = await paintBasemapTilesToCanvasAsync(ctx, mapDiv, w, h);
     paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
-    paintVisibleLayersToCanvas(ctx, leafletMap);
-    paintMapLayerGeojson(ctx, leafletMap);
+    const drawnAsync = paintVisibleLayersToCanvas(ctx, leafletMap);
+    if (!drawnAsync) paintMapLayerGeojson(ctx, leafletMap);
     paintExportPopupsOnMap(ctx, leafletMap);
-    let url = safeCanvasDataUrl(canvas, "image/jpeg", 0.93);
+    let url = safeCanvasDataUrl(canvas, "image/jpeg", 0.97);
     if (painted && url) return url;
     const cloned = await captureMapDataUrl({
       w: Math.max(720, w * 2),
@@ -1520,7 +1739,7 @@ window.InfraGeoLayoutMode = (function () {
             );
           },
         });
-        url = safeCanvasDataUrl(shot, "image/jpeg", 0.93);
+        url = safeCanvasDataUrl(shot, "image/jpeg", 0.97);
       } catch {
         url = "";
       }
@@ -1542,18 +1761,12 @@ window.InfraGeoLayoutMode = (function () {
   function paintVisibleLayersToCanvas(ctx, map) {
     const registry = window.InfraGeoMap?.overlayRegistry || {};
     let count = 0;
-    Object.values(registry).forEach((entry) => {
-      if (!layerIsOn(entry)) return;
-      let geojson = entry.geojson;
-      if (!geojson && entry.leaflet?.toGeoJSON) {
-        try {
-          geojson = entry.leaflet.toGeoJSON();
-        } catch {
-          geojson = null;
-        }
-      }
+    const soloFeats = sheetSoloSelection
+      ? (selectionGeojson?.features || []).filter((f) => f?.geometry)
+      : null;
+    const paintEntry = (entry, geojson) => {
       if (!geojson) return;
-      const style = layerStyle(entry.meta);
+      const style = sheetDrawStyle(entry?.meta || { style: { color: "#e11d48", weight: 10 } });
       const features =
         geojson.type === "FeatureCollection"
           ? geojson.features || []
@@ -1565,6 +1778,16 @@ window.InfraGeoLayoutMode = (function () {
         paintGeometry(ctx, map, f.geometry, style);
         count += 1;
       });
+    };
+    if (soloFeats?.length) {
+      const meta =
+        Object.values(registry).find((e) => String(e?.meta?.id) === String(selectedLayerId))
+          ?.meta || { style: { color: "#e11d48", weight: 10 } };
+      paintEntry({ meta }, { type: "FeatureCollection", features: soloFeats });
+      return count;
+    }
+    Object.values(registry).forEach((entry) => {
+      paintEntry(entry, geojsonForSheet(entry));
     });
     return count;
   }
@@ -1604,6 +1827,7 @@ window.InfraGeoLayoutMode = (function () {
         fadeAnimation: false,
         zoomAnimation: false,
         inertia: false,
+        maxZoom: EXPORT_MAX_ZOOM,
       });
       hideBrokenTiles(exportMap);
       cloneBasemapTo(exportMap, { cors: true });
@@ -1614,19 +1838,21 @@ window.InfraGeoLayoutMode = (function () {
         zoom: opts.zoom,
       }, source);
       exportMap.invalidateSize({ animate: false });
-      await wait(80);
+      await wait(120);
       exportMap.invalidateSize({ animate: false });
-      await waitForTiles(exportMap, 3500);
-      await wait(200);
+      await waitForTiles(exportMap, 8000);
+      await wait(280);
 
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
-      const painted = paintBasemapTilesToCanvas(ctx, mapDiv, w, h);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      const painted = await paintBasemapTilesToCanvasAsync(ctx, mapDiv, w, h);
       paintOverlayCanvasesToCanvas(ctx, mapDiv, w, h);
       const drawn = paintVisibleLayersToCanvas(ctx, exportMap);
-      paintMapLayerGeojson(ctx, exportMap);
+      if (!drawn) paintMapLayerGeojson(ctx, exportMap);
       paintExportPopupsOnMap(ctx, exportMap);
 
       if (!painted && !drawn) {
@@ -1635,14 +1861,14 @@ window.InfraGeoLayoutMode = (function () {
             useCORS: true,
             allowTaint: true,
             backgroundColor: "#dbe4ea",
-            scale: 1,
+            scale: 2,
             logging: false,
           });
-          return safeCanvasDataUrl(shot, "image/jpeg", 0.92);
+          return safeCanvasDataUrl(shot, "image/jpeg", 0.96);
         }
         return "";
       }
-      return safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
+      return safeCanvasDataUrl(canvas, "image/jpeg", 0.96);
     } catch (err) {
       console.warn("layout-mode: captura do mapa falhou", err);
       return "";
@@ -1663,17 +1889,25 @@ window.InfraGeoLayoutMode = (function () {
 
   async function snapshotMapForExport(it) {
     persistAdjustView();
-    if (adjustLeaflet && adjustMapId === it.id) {
-      const live = captureLeafletView(adjustLeaflet, 2);
-      if (live) return live;
-    }
-    return captureMapDataUrl({
-      w: Math.max(720, Math.round(it.w * 2)),
-      h: Math.max(480, Math.round(it.h * 2)),
+    const scale = mapExportScale();
+    const liveEl = document.querySelector(
+      `.layout-el--map[data-id="${it.id}"] .layout-map-live`
+    );
+    const rw = liveEl?.clientWidth || it.w || 900;
+    const rh = liveEl?.clientHeight || it.h || 560;
+    const hi = await captureMapDataUrl({
+      w: Math.max(960, Math.round(rw * scale)),
+      h: Math.max(640, Math.round(rh * scale)),
       center: it.center,
       zoom: it.zoom,
-      bounds: it.bounds,
+      bounds: it.bounds || boundsFromMap(adjustLeaflet),
     });
+    if (hi) return hi;
+    if (adjustLeaflet && adjustMapId === it.id) {
+      const live = await captureLeafletViewAsync(adjustLeaflet, scale);
+      if (live) return live;
+    }
+    return "";
   }
 
   async function refreshMapSnapshots() {
@@ -1715,8 +1949,25 @@ window.InfraGeoLayoutMode = (function () {
     purgeBrokenTiles(page);
     if (adjustLeaflet?.getContainer) purgeBrokenTiles(adjustLeaflet.getContainer());
     if (locatorLive?.getContainer) purgeBrokenTiles(locatorLive.getContainer());
-    const mapShot = adjustLeaflet ? await captureLeafletViewAsync(adjustLeaflet, 2) : "";
-    const locShot = locatorLive ? await captureLeafletViewAsync(locatorLive, 2) : "";
+    const scale = mapExportScale();
+    const mapHost = document.querySelector(".layout-el--map .layout-map-live");
+    const locHost = document.querySelector(".layout-locator__live");
+    let mapShot = "";
+    if (adjustLeaflet) {
+      mapShot = await captureMapDataUrl({
+        w: Math.max(960, Math.round((mapHost?.clientWidth || 900) * scale)),
+        h: Math.max(640, Math.round((mapHost?.clientHeight || 560) * scale)),
+        center: adjustLeaflet.getCenter?.()
+          ? [adjustLeaflet.getCenter().lat, adjustLeaflet.getCenter().lng]
+          : null,
+        zoom: adjustLeaflet.getZoom?.(),
+        bounds: boundsFromMap(adjustLeaflet),
+      });
+      if (!mapShot) mapShot = await captureLeafletViewAsync(adjustLeaflet, scale);
+    }
+    const locShot = locatorLive
+      ? await captureLeafletViewAsync(locatorLive, Math.max(2, scale - 1))
+      : "";
     placeFreezeImage(document.querySelector(".layout-el--map"), mapShot);
     placeFreezeImage(document.querySelector(".layout-locator"), locShot);
     page?.querySelectorAll("[contenteditable]").forEach((el) => {
@@ -1741,7 +1992,7 @@ window.InfraGeoLayoutMode = (function () {
 
   async function captureSheetCanvas() {
     const page = pageEl();
-    const scale = Math.min(4, Math.max(1.25, dpi() / 150));
+    const scale = Math.min(4, Math.max(2, dpi() / 150));
     return window.html2canvas(page, {
       backgroundColor: "#fbfaf7",
       scale,
@@ -1786,12 +2037,12 @@ window.InfraGeoLayoutMode = (function () {
   async function stopAdjustMap(commit) {
     if (adjustMapId == null) return;
     const item = items.find((it) => it.id === adjustMapId);
-    const wasPick = mapInteractMode === "pick";
+    const wasPick = mapInteractMode === "pick" || mapInteractMode === "select";
     if (adjustLeaflet && item && commit && !wasPick) {
       try {
         const c = adjustLeaflet.getCenter();
         item.center = [c.lat, c.lng];
-        item.zoom = adjustLeaflet.getZoom();
+        item.zoom = Math.min(adjustLeaflet.getZoom(), EXPORT_MAX_ZOOM);
         const b = boundsFromMap(adjustLeaflet);
         if (b) item.bounds = b;
         const live = captureLeafletView(adjustLeaflet, 2);
@@ -1815,6 +2066,8 @@ window.InfraGeoLayoutMode = (function () {
       await refreshMapSnapshots().catch(() => {});
     }
     try {
+      boxDrawCleanup?.();
+      boxDrawCleanup = null;
       adjustLeaflet?.off?.();
       adjustLeaflet?.remove?.();
     } catch {
@@ -1825,6 +2078,8 @@ window.InfraGeoLayoutMode = (function () {
     mapInteractMode = null;
     root()?.classList.remove("is-map-focus");
     document.getElementById("btn-layout-pick-layer")?.classList.remove("is-active");
+    document.getElementById("btn-layout-box-select")?.classList.remove("is-active");
+    document.getElementById("btn-layout-box-select")?.setAttribute("aria-pressed", "false");
     document.getElementById("btn-layout-adjust-map")?.classList.remove("is-active");
     renderAll();
     syncLayerSelectUi();
@@ -1836,6 +2091,434 @@ window.InfraGeoLayoutMode = (function () {
       return;
     }
     startMapInteract("adjust", targetId);
+  }
+
+  function featureIntersectsBounds(feature, bounds) {
+    const geom = feature?.geometry;
+    if (!geom || !bounds) return false;
+    const pts = [];
+    const walk = (c) => {
+      if (!Array.isArray(c)) return;
+      if (typeof c[0] === "number" && typeof c[1] === "number") {
+        pts.push([c[1], c[0]]);
+        return;
+      }
+      c.forEach(walk);
+    };
+    walk(geom.coordinates);
+    if (!pts.length) return false;
+    try {
+      return bounds.intersects(L.latLngBounds(pts));
+    } catch {
+      return pts.some((p) => bounds.contains(p));
+    }
+  }
+
+  function isCoveringPolygon(feature, bounds) {
+    const t = String(feature?.geometry?.type || "");
+    if (!/polygon/i.test(t)) return false;
+    try {
+      const fb = boundsFromCollection({
+        type: "FeatureCollection",
+        features: [feature],
+      });
+      if (!fb?.isValid?.()) return false;
+      const selH = Math.abs(bounds.getNorth() - bounds.getSouth());
+      const selW = Math.abs(bounds.getEast() - bounds.getWest());
+      const fH = Math.abs(fb.getNorth() - fb.getSouth());
+      const fW = Math.abs(fb.getEast() - fb.getWest());
+      return fH * fW > selH * selW * 8;
+    } catch {
+      return false;
+    }
+  }
+
+  function collectFeaturesInBounds(bounds) {
+    const features = [];
+    const counts = {};
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    Object.values(registry).forEach((entry) => {
+      if (!layerIsOn(entry)) return;
+      const id = entry.meta?.id;
+      if (selectedLayerId && id && String(id) !== String(selectedLayerId)) return;
+      let geojson = entry.geojson;
+      if (!geojson && entry.leaflet?.toGeoJSON) {
+        try {
+          geojson = entry.leaflet.toGeoJSON();
+        } catch {
+          geojson = null;
+        }
+      }
+      if (!geojson) return;
+      const list =
+        geojson.type === "FeatureCollection"
+          ? geojson.features || []
+          : geojson.type === "Feature"
+            ? [geojson]
+            : [{ type: "Feature", geometry: geojson, properties: {} }];
+      list.forEach((f) => {
+        if (!featureIntersectsBounds(f, bounds)) return;
+        if (isCoveringPolygon(f, bounds)) return;
+        features.push({
+          type: "Feature",
+          geometry: f.geometry,
+          properties: { ...(f.properties || {}), _layerId: id },
+        });
+        if (id) counts[id] = (counts[id] || 0) + 1;
+      });
+    });
+    return { type: "FeatureCollection", features, counts };
+  }
+
+  function boundsFromCollection(collection) {
+    const feats = collection?.features || [];
+    const pts = [];
+    const walk = (c) => {
+      if (!Array.isArray(c)) return;
+      if (typeof c[0] === "number" && typeof c[1] === "number") {
+        pts.push([c[1], c[0]]);
+        return;
+      }
+      c.forEach(walk);
+    };
+    feats.forEach((f) => walk(f?.geometry?.coordinates));
+    if (!pts.length || !window.L) return null;
+    try {
+      const b = L.latLngBounds(pts);
+      return b.isValid() ? b : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function expandBoundsForSheet(b) {
+    if (!b?.isValid?.()) return b;
+    const dlat = Math.abs(b.getNorth() - b.getSouth());
+    const dlng = Math.abs(b.getEast() - b.getWest());
+    const pad = Math.max(0.035, Math.max(dlat, dlng) * 0.55);
+    const c = b.getCenter();
+    return L.latLngBounds(
+      [c.lat - pad, c.lng - pad],
+      [c.lat + pad, c.lng + pad]
+    );
+  }
+
+  function boundsToItem(bounds) {
+    if (!bounds) return null;
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    return [
+      [sw.lat, sw.lng],
+      [ne.lat, ne.lng],
+    ];
+  }
+
+  function applyDrawnSelection(bounds, fromMount) {
+    if (!bounds || !bounds.isValid?.()) return;
+    if (Math.abs(bounds.getNorth() - bounds.getSouth()) < 1e-8) return;
+    selectionBounds = bounds;
+    const item = items.find((it) => it.id === adjustMapId);
+    if (item) {
+      item.bounds = boundsToItem(bounds);
+      const c = bounds.getCenter();
+      item.center = [c.lat, c.lng];
+    }
+    try {
+      selectionHighlight?.remove?.();
+      selectionRectLayer?.remove?.();
+    } catch {
+      /* ignore */
+    }
+    selectionHighlight = null;
+    selectionRectLayer = null;
+    const fc = collectFeaturesInBounds(bounds);
+    const counts = fc.counts || {};
+    let best = null;
+    let bestN = 0;
+    Object.entries(counts).forEach(([id, n]) => {
+      if (n > bestN) {
+        bestN = n;
+        best = id;
+      }
+    });
+    if (best) selectedLayerId = best;
+    selectionGeojson = {
+      type: "FeatureCollection",
+      features: (fc.features || []).filter(
+        (f) => !best || String(f.properties?._layerId) === String(best)
+      ),
+    };
+    if (selectionGeojson.features.length) sheetSoloSelection = true;
+    if (!fromMount) {
+      syncLayerSelectUi();
+      refreshSoloMap();
+      return;
+    }
+    if (adjustLeaflet) {
+      selectionRectLayer = L.rectangle(bounds, {
+        color: "#0f3b34",
+        weight: 2,
+        dashArray: "7 5",
+        fillColor: "#0f3b34",
+        fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(adjustLeaflet);
+      if (fc.features.length) {
+        selectionHighlight = L.geoJSON(fc, {
+          style: {
+            color: "#f59e0b",
+            weight: 3,
+            fillColor: "#f59e0b",
+            fillOpacity: 0.18,
+            interactive: false,
+          },
+          pointToLayer: (_f, latlng) =>
+            L.circleMarker(latlng, {
+              radius: 8,
+              color: "#f59e0b",
+              fillColor: "#f59e0b",
+              fillOpacity: 0.85,
+              weight: 2,
+              interactive: false,
+            }),
+        }).addTo(adjustLeaflet);
+      }
+    }
+    const hint = document.getElementById("layout-box-select-hint");
+    if (hint) {
+      const n = selectionGeojson?.features?.length || 0;
+      hint.textContent = n
+        ? `${n} feição(ões) na seleção. Mova o mapa ou desenhe outra área.`
+        : "Área definida. Mova o mapa ou desenhe novamente.";
+    }
+    const pickHint = document.querySelector(".layout-pick-hint");
+    if (pickHint) {
+      pickHint.textContent = boxDrawArmed
+        ? "Arraste para desenhar · Mover para navegar"
+        : "Arraste para mover · Desenhar ou Shift+arraste para selecionar";
+    }
+    syncLayerSelectUi();
+  }
+
+  function selectionCollectionForExport() {
+    if (selectionGeojson?.features?.length) {
+      return {
+        type: "FeatureCollection",
+        features: selectionGeojson.features.map((f) => ({
+          type: "Feature",
+          geometry: f.geometry,
+          properties: Object.fromEntries(
+            Object.entries(f.properties || {}).filter(([k]) => k !== "_layerId")
+          ),
+        })),
+      };
+    }
+    if (!selectedLayerId) return { type: "FeatureCollection", features: [] };
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    const entry = Object.values(registry).find(
+      (e) => String(e.meta?.id) === String(selectedLayerId)
+    );
+    if (!entry) return { type: "FeatureCollection", features: [] };
+    let geojson = entry.geojson;
+    if (!geojson && entry.leaflet?.toGeoJSON) {
+      try {
+        geojson = entry.leaflet.toGeoJSON();
+      } catch {
+        geojson = null;
+      }
+    }
+    if (!geojson) return { type: "FeatureCollection", features: [] };
+    if (geojson.type === "FeatureCollection") return geojson;
+    if (geojson.type === "Feature") return { type: "FeatureCollection", features: [geojson] };
+    return {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: geojson, properties: {} }],
+    };
+  }
+
+  async function exportSelectedShp() {
+    const collection = selectionCollectionForExport();
+    if (!collection.features?.length) {
+      window.alert("Selecione uma camada ou desenhe a área no mapa antes de exportar o SHP.");
+      return;
+    }
+    const registry = window.InfraGeoMap?.overlayRegistry || {};
+    const entry = Object.values(registry).find(
+      (e) => String(e.meta?.id) === String(selectedLayerId)
+    );
+    const name = (entry?.meta?.name || "selecao").replace(/\s+/g, "_");
+    const url = window.InfraGeoApi?.url?.("/api/postgis/export-shp") || "/api/postgis/export-shp";
+    const headers = window.InfraGeoAuth?.authHeaders?.({ "Content-Type": "application/json" }) || {
+      "Content-Type": "application/json",
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: window.InfraGeoApi?.credentials?.() || "include",
+      headers,
+      body: JSON.stringify({ name, collection }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const msg =
+        (typeof data.detail === "string" && data.detail) ||
+        data.message ||
+        `Não foi possível exportar o SHP (${res.status})`;
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function setBoxDrawArmed(on) {
+    boxDrawArmed = !!on;
+    if (adjustLeaflet) {
+      try {
+        if (boxDrawArmed) adjustLeaflet.dragging.disable();
+        else adjustLeaflet.dragging.enable();
+      } catch {
+        /* ignore */
+      }
+      const cur = boxDrawArmed ? "crosshair" : "grab";
+      adjustLeaflet.getContainer().style.cursor = cur;
+      const live = document.querySelector(".layout-el--map.is-selecting .layout-map-live");
+      if (live) live.style.cursor = cur;
+      document.querySelector(".layout-el--map.is-selecting")?.classList.toggle("is-picking", boxDrawArmed);
+    }
+    syncLayerSelectUi();
+    const pickHint = document.querySelector(".layout-pick-hint");
+    if (pickHint && mapInteractMode === "select") {
+      pickHint.textContent = boxDrawArmed
+        ? "Arraste para desenhar a área"
+        : "Arraste para mover o mapa · Shift+arraste para selecionar";
+    }
+  }
+
+  function clearDrawnSelection() {
+    selectionBounds = null;
+    selectionGeojson = null;
+    selectedLayerId = null;
+    try {
+      selectionHighlight?.remove?.();
+      selectionRectLayer?.remove?.();
+    } catch {
+      /* ignore */
+    }
+    selectionHighlight = null;
+    selectionRectLayer = null;
+    const hint = document.getElementById("layout-box-select-hint");
+    if (hint) {
+      hint.textContent = "O cursor vira uma cruz: arraste no mapa para desenhar a área.";
+    }
+    refreshSoloMap();
+  }
+
+  function attachBoxDraw(map) {
+    boxDrawCleanup?.();
+    if (!map) return;
+    map.boxZoom?.disable?.();
+    try {
+      if (boxDrawArmed) map.dragging.disable();
+      else map.dragging.enable();
+    } catch {
+      /* ignore */
+    }
+    const el = map.getContainer();
+    el.style.cursor = boxDrawArmed ? "crosshair" : "grab";
+    el.classList.toggle("is-box-select", boxDrawArmed);
+    let startPt = null;
+    let rubber = null;
+
+    const place = (a, b) => {
+      if (!rubber) return;
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      rubber.style.left = `${x}px`;
+      rubber.style.top = `${y}px`;
+      rubber.style.width = `${Math.abs(b.x - a.x)}px`;
+      rubber.style.height = `${Math.abs(b.y - a.y)}px`;
+    };
+
+    const onMove = (ev) => {
+      if (!startPt || !rubber) return;
+      place(startPt, map.mouseEventToContainerPoint(ev));
+    };
+
+    const onUp = (ev) => {
+      L.DomEvent.off(document, "mousemove", onMove);
+      L.DomEvent.off(document, "mouseup", onUp);
+      if (!startPt) return;
+      const origin = startPt;
+      const endPt = map.mouseEventToContainerPoint(ev);
+      const a = map.containerPointToLatLng(origin);
+      const b = map.containerPointToLatLng(endPt);
+      startPt = null;
+      rubber?.remove?.();
+      rubber = null;
+      if (!boxDrawArmed) {
+        try {
+          map.dragging.enable();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (Math.abs(endPt.x - origin.x) < 8 && Math.abs(endPt.y - origin.y) < 8) {
+        return;
+      }
+      applyDrawnSelection(L.latLngBounds(a, b));
+    };
+
+    const onDown = (ev) => {
+      const oe = ev.originalEvent || ev;
+      if (oe.button != null && oe.button !== 0) return;
+      const shift = !!oe.shiftKey;
+      if (!boxDrawArmed && !shift) return;
+      L.DomEvent.preventDefault(ev);
+      L.DomEvent.stopPropagation(ev);
+      try {
+        map.dragging.disable();
+      } catch {
+        /* ignore */
+      }
+      startPt = ev.containerPoint || map.mouseEventToContainerPoint(oe);
+      rubber?.remove?.();
+      rubber = document.createElement("div");
+      rubber.className = "layout-select-box";
+      el.appendChild(rubber);
+      place(startPt, startPt);
+      L.DomEvent.on(document, "mousemove", onMove);
+      L.DomEvent.on(document, "mouseup", onUp);
+    };
+
+    map.on("mousedown", onDown);
+    boxDrawCleanup = () => {
+      map.off("mousedown", onDown);
+      L.DomEvent.off(document, "mousemove", onMove);
+      L.DomEvent.off(document, "mouseup", onUp);
+      rubber?.remove?.();
+      el.classList.remove("is-box-select");
+      try {
+        map.dragging.enable();
+      } catch {
+        /* ignore */
+      }
+      boxDrawCleanup = null;
+    };
+  }
+
+  function startBoxSelect(targetId) {
+    setLayersPop(false);
+    if (mapInteractMode === "select" && adjustMapId != null && adjustLeaflet) {
+      setBoxDrawArmed(true);
+      return;
+    }
+    boxDrawArmed = true;
+    startMapInteract("select", targetId);
   }
 
   function startPickLayer(targetId) {
@@ -1891,6 +2574,9 @@ window.InfraGeoLayoutMode = (function () {
     if (t.closest(".layout-el--map.is-adjusting")) return;
     if (t.closest("#btn-layout-adjust-map, [data-add='adjust-map']")) return;
     if (t.closest("#btn-layout-pick-layer, [data-add='pick-layer']")) return;
+    if (t.closest("#btn-layout-box-select, #btn-layout-box-clear, #btn-layout-export-shp")) return;
+    if (t.closest("#layout-layers-pop, #btn-layout-layers")) return;
+    if (t.closest("[data-select-nav], [data-select-draw], [data-export-shp]")) return;
     if (t.closest("#btn-layout-back-map, .layout-studio__back")) return;
     stopAdjustMap(true).catch(() => {});
   }
@@ -1907,12 +2593,14 @@ window.InfraGeoLayoutMode = (function () {
     }
     const main = window.InfraGeoMap?.getMap?.();
     const picking = mapInteractMode === "pick";
+    const selecting = mapInteractMode === "select";
 
     adjustLeaflet = L.map(host, {
       zoomControl: !picking,
       attributionControl: false,
-      maxZoom: 19,
-      dragging: true,
+      maxZoom: EXPORT_MAX_ZOOM,
+      dragging: !picking && !(selecting && boxDrawArmed),
+      boxZoom: false,
     });
     hideBrokenTiles(adjustLeaflet);
     applyViewToMap(adjustLeaflet, item, main);
@@ -1920,23 +2608,32 @@ window.InfraGeoLayoutMode = (function () {
     if (picking) {
       host.style.cursor = "crosshair";
       adjustLeaflet.getContainer().style.cursor = "crosshair";
+    } else if (selecting) {
+      const cur = boxDrawArmed ? "crosshair" : "grab";
+      host.style.cursor = cur;
+      adjustLeaflet.getContainer().style.cursor = cur;
     }
 
     cloneBasemapTo(adjustLeaflet);
+    bindSatWait(adjustLeaflet, host);
+    bindLayoutZoomLimit(adjustLeaflet, host);
     cloneVisibleLayersTo(adjustLeaflet, {
       pickable:
         picking || !!document.getElementById("layout-include-popups")?.checked,
     });
-    try {
-      adjustLeaflet.doubleClickZoom?.disable?.();
-    } catch {
-      /* ignore */
+    if (picking || (selecting && boxDrawArmed)) {
+      try {
+        adjustLeaflet.doubleClickZoom?.disable?.();
+      } catch {
+        /* ignore */
+      }
     }
     adjustLeaflet.invalidateSize({ animate: false });
     applyViewToMap(adjustLeaflet, item, main);
     window.setTimeout(() => {
       adjustLeaflet?.invalidateSize?.({ animate: false });
       applyViewToMap(adjustLeaflet, item, main);
+      if (selecting && adjustLeaflet) attachBoxDraw(adjustLeaflet);
     }, 80);
 
     host.addEventListener(
@@ -2264,8 +2961,10 @@ window.InfraGeoLayoutMode = (function () {
       const adjusting = adjustMapId === it.id;
       if (adjusting) {
         const picking = mapInteractMode === "pick";
+        const selecting = mapInteractMode === "select";
         el.classList.add("is-adjusting");
-        if (picking) el.classList.add("is-picking");
+        if (picking || (selecting && boxDrawArmed)) el.classList.add("is-picking");
+        if (selecting) el.classList.add("is-selecting");
         el.innerHTML = picking
           ? `<div class="layout-map-adjust-bar">
             <button type="button" class="is-primary" data-map-done="1">Concluir seleção</button>
@@ -2275,13 +2974,20 @@ window.InfraGeoLayoutMode = (function () {
                 : "Clique na feição no mapa"
             }</span>
           </div>
-          <div class="layout-map-live"></div>`
-          : `<div class="layout-map-live" title="Arraste para mover. Duplo clique para sair."></div>`;
+          <div class="layout-map-live"></div>${SAT_WAIT_HTML}`
+          : selecting
+            ? `<div class="layout-map-adjust-bar">
+            <button type="button" class="is-primary" data-map-done="1">Concluir</button>
+            <span class="layout-pick-hint">Arraste no mapa para marcar a área</span>
+          </div>
+          <div class="layout-map-live"></div>${SAT_WAIT_HTML}`
+          : `<div class="layout-map-live" title="Arraste para mover. Duplo clique para sair."></div>${SAT_WAIT_HTML}`;
         el.querySelector("[data-map-done]")?.addEventListener("click", (ev) => {
           ev.stopPropagation();
           stopAdjustMap(true).catch((e) => window.alert(e.message || e));
         });
         el.querySelector(".layout-map-live")?.addEventListener("dblclick", (ev) => {
+          if (mapInteractMode === "select" && !boxDrawArmed) return;
           ev.stopPropagation();
           ev.preventDefault();
           stopAdjustMap(true).catch(() => {});
@@ -2293,10 +2999,9 @@ window.InfraGeoLayoutMode = (function () {
           : `<div class="layout-map-placeholder">Atualizar Mapa ou Ajustar Mapa</div>`;
       } else {
         el.classList.add("is-adjusting");
-        const mapSrc = safeImgSrc(it.src);
         el.innerHTML =
-          (mapSrc ? `<img alt="" src="${mapSrc}" class="layout-map-fallback" />` : "") +
-          `<div class="layout-map-live" title="Arraste para mover. Duplo clique para enquadrar."></div>`;
+          `<div class="layout-map-live" title="Arraste para mover. Duplo clique para enquadrar."></div>` +
+          SAT_WAIT_HTML;
         el.addEventListener("dblclick", (ev) => {
           ev.stopPropagation();
           startAdjustMap(it.id);
@@ -2643,6 +3348,66 @@ window.InfraGeoLayoutMode = (function () {
     );
   }
 
+  function mainMapFocusBounds() {
+    try {
+      if (selectionBounds?.isValid?.()) return selectionBounds;
+    } catch {
+      /* ignore */
+    }
+    const item = items.find((it) => it.type === "map" && it.visible !== false);
+    if (item?.bounds) {
+      try {
+        const b = L.latLngBounds(item.bounds[0], item.bounds[1]);
+        if (b.isValid()) return b;
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      const b = window.InfraGeoMap?.getMap?.()?.getBounds?.();
+      if (b?.isValid?.()) return b;
+    } catch {
+      /* ignore */
+    }
+    return window.InfraGeoMap?.getAmazonasBounds?.() || null;
+  }
+
+  function paddedLocatorBounds(b) {
+    if (!b?.isValid?.()) return b;
+    const span = Math.max(
+      Math.abs(b.getNorth() - b.getSouth()),
+      Math.abs(b.getEast() - b.getWest())
+    );
+    const pad = Math.max(0.12, span * 2.2);
+    const c = b.getCenter();
+    return L.latLngBounds(
+      [c.lat - pad, c.lng - pad],
+      [c.lat + pad, c.lng + pad]
+    );
+  }
+
+  function applyLocatorView(map) {
+    if (!map) return;
+    if (locatorCenter && Number.isFinite(locatorZoom)) {
+      map.setView(
+        locatorCenter,
+        Math.min(locatorZoom, LOCATOR_MAX_ZOOM),
+        { animate: false }
+      );
+      return;
+    }
+    const focus = paddedLocatorBounds(mainMapFocusBounds());
+    if (focus?.isValid?.()) {
+      map.fitBounds(focus, {
+        padding: [10, 10],
+        animate: false,
+        maxZoom: LOCATOR_MAX_ZOOM,
+      });
+      return;
+    }
+    map.setView([-3.5, -64.5], 6, { animate: false });
+  }
+
   function persistLocatorView() {
     if (!locatorLive) return;
     try {
@@ -2667,6 +3432,33 @@ window.InfraGeoLayoutMode = (function () {
 
   function addLocatorDecorations(map) {
     cloneVisibleLayersTo(map, { pickable: false, radiusBoost: 1 });
+    try {
+      locatorRect?.remove?.();
+    } catch {
+      /* ignore */
+    }
+    locatorRect = null;
+    const extent = mainMapFocusBounds();
+    if (extent?.isValid?.()) {
+      locatorRect = L.rectangle(extent, {
+        color: "#f8fafc",
+        weight: 2,
+        fillColor: "#34d399",
+        fillOpacity: 0.16,
+        interactive: false,
+      }).addTo(map);
+    }
+  }
+
+  let locatorMountTimer = 0;
+  function scheduleLocatorMount() {
+    if (locatorMountTimer) window.clearTimeout(locatorMountTimer);
+    locatorMountTimer = window.setTimeout(() => {
+      locatorMountTimer = 0;
+      const loc = document.querySelector(".layout-sheet__float--locator");
+      if (!loc || pageEl()?.classList.contains("is-exporting")) return;
+      mountLocatorLive(loc);
+    }, 80);
   }
 
   function mountLocatorLive(el) {
@@ -2681,23 +3473,25 @@ window.InfraGeoLayoutMode = (function () {
       doubleClickZoom: true,
       boxZoom: false,
       keyboard: false,
+      maxZoom: LOCATOR_MAX_ZOOM,
+      minZoom: 5,
     });
     hideBrokenTiles(locatorLive);
-    cloneBasemapTo(locatorLive);
+    cloneBasemapTo(locatorLive, { maxZoom: LOCATOR_MAX_ZOOM, preferEsri: true });
     addLocatorDecorations(locatorLive);
-    const am = window.InfraGeoMap?.getAmazonasBounds?.();
-    if (locatorCenter && Number.isFinite(locatorZoom)) {
-      locatorLive.setView(locatorCenter, locatorZoom, { animate: false });
-    } else if (am?.isValid?.()) {
-      locatorLive.fitBounds(am, { padding: [8, 8], animate: false, maxZoom: 8 });
-    } else {
-      locatorLive.setView([-3.5, -64.5], 5, { animate: false });
-    }
+    applyLocatorView(locatorLive);
     locatorLive.on("zoomend", persistLocatorView);
     locatorLive.on("moveend", persistLocatorView);
     L.DomEvent.disableClickPropagation(box);
     L.DomEvent.disableScrollPropagation(box);
-    window.setTimeout(() => locatorLive?.invalidateSize?.({ animate: false }), 60);
+    const kick = () => {
+      if (!locatorLive) return;
+      locatorLive.invalidateSize({ animate: false });
+      applyLocatorView(locatorLive);
+    };
+    window.requestAnimationFrame(kick);
+    window.setTimeout(kick, 80);
+    window.setTimeout(kick, 240);
   }
 
   function ensureLocatorEngine() {
@@ -2717,9 +3511,11 @@ window.InfraGeoLayoutMode = (function () {
       boxZoom: false,
       keyboard: false,
       touchZoom: false,
+      maxZoom: LOCATOR_MAX_ZOOM,
+      minZoom: 5,
     });
     hideBrokenTiles(locatorEngine);
-    cloneBasemapTo(locatorEngine, { cors: true });
+    cloneBasemapTo(locatorEngine, { cors: true, maxZoom: LOCATOR_MAX_ZOOM, preferEsri: true });
     return locatorEngine;
   }
 
@@ -2761,15 +3557,10 @@ window.InfraGeoLayoutMode = (function () {
       img.src = safeCanvasDataUrl(canvas, "image/png") || "";
       return;
     }
-    const am = window.InfraGeoMap?.getAmazonasBounds?.();
     map.invalidateSize({ animate: false });
-    if (locatorCenter && Number.isFinite(locatorZoom)) {
-      map.setView(locatorCenter, locatorZoom, { animate: false });
-    } else if (am?.isValid?.()) {
-      map.fitBounds(am, { padding: [10, 10], animate: false, maxZoom: 7 });
-    }
+    applyLocatorView(map);
     updateLocatorLayers(map);
-    cloneVisibleLayersTo(map, { pickable: false, radiusBoost: 1 });
+    addLocatorDecorations(map);
     await waitForTiles(map, 2800);
     await wait(120);
     if (seq !== locatorSeq || !img.isConnected) return;
@@ -2807,7 +3598,7 @@ window.InfraGeoLayoutMode = (function () {
       .map(([id, label]) => {
         const on = !!document.getElementById(id)?.checked;
         return (
-          `<button type="button" class="layout-chip" data-flag="${id}" aria-pressed="${on}">` +
+          `<button type="button" class="layout-chip${on ? " is-on" : ""}" data-flag="${id}" aria-pressed="${on}">` +
           (on ? `<span class="layout-chip__check" aria-hidden="true">✓</span>` : "") +
           `${label}</button>`
         );
@@ -2896,7 +3687,6 @@ window.InfraGeoLayoutMode = (function () {
       mapCell.appendChild(loc);
       if (!exporting) {
         bindSheetOverlay(loc, "locator", { flag: "layout-show-locator" });
-        mountLocatorLive(loc);
       } else {
         const img = loc.querySelector("img");
         if (img) fillLocatorImage(img).catch(() => {});
@@ -2966,10 +3756,12 @@ window.InfraGeoLayoutMode = (function () {
       const mapItem =
         items.find((it) => it.id === keepAdjustId && it.type === "map") ||
         items.find((it) => it.type === "map" && it.visible !== false);
-      if (!mapItem) return;
-      adjustMapId = mapItem.id;
-      if (!mapInteractMode) mapInteractMode = "adjust";
-      window.setTimeout(() => mountAdjustLeaflet(mapItem), 40);
+      if (mapItem) {
+        adjustMapId = mapItem.id;
+        if (!mapInteractMode) mapInteractMode = "adjust";
+        window.setTimeout(() => mountAdjustLeaflet(mapItem), 40);
+      }
+      scheduleLocatorMount();
     });
   }
 
@@ -3182,7 +3974,7 @@ window.InfraGeoLayoutMode = (function () {
         unit: "mm",
         format: [preset.wMm, preset.hMm],
       });
-      const img = safeCanvasDataUrl(canvas, "image/jpeg", 0.92);
+      const img = safeCanvasDataUrl(canvas, "image/jpeg", 0.95);
       if (!img) throw new Error("Não foi possível gerar o PDF.");
       pdf.addImage(img, "JPEG", 0, 0, preset.wMm, preset.hMm);
       pdf.save(`infrageo-layout-${Date.now()}.pdf`);
@@ -3296,6 +4088,10 @@ window.InfraGeoLayoutMode = (function () {
     document.getElementById("btn-layout-layers-close")?.addEventListener("click", () => {
       setLayersPop(false);
     });
+    document.getElementById("btn-layout-box-select")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      startBoxSelect(selectedId);
+    });
     document.addEventListener("pointerdown", (ev) => {
       const pop = layersPop();
       if (pop && !pop.hidden) {
@@ -3325,10 +4121,7 @@ window.InfraGeoLayoutMode = (function () {
         const item = items.find((x) => x.id === keepId);
         if (item) mountAdjustLeaflet(item);
       }
-      const loc = document.querySelector(".layout-sheet__float--locator");
-      if (loc && !pageEl()?.classList.contains("is-exporting")) {
-        mountLocatorLive(loc);
-      }
+      scheduleLocatorMount();
       refreshMapSnapshots().catch(() => {});
     });
     document.getElementById("layout-layer-chips")?.addEventListener("click", async (ev) => {
@@ -3336,14 +4129,14 @@ window.InfraGeoLayoutMode = (function () {
       if (!btn) return;
       const id = btn.getAttribute("data-toggle-layer");
       const on = btn.getAttribute("aria-pressed") === "true";
-      await window.InfraGeoLayers?.setLayerVisible?.(id, !on, { fit: false });
-      renderAll();
-      const keepId = adjustMapId;
-      if (keepId != null) {
-        const item = items.find((x) => x.id === keepId);
-        if (item) mountAdjustLeaflet(item);
+      if (on) {
+        await window.InfraGeoLayers?.setLayerVisible?.(id, false, { fit: false });
+        if (String(selectedLayerId) === String(id)) selectedLayerId = null;
+        refreshSoloMap();
+        return;
       }
-      refreshMapSnapshots().catch(() => {});
+      await window.InfraGeoLayers?.setLayerVisible?.(id, true, { fit: false });
+      setSelectedLayer(id);
     });
     document.getElementById("layout-element-chips")?.addEventListener("click", (ev) => {
       const btn = ev.target.closest?.("[data-flag]");
@@ -3419,10 +4212,9 @@ window.InfraGeoLayoutMode = (function () {
         applyColorToSelected(btn.dataset.color);
       });
     });
-    document.getElementById("layout-layer-select")?.addEventListener("change", async (ev) => {
+    document.getElementById("layout-layer-select")?.addEventListener("change", (ev) => {
       const id = ev.target.value || null;
       setSelectedLayer(id);
-      if (id) await enableLayerForExport(id, true);
     });
     syncColorUi(featureColor);
     syncLayerSelectUi();
@@ -3490,5 +4282,5 @@ window.InfraGeoLayoutMode = (function () {
     });
   }
 
-  return { init, open, refreshMapSnapshots };
+  return { init, open, openWithSelection, refreshMapSnapshots };
 })();

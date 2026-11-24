@@ -634,7 +634,7 @@
     </div>
     <div class="layout-studio__pill layout-studio__top-actions">
       <button type="button" class="layout-studio__layers-btn" id="btn-layout-layers" aria-haspopup="dialog" aria-expanded="false" aria-controls="layout-layers-pop">
-        Camadas
+        Editar mapa
       </button>
       <button type="button" class="layout-studio__restore" id="btn-layout-recommended">Limpar</button>
       <button type="button" class="layout-studio__export-png" id="btn-layout-export-png">PNG</button>
@@ -650,14 +650,43 @@
     <section class="layout-studio__preview-col">
       <div class="layout-layers-pop" id="layout-layers-pop" hidden role="dialog" aria-labelledby="layout-layers-pop-title">
         <header class="layout-layers-pop__head">
-          <h3 id="layout-layers-pop-title">Camadas</h3>
+          <h3 id="layout-layers-pop-title">Editar mapa</h3>
           <button type="button" class="layout-layers-pop__close" id="btn-layout-layers-close" aria-label="Fechar">×</button>
         </header>
-        <p class="layout-studio__mini-label">Mapa base / satélite</p>
-        <div class="layout-studio__chips" id="layout-basemap-chips" role="group" aria-label="Mapa base"></div>
-        <ul class="layout-studio__layer-pills" id="layout-layer-chips"></ul>
-        <p class="layout-studio__mini-label">Extras</p>
-        <div class="layout-studio__chips" id="layout-element-chips" role="group" aria-label="Elementos da folha"></div>
+        <div class="layout-layers-select">
+          <button type="button" class="layout-layers-select__btn" id="btn-layout-box-select" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M4 4h6M4 4v6M20 4h-6M20 4v6M4 20h6M4 20v-6M20 20h-6M20 20v-6" />
+              <path d="M8 8h8v8H8z" />
+            </svg>
+            Selecionar no mapa
+          </button>
+        </div>
+        <div class="layout-layers-drawers">
+          <details class="layout-layers-drawer" id="layout-basemap-drawer">
+            <summary class="layout-layers-drawer__summary">
+              <span class="layout-layers-drawer__title">Satélite</span>
+              <span class="layout-layers-drawer__hint">Mapa base e imagem de satélite</span>
+              <span class="layout-layers-drawer__icon" aria-hidden="true"></span>
+            </summary>
+            <div class="layout-layers-drawer__body">
+              <p class="layout-studio__mini-label">Mapa base / satélite</p>
+              <div class="layout-studio__chips" id="layout-basemap-chips" role="group" aria-label="Mapa base"></div>
+            </div>
+          </details>
+          <details class="layout-layers-drawer" id="layout-overlays-drawer">
+            <summary class="layout-layers-drawer__summary">
+              <span class="layout-layers-drawer__title">Camadas</span>
+              <span class="layout-layers-drawer__hint">Sobreposições no mapa e extras</span>
+              <span class="layout-layers-drawer__icon" aria-hidden="true"></span>
+            </summary>
+            <div class="layout-layers-drawer__body">
+              <ul class="layout-studio__layer-pills" id="layout-layer-chips"></ul>
+              <p class="layout-studio__mini-label">Extras</p>
+              <div class="layout-studio__chips" id="layout-element-chips" role="group" aria-label="Elementos da folha"></div>
+            </div>
+          </details>
+        </div>
       </div>
       <div class="layout-studio__print-meta">
         <span class="layout-studio__print-badge">Área de impressão</span>
@@ -732,7 +761,7 @@
     <input type="checkbox" id="layout-show-legend" checked />
     <input type="checkbox" id="layout-show-scale" checked />
     <input type="checkbox" id="layout-show-north" checked />
-    <input type="checkbox" id="layout-show-locator" />
+    <input type="checkbox" id="layout-show-locator" checked />
     <input type="checkbox" id="layout-show-credits" checked />
     <input type="checkbox" id="layout-include-popups" />
     <input type="checkbox" id="layout-auto-toggle" checked />

@@ -352,7 +352,11 @@
   left: auto;
   right: 0.55rem;
   min-width: 240px;
-  max-height: none;
+  max-height: min(240px, calc(34vh - 7.5rem), 220px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .attr-pop__head {
@@ -430,7 +434,61 @@
 }
 
 .attr-table tbody tr.is-selected {
+  background: #fff6e5;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.attr-map-sel-tooltip {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.attr-map-sel-tooltip .leaflet-tooltip-tip {
+  display: none;
+}
+
+.attr-map-sel-tip {
+  display: inline-block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: #0A2E2C;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 16px rgba(10, 46, 44, 0.28);
+}
+
+.attr-map-sel-dot {
+  animation: attr-sel-pulse 1.6s ease-out infinite;
+}
+
+@keyframes attr-sel-pulse {
+  0% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.attr-sel-count {
+  font-size: 0.72rem;
+  font-weight: 750;
+  color: #0A2E2C;
   background: #dceee8;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.attr-chip-btn--clear {
+  border-color: #c5d4ce;
+  color: #4b635c;
 }
 
 .attr-table__empty {

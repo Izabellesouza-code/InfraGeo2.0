@@ -36,6 +36,10 @@ services:
         sync: false
       - key: AUTH_BOOTSTRAP_EMAIL
         value: admin@infrageo.local
+      - key: AUTH_ALLOWED_EMAIL_DOMAIN
+        sync: false
+      - key: AUTH_ALLOWED_EXTRA_EMAILS
+        sync: false
       - key: POSTGIS_SIMPLIFY_TOLERANCE
         value: "0.00035"
       - key: POSTGIS_GEOJSON_LIMIT

@@ -176,6 +176,11 @@
   cursor: crosshair !important;
 }
 
+.layout-el--map.is-selecting:not(.is-picking) .layout-map-live,
+.layout-el--map.is-selecting:not(.is-picking) .layout-map-live .leaflet-container {
+  cursor: grab !important;
+}
+
 .layout-tool__icon {
   font-size: 1rem;
   line-height: 1;
@@ -526,7 +531,9 @@
   top: 8px;
   z-index: 30;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
+  max-width: calc(100% - 16px);
   pointer-events: auto;
 }
 

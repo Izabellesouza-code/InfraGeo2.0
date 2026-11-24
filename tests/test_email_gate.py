@@ -1,26 +1,39 @@
 import pytest
 
+from app.config import get_settings
 from app.core.exceptions import WebGISException
-from app.services.auth_service import ALLOWED_EMAIL_DOMAIN, is_allowed_email, principal_from_token
+from app.services.auth_service import is_allowed_email, principal_from_token
+
+DOMAIN = "allowed.test"
+EXTRA = "guest@extra.test"
+
+
+@pytest.fixture(autouse=True)
+def allowlist_env(monkeypatch):
+    monkeypatch.setenv("AUTH_ALLOWED_EMAIL_DOMAIN", DOMAIN)
+    monkeypatch.setenv("AUTH_ALLOWED_EXTRA_EMAILS", EXTRA)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _ok(local: str = "pessoa") -> str:
-    return f"{local}@{ALLOWED_EMAIL_DOMAIN}"
+    return f"{local}@{DOMAIN}"
 
 
-def test_allows_consorcio_domain():
+def test_allows_configured_domain_and_extra():
     assert is_allowed_email(f"  {_ok()} ")
     assert is_allowed_email(_ok("NOME.SOBRENOME").upper())
-    assert is_allowed_email("  SANDRO@UNICACONSULTORES.COM.BR ")
-    assert not is_allowed_email("outro@unicaconsultores.com.br")
+    assert is_allowed_email(f"  {EXTRA.upper()} ")
+    assert not is_allowed_email("outro@extra.test")
 
 
 def test_rejects_other_domains():
     assert not is_allowed_email("user@gmail.com")
-    assert not is_allowed_email(f"pessoa@{ALLOWED_EMAIL_DOMAIN.removesuffix('.br')}")
-    assert not is_allowed_email(ALLOWED_EMAIL_DOMAIN)
+    assert not is_allowed_email(f"pessoa@{DOMAIN.removesuffix('.test')}")
+    assert not is_allowed_email(DOMAIN)
     assert not is_allowed_email("")
-    assert not is_allowed_email(f"@{ALLOWED_EMAIL_DOMAIN}")
+    assert not is_allowed_email(f"@{DOMAIN}")
 
 
 def test_guest_token_payload_builds_principal():

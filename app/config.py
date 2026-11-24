@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     # Obrigatório via AUTH_BOOTSTRAP_PASSWORD no .env (sem default no código)
     auth_bootstrap_password: str = ""
     auth_bootstrap_email: str = "admin@infrageo.local"
+    auth_allowed_email_domain: str = ""
+    auth_allowed_extra_emails: str = ""
 
     # URL pública para links de redefinição de senha (ex.: http://127.0.0.1:8000)
     app_public_url: str = ""
@@ -104,6 +106,14 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def allowed_extra_email_set(self) -> frozenset:
+        return frozenset(
+            e.strip().lower()
+            for e in (self.auth_allowed_extra_emails or "").split(",")
+            if e.strip()
+        )
 
     @property
     def max_upload_bytes(self) -> int:

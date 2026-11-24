@@ -32,6 +32,8 @@ Mantenha o Web Service com `DATABASE_URL` (Neon) e:
 | `CORS_ORIGIN_REGEX` | `https://.*\.vercel\.app$` |
 | `CORS_ORIGINS` | `https://seu-app.vercel.app` |
 | `FRONTEND_URL` | `https://seu-app.vercel.app` (opcional: `/` no Render redireciona para a Vercel) |
+| `AUTH_ALLOWED_EMAIL_DOMAIN` | domínio de e-mail autorizado (só no painel do Render, não no Git) |
+| `AUTH_ALLOWED_EXTRA_EMAILS` | e-mails extras, separados por vírgula (só no painel do Render) |
 
 Health: `https://infrageo2-0.onrender.com/api/health`
 

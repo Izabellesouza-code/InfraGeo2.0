@@ -46,11 +46,18 @@ def map_config() -> dict:
                 "maxZoom": 19,
             },
             {
+                "id": "sentinel-2",
+                "name": "Sentinel-2",
+                "url": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg",
+                "attribution": "Sentinel-2 cloudless &copy; EOX / ESA",
+                "maxZoom": 14,
+            },
+            {
                 "id": "google-earth",
                 "name": "Google Earth",
                 "url": "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
                 "attribution": "&copy; Google",
-                "maxZoom": 21,
+                "maxZoom": 16,
                 "subdomains": ["0", "1", "2", "3"],
             },
             {

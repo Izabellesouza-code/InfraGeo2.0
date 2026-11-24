@@ -7,6 +7,13 @@
     data-zoom="{{ zoom }}"
     aria-label="Mapa geográfico do Amazonas"
   ></div>
+  <div id="map-sat-wait" class="map-sat-wait" hidden aria-live="polite">
+    <span class="map-sat-wait__spin" aria-hidden="true"></span>
+    <p>Carregando imagem nítida do satélite…</p>
+  </div>
+  <div id="map-zoom-limit" class="map-zoom-limit" hidden role="status" aria-live="polite">
+    Limite de zoom excedido. Não há imagem de satélite neste nível.
+  </div>
 
   <div class="map-overlay map-overlay--tr">
     <div class="basemap-tab">

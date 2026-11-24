@@ -173,6 +173,7 @@ window.InfraGeoChrome = (function () {
       "Esri Streets": "Ruas",
       OpenStreetMap: "Mapa (ruas)",
       "Satélite (Esri)": "Satélite (Esri)",
+      "Sentinel-2": "Sentinel-2",
       "Google Earth": "Satélite (Google)",
       "Esri Topográfico": "Terreno",
       OpenTopoMap: "Relevo",

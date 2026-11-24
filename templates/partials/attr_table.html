@@ -45,7 +45,9 @@
       <div class="attr-toolbar__left">
         <span id="attr-table-count" class="attr-panel__count">0</span>
         <span class="attr-toolbar__label">registros</span>
+        <span id="attr-sel-count" class="attr-sel-count" hidden>0 selecionados</span>
         <button type="button" class="attr-chip-btn" id="btn-attr-filters">Filtros</button>
+        <button type="button" class="attr-chip-btn attr-chip-btn--clear" id="btn-attr-clear-sel" hidden>Limpar seleção</button>
       </div>
       <div class="attr-toolbar__right">
         <label class="attr-search">
@@ -62,10 +64,22 @@
         <button type="button" class="attr-icon-btn" id="btn-attr-more" title="Mais opções" aria-label="Mais opções" hidden>⋯</button>
       </div>
       <div id="attr-help-pop" class="attr-pop attr-pop--help" hidden>
-        Clique numa linha para localizar no mapa. Use o filtro para buscar texto em qualquer coluna. Exportar baixa os registros visíveis (CSV, Excel ou GeoJSON).
+        Clique nas linhas para selecionar (várias ao mesmo tempo). Shift+clique marca um intervalo. Limpar seleção desfaz. Exportar usa as linhas marcadas; se nada estiver marcado, baixa os registros visíveis.
       </div>
       <div id="attr-export-pop" class="attr-pop attr-pop--export" hidden role="menu" aria-label="Exportar tabela">
         <p class="attr-pop__head">Exportar registros visíveis</p>
+        <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="map">
+          <span class="layer-kebab-item__copy">
+            <span class="layer-kebab-item__title">Exportar mapa</span>
+            <span class="layer-kebab-item__hint">Exporta como mapa a seleção marcada na tabela</span>
+          </span>
+        </button>
+        <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="shp">
+          <span class="layer-kebab-item__copy">
+            <span class="layer-kebab-item__title">Shapefile (.zip)</span>
+            <span class="layer-kebab-item__hint">Feições selecionadas para GIS (QGIS, ArcGIS)</span>
+          </span>
+        </button>
         <button type="button" class="layer-kebab-item" role="menuitem" data-attr-export="csv">
           <span class="layer-kebab-item__copy">
             <span class="layer-kebab-item__title">CSV</span>

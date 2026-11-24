@@ -9,6 +9,72 @@
   grid-row: 1;
 }
 
+.map-sat-wait {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 32, 0.78);
+  color: #f8fafc;
+  font-family: Manrope, sans-serif;
+  font-size: 13px;
+  font-weight: 650;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 32, 0.22);
+}
+
+.map-sat-wait[hidden] {
+  display: none !important;
+}
+
+.map-sat-wait p {
+  margin: 0;
+}
+
+.map-sat-wait__spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(248, 250, 252, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: map-sat-spin 0.7s linear infinite;
+}
+
+@keyframes map-sat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.map-zoom-limit {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 26;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 32, 0.86);
+  color: #f8fafc;
+  font-family: Manrope, sans-serif;
+  font-size: 13px;
+  font-weight: 650;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 32, 0.22);
+  text-align: center;
+  max-width: min(92%, 420px);
+}
+
+.map-zoom-limit[hidden] {
+  display: none !important;
+}
+
 /* Trava o mapa DENTRO da coluna do grid — sobrescreve leftovers de export (fixed/left). */
 .map-area > #map.map-canvas,
 .map-area > #map.leaflet-container {
@@ -104,4 +170,19 @@
   color: var(--text-muted);
   font-weight: 600;
   width: 40%;
+}
+
+/* Leaflet marca tile falho como "loaded" e o Chrome desenha o losango. Nunca exibir. */
+.leaflet-container img.leaflet-tile.leaflet-tile-error,
+.leaflet-container img.leaflet-tile[data-ig-empty="1"],
+.leaflet-tile-pane img.leaflet-tile-error {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  background: none !important;
 }

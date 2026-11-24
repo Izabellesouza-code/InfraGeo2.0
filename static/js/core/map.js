@@ -14,24 +14,116 @@ window.InfraGeoMap = (function () {
   const EMPTY_TILE =
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
+  const SAT_ZOOM_CAP = 16;
+
+  function zoomLimitBox() {
+    return document.getElementById("map-zoom-limit");
+  }
+
+  function notifyZoomLimit(show) {
+    const box = zoomLimitBox();
+    if (!box) return;
+    const on = show !== false;
+    box.hidden = !on;
+    box.setAttribute("aria-busy", on ? "true" : "false");
+    if (on) {
+      window.clearTimeout(notifyZoomLimit._t);
+      notifyZoomLimit._t = window.setTimeout(() => {
+        if (map && map.getZoom() < map.getMaxZoom() - 0.05) box.hidden = true;
+      }, 4000);
+    }
+  }
+
+  function layerMaxZoom(layer) {
+    const found = [];
+    const walk = (lyr) => {
+      if (!lyr) return;
+      if (typeof lyr.eachLayer === "function") {
+        lyr.eachLayer(walk);
+        return;
+      }
+      const z = Number(lyr.options?.maxZoom);
+      if (Number.isFinite(z)) found.push(z);
+    };
+    walk(layer);
+    if (!found.length && Number.isFinite(layer?.options?.maxZoom)) {
+      found.push(layer.options.maxZoom);
+    }
+    return found.length ? Math.max(...found) : SAT_ZOOM_CAP;
+  }
+
+  function applyBasemapZoomCap() {
+    if (!map) return;
+    const name = getActiveBasemapName() || "";
+    const layer = basemapControls[name];
+    let cap = layerMaxZoom(layer);
+    if (/google|earth|sentinel|satél|satelit/i.test(name)) {
+      cap = Math.min(cap, SAT_ZOOM_CAP);
+    }
+    map.setMaxZoom(cap);
+    if (map.getZoom() > cap) {
+      map.setZoom(cap, { animate: false });
+      notifyZoomLimit(true);
+    }
+  }
+
+  function bindZoomLimit(target) {
+    if (!target?.on) return;
+    const atCap = () =>
+      Number.isFinite(target.getMaxZoom?.()) &&
+      target.getZoom() >= target.getMaxZoom() - 0.05;
+    target.on("zoomend", () => notifyZoomLimit(atCap()));
+    target.getContainer?.()?.addEventListener(
+      "wheel",
+      (ev) => {
+        if (ev.deltaY < 0 && atCap()) notifyZoomLimit(true);
+      },
+      { passive: true }
+    );
+    target.on("zoomstart", () => {
+      if (atCap()) notifyZoomLimit(true);
+    });
+  }
+
+  function bindMapSatWait(target) {
+    const box = document.getElementById("map-sat-wait");
+    if (!box || !target?.on) return;
+    const show = () => {
+      box.hidden = false;
+      box.setAttribute("aria-busy", "true");
+    };
+    const hide = () => {
+      box.hidden = true;
+      box.setAttribute("aria-busy", "false");
+    };
+    let hideTimer = 0;
+    const showSoon = () => {
+      show();
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(hide, 10000);
+    };
+    const hideSoon = () => {
+      window.clearTimeout(hideTimer);
+      hide();
+    };
+    const watchLayer = (layer) => {
+      if (!layer) return;
+      if (typeof layer.eachLayer === "function") {
+        layer.eachLayer(watchLayer);
+        return;
+      }
+      if (typeof layer.on !== "function") return;
+      layer.on("loading", showSoon);
+      layer.on("load", hideSoon);
+    };
+    target.on("loading", showSoon);
+    target.on("load", hideSoon);
+    target.on("layeradd", (ev) => watchLayer(ev.layer));
+    target.eachLayer?.(watchLayer);
+  }
+
   function silenceBrokenTile(img) {
-    if (!img || !img.classList) return;
-    img.classList.add("leaflet-tile-error");
-    img.alt = "";
-    img.removeAttribute("title");
-    img.style.display = "none";
-    img.style.visibility = "hidden";
-    img.style.opacity = "0";
-    try {
-      if (img.getAttribute("src") !== EMPTY_TILE) img.src = EMPTY_TILE;
-    } catch {
-      /* ignore */
-    }
-    try {
-      img.remove();
-    } catch {
-      /* ignore */
-    }
+    hideBadTile(img);
   }
 
   function watchLeafletTile(img) {
@@ -69,6 +161,41 @@ window.InfraGeoMap = (function () {
   });
   tileWatcher.observe(document.documentElement, { childList: true, subtree: true });
   document.querySelectorAll("img.leaflet-tile").forEach(watchLeafletTile);
+  window.setInterval(() => {
+    document.querySelectorAll("img.leaflet-tile").forEach((img) => {
+      const src = String(img.currentSrc || img.src || "");
+      const zMatch = src.match(/[?&]z=(\d+)/i);
+      const googleTooClose =
+        /google\.com\/vt/i.test(src) && zMatch && Number(zMatch[1]) > SAT_ZOOM_CAP;
+      if (googleTooClose || (img.complete && img.naturalWidth === 0)) {
+        silenceBrokenTile(img);
+        if (googleTooClose) notifyZoomLimit(true);
+      }
+    });
+  }, 200);
+
+  function hideBadTile(tile) {
+    if (!tile || !tile.style) return;
+    tile.classList.add("leaflet-tile-error");
+    tile.dataset.igEmpty = "1";
+    tile.alt = "";
+    tile.removeAttribute("title");
+    tile.style.setProperty("display", "none", "important");
+    tile.style.setProperty("visibility", "hidden", "important");
+    tile.style.setProperty("opacity", "0", "important");
+    tile.style.setProperty("width", "0", "important");
+    tile.style.setProperty("height", "0", "important");
+  }
+
+  if (window.L?.GridLayer?.prototype?._tileReady) {
+    const origReady = L.GridLayer.prototype._tileReady;
+    L.GridLayer.prototype._tileReady = function (coords, err, tile) {
+      if (tile && (err || (tile.complete && tile.naturalWidth < 2))) {
+        hideBadTile(tile);
+      }
+      return origReady.call(this, coords, err, tile);
+    };
+  }
 
   if (window.L?.TileLayer) {
     const origInit = L.TileLayer.prototype.initialize;
@@ -77,10 +204,46 @@ window.InfraGeoMap = (function () {
       opts.errorTileUrl = EMPTY_TILE;
       return origInit.call(this, url, opts);
     };
+    const origOnError = L.TileLayer.prototype._tileOnError;
+    L.TileLayer.prototype._tileOnError = function (done, tile, e) {
+      hideBadTile(tile);
+      if (typeof done === "function") done(e, tile);
+      else if (typeof origOnError === "function") origOnError.call(this, done, tile, e);
+    };
+    const origCreateTile = L.TileLayer.prototype.createTile;
+    L.TileLayer.prototype.createTile = function (coords, done) {
+      const tile = origCreateTile.call(this, coords, (err, t) => {
+        const el = t || tile;
+        if (err || (el && el.complete && el.naturalWidth < 2)) hideBadTile(el);
+        if (typeof done === "function") done(err, t);
+      });
+      tile.addEventListener("error", () => hideBadTile(tile), true);
+      tile.addEventListener(
+        "load",
+        () => {
+          if (tile.naturalWidth < 2) hideBadTile(tile);
+        },
+        true
+      );
+      return tile;
+    };
+    L.TileLayer.addInitHook(function () {
+      this.options.errorTileUrl = EMPTY_TILE;
+      this.on("tileerror", (ev) => hideBadTile(ev && ev.tile));
+      const origGetTileUrl = this.getTileUrl.bind(this);
+      this.getTileUrl = function (coords) {
+        const template = String(this._url || "");
+        if (/google\.com/i.test(template) && Number(coords?.z) >= SAT_ZOOM_CAP + 1) {
+          notifyZoomLimit(true);
+          return EMPTY_TILE;
+        }
+        return origGetTileUrl(coords);
+      };
+    });
   }
   if (window.L?.Map) {
     L.Map.addInitHook(function () {
-      this.on("tileerror", (ev) => silenceBrokenTile(ev && ev.tile));
+      this.on("tileerror", (ev) => hideBadTile(ev && ev.tile));
     });
   }
 
@@ -112,6 +275,10 @@ window.InfraGeoMap = (function () {
       "Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, TomTom, Garmin, FAO, NPS";
     const esriSatAttr =
       "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics";
+    const esriSatUrl =
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    const sentinelUrl =
+      "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg";
 
     const defaultBasemaps = [
       {
@@ -164,10 +331,17 @@ window.InfraGeoMap = (function () {
         maxZoom: 19,
       },
       {
+        name: "Sentinel-2",
+        url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg",
+        attribution:
+          "Sentinel-2 cloudless &copy; <a href=\"https://s2maps.eu\">EOX</a> / ESA",
+        maxZoom: 14,
+      },
+      {
         name: "Google Earth",
         url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         attribution: "&copy; Google",
-        maxZoom: 21,
+        maxZoom: 16,
         subdomains: ["0", "1", "2", "3"],
       },
     ];
@@ -215,19 +389,44 @@ window.InfraGeoMap = (function () {
       });
     }
 
+    const SAT_ZOOM_CAP = 16;
+    const isSatName = (name, url) =>
+      /google|earth|sentinel|satél|satelit|s2cloudless|world_imagery/i.test(
+        `${name || ""} ${url || ""}`
+      );
     const basemapControlsLocal = {};
     basemapDefs.forEach((bm) => {
-      const native = bm.maxZoom || 19;
+      let native = bm.maxZoom || 19;
+      if (isSatName(bm.name, bm.url)) native = Math.min(native, SAT_ZOOM_CAP);
       const opts = {
         attribution: bm.attribution,
-        maxZoom: Math.max(native, 22),
+        maxZoom: native,
         maxNativeZoom: native,
         detectRetina: false,
         errorTileUrl: EMPTY_TILE,
       };
       if (bm.subdomains) opts.subdomains = bm.subdomains;
       let tile;
-      if (Array.isArray(bm.stack) && bm.stack.length) {
+      const sentinelLike =
+        /sentinel/i.test(String(bm.name || "")) ||
+        /s2cloudless|eox\.at/i.test(String(bm.url || ""));
+      if (sentinelLike) {
+        tile = L.layerGroup([
+          L.tileLayer(sentinelUrl, {
+            ...opts,
+            maxZoom: 14,
+            maxNativeZoom: 14,
+          }),
+          L.tileLayer(esriSatUrl, {
+            attribution: esriSatAttr,
+            minZoom: 14,
+            maxZoom: SAT_ZOOM_CAP,
+            maxNativeZoom: SAT_ZOOM_CAP,
+            detectRetina: false,
+            errorTileUrl: EMPTY_TILE,
+          }),
+        ]);
+      } else if (Array.isArray(bm.stack) && bm.stack.length) {
         tile = L.layerGroup(
           bm.stack.map((u) => L.tileLayer(u, { ...opts }))
         );
@@ -248,6 +447,9 @@ window.InfraGeoMap = (function () {
     });
 
     map.on("tileerror", (ev) => silenceBrokenTile(ev && ev.tile));
+    bindMapSatWait(map);
+    bindZoomLimit(map);
+    applyBasemapZoomCap();
 
     // Restringe a navegação ao Amazonas desde o início
     applyAmazonasMapLimits({ fit: true, animate: false });
@@ -672,6 +874,7 @@ window.InfraGeoMap = (function () {
     });
     stripBasemapTiles(layer);
     if (!map.hasLayer(layer)) layer.addTo(map);
+    applyBasemapZoomCap();
   }
 
   function setBasemapPreset(preset) {
@@ -696,11 +899,24 @@ window.InfraGeoMap = (function () {
     });
     stripBasemapTiles(layer);
     if (layer && !map.hasLayer(layer)) layer.addTo(map);
+    applyBasemapZoomCap();
   }
 
   function zoomBy(delta) {
     if (!map) return;
-    map.setZoom(map.getZoom() + delta);
+    const max = map.getMaxZoom();
+    const z = map.getZoom();
+    if (delta > 0 && z >= max - 0.05) {
+      notifyZoomLimit(true);
+      return;
+    }
+    const next = z + delta;
+    if (next > max) {
+      map.setZoom(max);
+      notifyZoomLimit(true);
+      return;
+    }
+    map.setZoom(next);
   }
 
   function locateUser() {
@@ -737,6 +953,7 @@ window.InfraGeoMap = (function () {
     getBasemapNames,
     getActiveBasemapName,
     zoomBy,
+    notifyZoomLimit,
     locateUser,
     getLayerControl: () => layerControl,
   };

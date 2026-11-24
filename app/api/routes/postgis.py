@@ -4,12 +4,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
-from app.api.deps import require_upload_user
+from app.api.deps import get_current_user, get_export_service, require_upload_user
 from app.config import get_settings
 from app.core.exceptions import WebGISException
 from app.services import audit_service
 from app.services.auth_service import AuthPrincipal
+from app.services.export_service import ExportService
 from app.services.postgis_service import PostGISService
 from app.utils.file_utils import ensure_directories, unique_filename
 
@@ -288,3 +291,23 @@ async def upload_shapefile(
 
         shutil.rmtree(upload_dir, ignore_errors=True)
         raise WebGISException(f"Erro no upload: {exc}", status_code=500) from exc
+
+
+class SelectedShpExportIn(BaseModel):
+    name: str = Field(default="selecao", max_length=80)
+    collection: dict[str, Any]
+
+
+@router.post("/export-shp")
+def export_selected_shapefile(
+    payload: SelectedShpExportIn,
+    _user: AuthPrincipal = Depends(get_current_user),
+    exporter: ExportService = Depends(get_export_service),
+) -> FileResponse:
+    """Baixa a seleção do mapa de exportação como shapefile (.zip)."""
+    path = exporter.export_geojson_shapefile(payload.name, payload.collection)
+    return FileResponse(
+        path,
+        media_type="application/zip",
+        filename=path.name,
+    )

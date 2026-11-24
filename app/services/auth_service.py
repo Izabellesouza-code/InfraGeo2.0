@@ -24,9 +24,6 @@ from app.services.mail_service import send_email
 
 settings = get_settings()
 
-ALLOWED_EMAIL_DOMAIN = "consorciospu.com.br"
-ALLOWED_EXTRA_EMAILS = frozenset({"sandro@unicaconsultores.com.br"})
-
 RESET_TOKEN_HOURS = 1
 RESET_TOKEN_DIGITS = 6
 GENERIC_RESET_MSG = (
@@ -141,10 +138,13 @@ def is_allowed_email(email: str) -> bool:
     raw = (email or "").strip().lower()
     if "@" not in raw or " " in raw:
         return False
-    if raw in ALLOWED_EXTRA_EMAILS:
+    cfg = get_settings()
+    extras = cfg.allowed_extra_email_set
+    if raw in extras:
         return True
     local, _, domain = raw.partition("@")
-    return bool(local) and domain == ALLOWED_EMAIL_DOMAIN
+    allowed = (cfg.auth_allowed_email_domain or "").strip().lower()
+    return bool(local) and bool(allowed) and domain == allowed
 
 
 def entrar_com_email(db: Session, email: str) -> TokenResponse:

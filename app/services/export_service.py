@@ -1,13 +1,16 @@
-"""Exportação de camadas para arquivos (GeoJSON / GeoPackage)."""
+"""Exportação de camadas para arquivos (GeoJSON / GeoPackage / Shapefile)."""
 
 import json
+import re
+import tempfile
+import zipfile
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.core.exceptions import UnsupportedFormatError
+from app.core.exceptions import UnsupportedFormatError, WebGISException
 from app.services.feature_service import FeatureService
 from app.utils.file_utils import export_path, ensure_directories
 
@@ -57,3 +60,51 @@ class ExportService:
         path = export_path(f"{layer_name}.gpkg")
         gdf.to_file(path, driver="GPKG")
         return path
+
+    def export_geojson_shapefile(self, name: str, collection: dict[str, Any]) -> Path:
+        """Gera um ZIP com shapefile a partir de um FeatureCollection."""
+        ensure_directories()
+        features = collection.get("features") if isinstance(collection, dict) else None
+        if not features:
+            raise WebGISException("Nenhuma feição selecionada para exportar.", status_code=400)
+        try:
+            import geopandas as gpd
+            from shapely.geometry import shape
+        except ImportError as exc:
+            raise UnsupportedFormatError("shp (geopandas não instalado)") from exc
+
+        rows = []
+        for feat in features:
+            geom = feat.get("geometry")
+            if not geom:
+                continue
+            props = dict(feat.get("properties") or {})
+            props.pop("_layerId", None)
+            try:
+                props["geometry"] = shape(geom)
+            except Exception:  # noqa: BLE001
+                continue
+            rows.append(props)
+        if not rows:
+            raise WebGISException("A seleção não tem geometria válida.", status_code=400)
+
+        gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
+        types = gdf.geometry.geom_type.dropna()
+        if types.empty:
+            raise WebGISException("A seleção não tem geometria válida.", status_code=400)
+        main_type = types.mode().iloc[0]
+        gdf = gdf[gdf.geometry.geom_type == main_type].copy()
+
+        stem = re.sub(r"[^A-Za-z0-9_-]+", "_", (name or "selecao").strip())[:40] or "selecao"
+        with tempfile.TemporaryDirectory(prefix="infrageo_shp_") as tmp:
+            folder = Path(tmp)
+            shp_path = folder / f"{stem}.shp"
+            gdf.to_file(shp_path, driver="ESRI Shapefile", encoding="utf-8")
+            zip_path = export_path(f"{stem}.zip")
+            if zip_path.exists():
+                zip_path.unlink()
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for child in folder.iterdir():
+                    if child.is_file():
+                        zf.write(child, child.name)
+        return zip_path
