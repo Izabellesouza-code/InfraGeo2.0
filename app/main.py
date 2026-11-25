@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -64,6 +64,12 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    """Atalhos do Windows/Chrome pedem /favicon.ico na raiz, nao o SVG."""
+    return FileResponse(BASE_DIR / "static" / "img" / "favicon.ico", media_type="image/x-icon")
 _upload_dir = BASE_DIR / settings.upload_dir
 _upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_upload_dir)), name="uploads")
