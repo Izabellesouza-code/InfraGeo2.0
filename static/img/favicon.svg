@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="InfraGEO">
+  <rect width="64" height="64" rx="14" fill="#f4f7f5"/>
+  <path d="M13 22c2-9 16-14 29-8 9 5 12 14 6 22 6 8-2 17-14 18-13 1-23-7-23-19 0-5 1-9 2-13z" fill="#163d22" opacity=".22" transform="translate(1.4 2.2)"/>
+  <path d="M12 20c3-10 17-14 30-8 9 5 12 14 5 22 6 8-3 17-15 18C19 53 8 45 9 33c0-5 1-9 3-13z" fill="#1f6b32"/>
+  <path d="M16 21c6-8 18-11 27-5 6 4 7 12 2 18-3-4-11-7-19-3-5-3-8-7-10-10z" fill="#3f9a45"/>
+  <path d="M18 35c10-6 22-2 28 7-6 6-18 8-26 3-4-3-4-7-2-10z" fill="#16602c"/>
+  <path d="M22 27c8 1 14-3 21 1-4 6-10 10-17 8-5-3-6-7-4-9z" fill="#6ec3c9"/>
+  <path d="M15 43c9-3 19 2 30-3" fill="none" stroke="#e8edf0" stroke-width="2" stroke-linecap="round"/>
+  <path d="M24 12c4 0 7 3 7 7 0 6-7 13-7 13s-7-7-7-13c0-4 3-7 7-7z" fill="#e8a317"/>
+  <circle cx="24" cy="19" r="2.6" fill="#fff"/>
+</svg>
